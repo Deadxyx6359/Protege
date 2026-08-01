@@ -1,0 +1,68 @@
+# Protege dependencies.
+#
+# POLICY: every dependency is justified below. Anything that performs network
+# I/O as part of normal operation is rejected outright. Installing these
+# packages is the ONLY step in this project's lifecycle that touches the
+# network; after install, `verify_offline.py` proves the runtime import graph
+# contains no networking module.
+#
+# Versions are pinned exactly. Do not relax to ranges -- an unpinned transitive
+# upgrade is an unaudited dependency.
+
+# --- Runtime -----------------------------------------------------------------
+
+# llama-cpp-python: Python bindings over llama.cpp. This is the entire inference
+# stack. Chosen over Ollama/LM Studio because those are servers -- they open
+# sockets and expose HTTP endpoints. This binds llama.cpp as an in-process
+# shared library via ctypes; no socket is ever created.
+#
+# 0.3.34 rather than the originally-planned 0.3.2: 0.3.2 ships no prebuilt
+# Windows wheel and this machine has no C compiler, while 0.3.34 has a CUDA
+# wheel on the cu124 index. Install with:
+#   pip install llama-cpp-python==0.3.34 --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124 --prefer-binary
+#
+# The CUDA wheel needs the CUDA 12 runtime DLLs, which the two nvidia-* packages
+# below provide. They land under site-packages/nvidia/..., and cudart64_12.dll,
+# cublas64_12.dll and cublasLt64_12.dll must be copied next to llama_cpp/lib/
+# llama.dll (one-time step; the README shows the exact command).
+llama-cpp-python==0.3.34
+
+# NOTE: llama_cpp.server is a FastAPI/uvicorn HTTP server that ships inside the
+# package. We never import it. verify_offline.py asserts it is unreachable from
+# our import graph. Do not `pip install llama-cpp-python[server]`.
+#
+# NOTE: llama_cpp.Llama.from_pretrained() downloads from HuggingFace Hub.
+# We never call it. Models are loaded from local paths only.
+
+# CUDA 12 runtime redistributables for the wheel above. Local DLLs only; the
+# packages contain no Python code that runs in Protege.
+nvidia-cuda-runtime-cu12
+nvidia-cublas-cu12
+
+# argon2-cffi: argon2id password hashing for the launch PIN. Reference
+# implementation of the PHC winner. Pure local computation, no I/O.
+argon2-cffi==23.1.0
+
+# PyYAML: parses YAML frontmatter in vault markdown notes. Obsidian writes YAML
+# frontmatter, so we must read the same dialect. Used exclusively via
+# yaml.safe_load -- never yaml.load -- so no arbitrary object construction.
+# Local parsing only, no I/O.
+PyYAML==6.0.2
+
+# --- Development only (not required to run Protege) ---------------------------
+
+# pytest: test runner. Not imported by the application.
+pytest==8.3.3
+
+# --- Deliberately NOT used ----------------------------------------------------
+#
+# requests / httpx / aiohttp / urllib3  -- networking, by definition
+# huggingface-hub                       -- downloads models at runtime
+# sentence-transformers / torch         -- pulls model weights over the network
+#                                          on first use; retrieval uses a pure
+#                                          Python BM25 implementation instead
+# fastapi / uvicorn / flask             -- HTTP servers
+# sentry-sdk / posthog / any analytics  -- telemetry
+# tkinter theming packages (ttkbootstrap, sv-ttk, customtkinter)
+#                                       -- the UI is deliberately unstyled, and
+#                                          several of these fetch remote assets

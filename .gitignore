@@ -1,0 +1,37 @@
+# Model weights. The 24B alone is 13 GB, which is well past what GitHub will
+# take and is not source in any case -- the README says where to get one.
+models/
+*.gguf
+*.bin
+*.safetensors
+
+# Vaults. A vault holds the user's own notes, their manifest, their PIN hash
+# and their transcripts. None of it belongs in a public repository, and the
+# default vault lives outside this tree anyway -- this is belt and braces for
+# anyone who puts one inside it.
+vault/
+vaults/
+.protege/
+*.transcript.md
+
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+.venv/
+venv/
+env/
+
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Scratch output from the screenshot and benchmark harnesses.
+*.bmp
+scratch/

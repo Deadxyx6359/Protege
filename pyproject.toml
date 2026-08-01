@@ -1,0 +1,19 @@
+# Protege -- local, offline AI assistant with a knowledge lock system.
+#
+# Deliberately not published anywhere. There is no build backend configured and
+# no upload target; this file exists to configure pytest and to declare the
+# supported Python version in one place.
+
+[project]
+name = "protege"
+version = "0.1.0"
+description = "Local offline AI assistant gated by a knowledge lock system"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Import the package from the repo root without an install step. Protege is run
+# from a checkout, not from site-packages.
+pythonpath = ["."]
+addopts = "-q --strict-markers"
+filterwarnings = ["error::DeprecationWarning:protege.*"]
