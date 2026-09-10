@@ -211,7 +211,7 @@ Terminating loop with a hard step budget; prompted tool-call protocol accepting
 the shapes models actually emit; refusals end a run rather than spiralling;
 `Trace` event feed; cooperative cancellation.
 
-**A4 ▶ Teams and roles** — `core/agents/team.py`, `roles.py`
+**A4 ✅ Teams and roles** — `core/agents/team.py`, `roles.py`
 Named teams (research, software) with typed roles, a coordinator that routes a
 task to the right member, and agent-to-agent messages emitted as `MESSAGE`
 events with `to` set. Roles carry *narrowed* tool sets — a reviewer that cannot
@@ -221,7 +221,7 @@ Codex's agent-interaction view currently renders an empty graph.
 *Done when:* a scripted two-agent run produces a traceable hand-off, a member
 cannot exceed the team's policy, and a failing member does not hang the team.
 
-**A5 ○ UI bridge** — `ui/bridge/`
+**A5 ✅ UI bridge** — `ui/bridge/`
 Expose to QML: the capability catalogue and grant/revoke; the trace as a live
 model; the confirm callback wired to a real dialog; the audit log as a list.
 *Why here:* until `ToolContext.confirm` is wired, every write, send and submit
@@ -233,7 +233,7 @@ Qt signals — `Trace.listen` fires on the worker thread. The Research view
 exists and deliberately shows no source or agent panels until a bridge with
 real data backs them; do not add panels ahead of the data.
 
-**A6 ○ Scheduler** — `core/schedule/`
+**A6 ▶ Scheduler** — `core/schedule/`
 Time-based (daily/weekly/monthly/cron/custom) and event-based triggers, durable
 across restarts, each job running under its own scoped policy. Missed jobs
 resolve explicitly — run late or skip — never silently.
@@ -366,9 +366,9 @@ and resumable.
 | A | A1 Permissions | ✅ |
 | A | A2 Tools | ✅ |
 | A | A3 Agent loop | ✅ |
-| A | A4 Teams and roles | ▶ next |
-| A | A5 UI bridge | ○ |
-| A | A6 Scheduler | ○ |
+| A | A4 Teams and roles | ✅ |
+| A | A5 UI bridge | ✅ |
+| A | A6 Scheduler | ▶ next |
 | A | A7 Security audit | ○ |
 | A | A8 Coding on the gate | ○ |
 | B | B1–B6 Second brain | ○ |
@@ -376,7 +376,7 @@ and resumable.
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1115 passed, 2 skipped, 0 failed; `verify_offline.py`
+**Tests at last commit:** 1158 passed, 2 skipped, 0 failed; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

@@ -179,6 +179,66 @@ Do not add a "don't ask again" checkbox for `irreversible` capabilities. The
 grant already says the agent *may try*; the confirmation is a separate promise
 and the user asked for it explicitly.
 
+### 3.3b The bridges are now built (A5)
+
+`protege/ui/bridge/` now carries three QObjects. You do not need to touch
+`core/` for any of this.
+
+```python
+from protege.ui.bridge import PermissionsBridge, ConfirmBridge, TraceBridge
+```
+
+**`PermissionsBridge`** — the permission screen.
+
+| Member | Kind | Notes |
+|---|---|---|
+| `catalogue` | Property, `QVariantList` | Every capability as a dict: `id`, `title`, `summary`, `domain`, `direction`, `risk`, `scopeKind`, `irreversible`, `leavesMachine`, `granted`, `scopes` |
+| `grants` | Property, notifies `grantsChanged` | What is currently held |
+| `grant(id, scopes)` | Slot → `str` | Returns `""` on success, or **the reason** it was refused — show it |
+| `revoke(id)`, `revokeAll()` | Slot | |
+| `describe(id)` | Slot → map | One capability |
+| `recentActivity(limit)` | Slot → list | Newest first; **includes refusals, keep them visible** |
+
+`grant` refuses a scoped capability given no scope, and returns why. Do not
+paper over that by passing a default — granting `files.read` with no scope
+would mean the whole disk, which is the exact mistake scopes exist to prevent.
+
+**`ConfirmBridge`** — the dialog that makes writes possible at all.
+
+| Member | Kind | Notes |
+|---|---|---|
+| `requested(token, summary)` | Signal | Raise the dialog. `summary` already names the real values |
+| `withdrawn(token)` | Signal | Take a stale dialog down — it timed out or the app is closing |
+| `answer(token, approved)` | Slot | Call on click. A stale or repeated token does nothing |
+| `timeoutSeconds` | Property | Currently 300 |
+| `close()` | Slot | Call at shutdown; wakes every waiting agent with a refusal |
+
+Wire it as `ToolContext(confirm=confirm_bridge.ask)`. `ask` blocks a worker
+thread until `answer` arrives, so **it must never be called on the UI thread** —
+it detects that and returns `False` rather than freezing the window, but the
+action is then denied. Anything that is not an explicit approval is a refusal:
+timeout, shutdown, a dismissed dialog, a wrong-thread call.
+
+Show the summary verbatim and default the focused button to the safe one. Do
+not add a "don't ask again" for irreversible capabilities.
+
+**`TraceBridge`** — watching a run.
+
+| Member | Kind | Notes |
+|---|---|---|
+| `events` | Property, `QAbstractListModel` | Roles: `at`, `kind`, `agent`, `text`, `tool`, `ok`, `recipient`, `step` |
+| `activeAgents` | Property, notifies `activeAgentsChanged` | Who has started and not finished — the graph's nodes |
+| `attach(trace)` / `detach()` | Python | Replays what the trace already holds |
+| `clear()` | Slot | |
+
+The model is capped at 500 rows; the oldest fall off. Events cross from the
+worker thread on a queued connection inside the bridge, so by the time QML sees
+them they are on the UI thread — you do not need to marshal anything yourself.
+
+`kind == "message"` with `recipient` set is the agent-to-agent edge. **A4 has
+landed, so these now actually fire** — the research and software teams emit one
+per hand-off, and the interaction graph will no longer be empty.
+
 ### 3.4 `AuditLog` — the activity view
 
 ```python
