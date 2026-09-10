@@ -32,6 +32,7 @@ Item {
         the scene. White text over a summer sky is unreadable, and dimming the
         whole scene to fix one paragraph throws away the reason it is there. */
     property bool onScene: false
+    property bool showGreeting: true
 
     readonly property int columnWidth: 720
     readonly property int count: model ? model.count : 0
@@ -43,7 +44,7 @@ Item {
         width: greeting.width + Theme.space.xxxl * 2
         height: greeting.height + Theme.space.xl * 2
         radius: Theme.radius.lg
-        visible: root.onScene && root.count === 0
+        visible: root.showGreeting && root.onScene && root.count === 0
         // Translucent rather than opaque: the scene should still be visible
         // through it, the way a widget sits on a wallpaper.
         fillColor: Qt.rgba(Theme.canvas.r, Theme.canvas.g, Theme.canvas.b, 0.72)
@@ -62,7 +63,7 @@ Item {
         // weighting the bottom of the view.
         anchors.verticalCenterOffset: -Theme.space.xxl
         spacing: Theme.space.md
-        visible: root.count === 0
+        visible: root.showGreeting && root.count === 0
         opacity: visible ? 1 : 0
 
         Behavior on opacity {
@@ -76,7 +77,7 @@ Item {
             color: Theme.accent
 
             SequentialAnimation on opacity {
-                running: root.count === 0
+                running: root.showGreeting && root.visible && root.count === 0 && Theme.motionScale > 0
                 loops: Animation.Infinite
                 NumberAnimation { to: 0.55; duration: 2400; easing.type: Easing.InOutSine }
                 NumberAnimation { to: 1.00; duration: 2400; easing.type: Easing.InOutSine }
@@ -225,7 +226,7 @@ Item {
                         tens of seconds before the first token; silence that
                         long reads as a crash.  */
                     SequentialAnimation on opacity {
-                        running: root.busy
+                        running: root.busy && root.visible && Theme.motionScale > 0
                         loops: Animation.Infinite
                         NumberAnimation { to: 0.3; duration: 700; easing.type: Easing.InOutSine }
                         NumberAnimation { to: 1.0; duration: 700; easing.type: Easing.InOutSine }

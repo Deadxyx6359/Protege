@@ -21,7 +21,7 @@ Window {
     Loader {
         id: sceneLoader
         anchors.fill: parent
-        sourceComponent: gallery.sceneName === "space" ? orbital : coastal
+        sourceComponent: gallery.sceneName === "research" ? abyssal : gallery.sceneName === "space" ? orbital : coastal
     }
     Component {
         id: coastal
@@ -32,6 +32,14 @@ Window {
             frameOverride: gallery.animate ? -1 : gallery.sceneFrame
             motion: gallery.animate ? 1 : 0
             lightningPreview: gallery.sceneLightning
+        }
+    }
+    Component {
+        id: abyssal
+        AbyssScene {
+            active: gallery.sceneActive
+            frameOverride: gallery.animate ? -1 : gallery.sceneFrame
+            motion: gallery.animate ? 1 : 0
         }
     }
     Component {

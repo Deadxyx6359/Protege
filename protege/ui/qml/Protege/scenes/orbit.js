@@ -4,6 +4,35 @@
 // The Far Station: a quiet lunar foreground looking toward a lensing disk.
 // Light comes from the upper right. Sparse warm station lights are the only
 // exception to a blue-grey palette, and the centre is left open for the UI.
+function listener(p) {
+    // A tiny, nearly black silhouette *inside* the event horizon. The front
+    // accretion arc is painted afterward and hides the ends of its limbs.
+    // No bright eyes or appearance/disappearance: the discovery is in looking.
+    var shade="#0b121b", rim="#101923";
+    p.poly([[370,72],[373,75],[374,80],[373,85],[370,87],[368,82],[369,77]],shade);
+    var limbs=[[[369,79],[365,78],[363,74],[364,71]],
+               [[373,79],[377,77],[379,73],[378,70]],
+               [[370,85],[366,88],[363,88],[360,85]],
+               [[372,85],[377,87],[380,85],[383,85]],
+               [[370,86],[368,91],[370,95]],
+               [[372,86],[375,92],[374,95]]];
+    for(var i=0;i<limbs.length;i++) for(var j=0;j<limbs[i].length-1;j++) {
+        var a=limbs[i][j],b=limbs[i][j+1];
+        p.line(a[0],a[1],b[0],b[1],shade);
+    }
+    p.line(373,76,374,80,rim);
+    p.dot(372,78,"#27333d");
+}
+
+function surveySatellite(p) {
+    p.poly([[161,38],[168,39],[167,43],[160,42]],"#263b4d");
+    p.poly([[176,40],[183,41],[182,45],[175,44]],"#263b4d");
+    p.line(162,39,167,40,"#435666");p.line(177,41,182,42,"#435666");
+    p.line(166,41,177,43,"#63737d");
+    p.rect(169,40,5,5,"#465864");p.rect(173,40,1,4,"#91a0a3");
+    p.line(172,40,175,36,"#526977");p.dot(175,35,"#7d9098");
+}
+
 function paint(ctx, frame) {
     var p=new P.Painter(ctx), f=frame||0;
     for(var y=0;y<270;y++) p.rect(0,y,480,1,P.mix("#060c18","#15232f",Math.floor(y/24)/15));
@@ -42,6 +71,13 @@ function paint(ctx, frame) {
     p.ellipse(255,34,7,7,"#70828b");
     p.ellipse(260,37,7,8,"#15222e");
     p.ellipse(253,31,2,1,"#435b67");p.dot(252,32,"#81949a");
+    surveySatellite(p);
+    // A faint, fixed comet and a handful of lit debris at the edge of the view.
+    p.line(203,18,219,13,"#192b3b");p.line(212,15,219,13,"#344c5c");p.dot(220,13,"#869aa1");
+    for(var rock=0;rock<7;rock++) {
+        var ax=9+rock*5,ay=115+rock*3+P.hash(rock+785)*5;
+        p.ellipse(ax,ay,1+rock%2,1,"#263b49");p.dot(ax+1,ay-1,"#455a65");
+    }
     // Neutron star: restrained bipolar jets and a four-step breathing core.
     var pulse=["#8ea5af","#a8bdc4","#cbdadd","#a8bdc4"][f];
     p.line(71,48,89,79,"#263c50");p.line(69,46,78,61,"#1b2e40");
@@ -67,6 +103,7 @@ function paint(ctx, frame) {
         }
     }
     p.ellipse(hx,hy+1,22,22,"#040911");
+    listener(p);
     for(var r=0;r<6;r++) {
         var rad=68-r*5;
         for(var angle=0;angle<180;angle+=1) {
@@ -111,6 +148,11 @@ function paint(ctx, frame) {
         p.ellipse(q[0]-1,q[1]+1,q[2]-1,q[3]-1,"#2f4656");
         p.line(q[0]-q[2]*0.5,q[1]-q[3],q[0]+q[2]*0.5,q[1]-q[3],"#8ea2a8");
     }
+    // A solitary rectangular ruin on the sunward crater rim, with a short
+    // leftward shadow. It is deliberately too small to explain itself.
+    p.line(103,215,98,216,"#243746");
+    p.poly([[103,215],[103,208],[105,207],[106,214]],"#1a2b38");
+    p.line(105,208,106,214,"#4d626d");
     // A remote ringed planet is tucked into the lower sky.
     p.line(212,180,244,168,"#314854");p.line(214,181,246,169,"#516b76");
     p.ellipse(229,175,8,8,"#566d79");
@@ -138,6 +180,12 @@ function paint(ctx, frame) {
     p.rect(423,237,5,3,"#c0a77d");p.rect(432,237,5,3,"#c0a77d");
     p.rect(439,238,3,8,"#111c28");
     p.line(437,232,437,220,"#516976");p.dot(437,219,["#8a8e80","#8a8e80","#baa585","#8a8e80"][f]);
+    // Observatory equipment is planted on the shelf rather than orbiting it.
+    p.line(355,247,355,254,"#3b515e");p.line(354,254,348,255,"#08131e");
+    p.poly([[346,238],[365,242],[362,248],[343,244]],"#2c4558");
+    p.line(346,238,365,242,"#627c8b");
+    p.line(344,241,363,245,"#142736");
+    for(var grid=0;grid<3;grid++) p.line(350+grid*4,240+grid,348+grid*4,245+grid,"#142736");
     // A small visitor, easy to miss. The hull stays fixed; one navigation light breathes.
     p.ellipse(319,199,3,2,"#496b78");p.ellipse(319,202,8,2,"#728e95");
     p.rect(313,203,12,1,"#344c5b");
@@ -146,4 +194,16 @@ function paint(ctx, frame) {
         var xx=285+P.hash(stone*7+432)*195, yy=253+P.hash(stone*11+808)*17;
         p.rect(xx,yy,1+P.hash(stone)*4,1,stone%3===0?"#293f4c":"#172837");
     }
+    // A parked rover, a helmet glint, and a path of prints are small enough to
+    // stay secondary to the sky, but make the observatory feel inhabited.
+    p.ellipse(329,262,8,1,"#07121d");
+    p.rect(325,257,11,3,"#3d5260");p.rect(330,255,5,3,"#5c707a");
+    p.rect(333,256,2,1,"#a1b1b4");p.rect(326,260,2,2,"#1a2b39");p.rect(333,260,2,2,"#1a2b39");
+    p.line(327,256,327,251,"#425c6c");p.dot(327,250,"#7c939f");
+    for(var step=0;step<6;step++) {
+        p.dot(440+step*2,248+step%2,"#344b57");p.dot(441+step*2,250+step%2,"#344b57");
+    }
+    p.ellipse(450,253,3,1,"#07121d");p.rect(451,246,2,5,"#5c737e");
+    p.ellipse(452,244,2,2,"#71868e");p.rect(452,243,2,1,"#adc0be");
+    p.dot(451,252,"#455e6d");p.dot(454,252,"#455e6d");
 }

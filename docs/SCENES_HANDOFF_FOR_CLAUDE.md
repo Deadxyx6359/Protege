@@ -1,6 +1,12 @@
 # Protégé scene handoff — 10 September 2026
 
-## Latest user feedback — pending roof correction
+**Historical handoff.** Claude subsequently fixed the roof, shadows and layering
+in `2ed525b`. See [the current frontend handoff](FRONTEND_HANDOFF_FOR_CLAUDE.md)
+for the completed detail pass, new Research workspace and abyss scene. The
+pending items and usage figures below record the earlier session, not current
+status.
+
+## Earlier user feedback — roof correction pending at that time
 
 After the channel correction, the user reported: "the house roof is a little odd looking as well." This has NOT been fixed. Make the cottage roof the first visual follow-up: review the roof planes, ridge, eaves, chimney overlap and their perspective against the cabin walls in `coast.js` / `cabin()`. Inspect the corrected render at full size and in the app, then regenerate the gallery.
 

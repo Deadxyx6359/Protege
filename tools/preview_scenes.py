@@ -24,13 +24,16 @@ CASES = {
     "spring": ("coast", "2026-04-15T10:00:00", "clear"),
     "autumn": ("coast", "2026-10-20T17:30:00", "clear"),
     "halloween": ("coast", "2026-10-31T21:00:00", "fog"),
+    "autumn_night": ("coast", "2026-10-31T21:00:00", "clear"),
     "winter": ("coast", "2026-12-25T16:30:00", "snow"),
+    "winter_night": ("coast", "2026-12-25T21:00:00", "clear"),
     "dawn": ("coast", "2026-07-15T06:00:00", "clear"),
     "night": ("coast", "2026-07-15T23:00:00", "clear"),
     "drizzle": ("coast", "2026-07-15T14:00:00", "drizzle"),
     "storm": ("coast", "2026-07-15T14:00:00", "thunder"),
     "blizzard": ("coast", "2026-12-25T14:00:00", "blizzard"),
     "space": ("space", "2026-07-15T14:00:00", "clear"),
+    "research": ("research", "2026-07-15T14:00:00", "clear"),
 }
 
 
@@ -45,7 +48,7 @@ def write_gallery(directory: Path, captures: list[dict]) -> None:
     data = json.dumps(grouped)
     page = """<!doctype html><html lang="en"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Protégé · Two quiet worlds</title>
+<title>Protégé · Quiet worlds</title>
 <style>
 :root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#0c121b;color:#e3e9e8}
 body{max-width:1280px;margin:auto;padding:32px 28px}header{display:flex;align-items:end;justify-content:space-between;gap:24px;margin-bottom:24px}
@@ -56,17 +59,17 @@ nav{display:flex;gap:7px;flex-wrap:wrap;margin:20px 0}figure{margin:0;overflow:h
 img{display:block;width:100%;height:auto;image-rendering:pixelated;aspect-ratio:16/9}footer{display:flex;justify-content:space-between;color:#93a6ab;font-size:12px;margin-top:16px;gap:24px}
 @media(max-width:650px){body{padding:20px 14px}h1{font-size:25px}footer{display:block;line-height:1.8}}
 </style>
-<header><div><small>Protégé / scene studies</small><h1>Two quiet worlds.</h1></div><button id="play">Pause animation</button></header>
+<header><div><small>Protégé / scene studies</small><h1>Quiet worlds.</h1></div><button id="play">Pause animation</button></header>
 <nav aria-label="Choose a scene" id="scenes"></nav>
 <figure><img id="painting" alt=""></figure>
 <footer><span id="caption"></span><span>Illustrated conditions · Preview uses fixed dates, not live weather</span></footer>
 <script>
 const images=DATA;
-const names={summer:'Summer bay',spring:'Spring blossoms',autumn:'Autumn evening',halloween:'All Hallows’ Eve',winter:'Winter cottage',dawn:'First light',night:'Moonlit bay',drizzle:'Passing drizzle',storm:'Storm front',blizzard:'Snow squall',space:'The far station'};
+const names={summer:'Summer bay',spring:'Spring blossoms',autumn:'Autumn evening',halloween:'All Hallows’ Eve',autumn_night:'Autumn after dark',winter:'Winter cottage',winter_night:'Christmas lights',dawn:'First light',night:'Moonlit bay',drizzle:'Passing drizzle',storm:'Storm front',blizzard:'Snow squall',space:'The far station',research:'The drowned archive'};
 let chosen=Object.keys(images)[0], frame=0, playing=!matchMedia('(prefers-reduced-motion: reduce)').matches,timer;
 const painting=document.getElementById('painting'),play=document.getElementById('play');
 function draw(){painting.src=images[chosen][frame];painting.alt=names[chosen];document.getElementById('caption').textContent=names[chosen];}
-function tick(){clearTimeout(timer);play.textContent=playing?'Pause animation':'Play animation';draw();if(playing){timer=setTimeout(()=>{frame=(frame+1)%images[chosen].length;tick()},chosen==='space'?1400:['storm','blizzard','winter'].includes(chosen)?300:1100)}}
+function tick(){clearTimeout(timer);play.textContent=playing?'Pause animation':'Play animation';draw();if(playing){timer=setTimeout(()=>{frame=(frame+1)%images[chosen].length;tick()},chosen==='research'?1700:chosen==='space'?1400:['storm','blizzard','winter'].includes(chosen)?300:1100)}}
 for(const name of Object.keys(images)){const button=document.createElement('button');button.textContent=names[name];button.setAttribute('aria-pressed',name===chosen);button.onclick=()=>{chosen=name;frame=0;document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-pressed',b===button));tick()};document.getElementById('scenes').append(button)}
 play.onclick=()=>{playing=!playing;tick()};document.addEventListener('visibilitychange',()=>{if(document.hidden)clearTimeout(timer);else tick()});tick();
 </script></html>""".replace("DATA", data)

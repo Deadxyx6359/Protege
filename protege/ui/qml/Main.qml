@@ -26,8 +26,13 @@ Window {
 
     property string currentNav: "chats"
     property string currentProject: "thesis"
-    property string currentTab: "chat-1"
+    readonly property string currentTab: ({ chats: "chat-1", code: "code-1", research: "research-1" })[currentNav] || ""
     property bool sidebarOpen: true
+
+    function selectWorkspace(id) {
+        const views = { "chat-1": "chats", "code-1": "code", "research-1": "research" };
+        currentNav = views[id] || id;
+    }
 
     // -- layout -------------------------------------------------------------
 
@@ -45,6 +50,7 @@ Window {
 
         Sidebar {
             id: sidebar
+            objectName: "workspaceSidebar"
             Layout.fillHeight: true
             Layout.preferredWidth: win.sidebarOpen ? 264 : 0
             visible: Layout.preferredWidth > 0
@@ -65,6 +71,7 @@ Window {
             navModel: [
                 { id: "chats", icon: "chat", label: "Chats" },
                 { id: "code", icon: "code", label: "Code" },
+                { id: "research", icon: "search", label: "Research" },
                 { id: "documents", icon: "document", label: "Documents" },
                 { id: "memory", icon: "clock", label: "Memory" }
             ]
@@ -77,7 +84,7 @@ Window {
 
             recentModel: Chat.recents
 
-            onNavSelected: function (id) { win.currentNav = id }
+            onNavSelected: function (id) { win.selectWorkspace(id) }
             onRecentSelected: function (id) { Chat.openConversation(id) }
             onProjectSelected: function (id) { win.currentProject = id }
             onCollapseRequested: win.sidebarOpen = false
@@ -97,14 +104,15 @@ Window {
                 Layout.preferredHeight: 44
 
                 TabStrip {
+                    objectName: "workspaceTabs"
                     anchors.fill: parent
                     currentId: win.currentTab
                     model: [
-                        { id: "chat-1", title: Chat.title, icon: "chat", closable: true },
-                        { id: "code-1", title: "protege/ui", icon: "code", closable: true },
-                        { id: "doc-1", title: "Q3-report.docx", icon: "document", closable: true }
+                        { id: "chat-1", title: "Everyday", icon: "chat", closable: false },
+                        { id: "code-1", title: "Code", icon: "code", closable: false },
+                        { id: "research-1", title: "Research", icon: "search", closable: false }
                     ]
-                    onSelected: function (id) { win.currentTab = id }
+                    onSelected: function (id) { win.selectWorkspace(id) }
                 }
 
                 RowLayout {
@@ -143,6 +151,7 @@ Window {
                 // Behind everything: the world for whichever view this is.
                 // It retreats to nothing the moment there is text to read.
                 SceneHost {
+                    objectName: "workspaceScene"
                     anchors.fill: parent
                     view: win.currentNav
                     quiet: Chat.messages.count > 0
@@ -150,6 +159,7 @@ Window {
                 }
 
                 ChatView {
+                    visible: win.currentNav !== "research"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
@@ -160,14 +170,37 @@ Window {
                     onScene: win.currentNav === "chats" || win.currentNav === "code"
                 }
 
+                ResearchView {
+                    objectName: "researchView"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: composer.top
+                    visible: win.currentNav === "research"
+                    model: Chat.messages
+                    busy: Chat.busy
+                    busyStage: Chat.stage
+                    onPromptSelected: function (prompt) {
+                        // A starter prepares an editable draft; it never sends.
+                        composer.text = composer.hasText ? composer.text + "\n\n" + prompt : prompt;
+                        composer.focusInput();
+                    }
+                    onNewInquiryRequested: {
+                        Chat.newChat();
+                        composer.focusInput();
+                    }
+                }
+
                 Composer {
                     id: composer
+                    objectName: "workspaceComposer"
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: Theme.space.lg
                     width: Math.min(720, parent.width - Theme.space.xxl * 2)
 
                     busy: Chat.busy
+                    placeholder: win.currentNav === "research" ? "What would you like to investigate?" : "Ask anything"
                     footnote: Chat.routeLabel
 
                     onSubmitted: function (text) { Chat.send(text) }

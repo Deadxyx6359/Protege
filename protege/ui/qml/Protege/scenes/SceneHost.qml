@@ -22,7 +22,7 @@ import "world.js" as World
 Item {
     id: root
 
-    /*! Which world: \c chats, \c code. Anything else draws nothing. */
+    /*! Which world: chats, code, research. Anything else draws nothing. */
     property string view: "chats"
 
     /*! True when there is content in front of the scene. Pulls it back. */
@@ -53,8 +53,8 @@ Item {
     Loader {
         id: scene
         anchors.fill: parent
-        active: root.view === "chats" || root.view === "code"
-        sourceComponent: root.view === "code" ? spaceScene : botanicaScene
+        active: root.view === "chats" || root.view === "code" || root.view === "research"
+        sourceComponent: root.view === "research" ? abyssScene : root.view === "code" ? spaceScene : botanicaScene
 
         // Worlds cross-fade rather than cutting, so switching views feels like
         // moving between rooms rather than a channel change.
@@ -76,6 +76,15 @@ Item {
             now: root.now
             weather: root.weather
             southernHemisphere: root.southernHemisphere
+            motion: root.motion
+            active: !root.quiet && root.visible
+        }
+    }
+
+    Component {
+        id: abyssScene
+
+        AbyssScene {
             motion: root.motion
             active: !root.quiet && root.visible
         }

@@ -1,6 +1,7 @@
 .pragma library
 .import "pixel.js" as P
 .import "world.js" as World
+.import "coast_details.js" as Details
 
 // Driftwood Bay. These contours and placements are authored as one scene.
 // Seeds add small material marks, never decide where land or a subject lives.
@@ -239,6 +240,8 @@ function paint(ctx,opts) {
         var tc=P.mix(tone(left?"#638787":"#718f90"),tone(farLeaf),farTint);
         p.poly([[tx,gy-ht],[tx-1,gy-ht*0.5],[tx-ht*0.34,gy],[tx+ht*0.35,gy]],tc);
     }
+    Details.lighthouse(p,P.contour(FAR_RIGHT,350)+1,
+                       P.mix(tone("#799797"),tone(farLeaf),farTint),tone("#ddd7ba"),n,f);
     // Sea occupies the complete bay; all beach and foliage are painted over it.
     var seaTop=tone("#66999f"), seaBottom=tone("#447e86");
     for(var wy=146;wy<270;wy++) p.rect(0,wy,480,1,P.mix(seaTop,seaBottom,Math.floor((wy-146)/9)/13));
@@ -257,6 +260,7 @@ function paint(ctx,opts) {
             p.line(xx+ww*0.6+2,yy-1,xx+ww+3,yy,P.mix(c.foam,seaTop,0.25));
         }
     }
+    if(s==="autumn") Details.seaSecret(p,seaTop,c.foam,n,f);
     // Beach, wrack line and dunes share the exact same shoreline function.
     for(var bx=0;bx<480;bx++) {
         var edge=shore(bx), earth=ground(bx);
@@ -283,7 +287,12 @@ function paint(ctx,opts) {
             [132,270],[133,256],[124,248],[110,238],[109,230],[116,222]],c.sandShadow);
     p.poly([[118,217],[120,222],[113,231],[115,237],[130,247],[139,258],[139,270],
             [134,270],[135,258],[125,249],[111,238],[111,230],[116,222]],c.sand);
+    // Small contact shadows inherit the ground's colour instead of reading
+    // as saturated marks pasted on top of the meadow.
+    c.castShadow=P.mix(c.grassDark,c.shadow,0.55);
     cabin(p,104,220,c,winter,n>0.2||wx.gloom>0.4);
+    Details.jetty(p,c,winter);
+    Details.cottage(p,c,s,n,wx,f,seaTop,tone);
     // Distant boathouse and a moored skiff give the water a human scale.
     if(wx.wind<0.6) {
         p.line(300,174,314,174,c.shadow); p.line(302,175,311,175,c.wood);
@@ -294,11 +303,6 @@ function paint(ctx,opts) {
         var rx=187+P.hash(rock+785)*222, ry=shore(rx)+6+P.hash(rock+255)*5;
         p.ellipse(rx,ry,2+P.hash(rock)*2,1,c.sandShadow);
     }
-    /*  Cast shadows are mixed halfway to the grass they fall on. The full
-        shadow tone is a saturated blue-green: correct under the cottage, but
-        under a pumpkin on olive meadow it reads as a painted dash rather than
-        as shade.  */
-    c.castShadow=P.mix(c.grassDark,c.shadow,0.55);
     var wind=wx.wind*(1+[0,0.55,1,0.55][f]*wx.gust), lean=wind*6;
     // Trees grow from the bluff, not the water or the mountain surface.
     pine(p,16,175,47,c.pine,lean*0.55,winter?c.snow:null,c.castShadow);
@@ -339,7 +343,7 @@ function paint(ctx,opts) {
     } else if(s==="spring") {
         for(var rabbit=0;rabbit<2;rabbit++) {
             var qx=166+rabbit*17,qy=250+rabbit*5;
-            p.ellipse(qx+2,qy+1,5,1,c.shadow);
+            p.ellipse(qx-2,qy+1,5,1,c.castShadow);
             p.ellipse(qx,qy-2,4,3,c.cream);p.ellipse(qx+3,qy-5,2,2,c.cream);
             p.rect(qx+2,qy-10,1,4,c.cream);p.rect(qx+4,qy-9,1,3,c.cream);
             p.dot(qx+4,qy-5,c.bark);p.dot(qx-4,qy-2,c.snow);
@@ -374,12 +378,16 @@ function paint(ctx,opts) {
         pine(p,157,239,24,c.pine,0,c.snow);
         for(var bulb=0;bulb<8;bulb++) p.dot(153+(bulb%3)*3,223+Math.floor(bulb/3)*4,["#dfbb79","#be8375","#a4c3b9"][bulb%3]);
         p.dot(157,214,"#f0cf94");
-        p.ellipse(188,253,7,2,c.shadow);
-        p.ellipse(186,248,6,5,c.grassDark);p.ellipse(185,247,5,4,c.snow);
-        p.ellipse(186,241,4,3,c.grassDark);p.ellipse(185,240,3,3,c.snow);
+        p.ellipse(183,253,7,2,c.castShadow);
+        p.ellipse(186,248,6,5,c.grassDark);p.ellipse(187,247,5,4,c.snow);
+        p.ellipse(186,241,4,3,c.grassDark);p.ellipse(187,240,3,3,c.snow);
         p.rect(182,237,8,1,c.bark);p.rect(184,234,4,3,c.bark);
         p.rect(183,244,6,1,tone("#b87569"));p.dot(187,240,c.bark);p.dot(189,242,tone("#cf9559"));
     }
+    if(s==="spring") Details.spring(p,c,f,wx,tone);
+    else if(s==="summer") Details.summer(p,c,wx,n,f,tone);
+    else if(s==="autumn") Details.autumn(p,c,n,f,tone);
+    else Details.winter(p,c,tone);
     // Weather overlays are spatially coherent with the water and foliage.
     if(wx.precip>0) for(var column=0;column<Math.round(wx.precip*24);column++) {
         // Repeated 28-pixel columns advance seven pixels in each of four

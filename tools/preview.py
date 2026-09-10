@@ -61,6 +61,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("qml", help="QML file with a Window at its root")
     parser.add_argument("--out", help="output PNG (default: alongside the QML file)")
     parser.add_argument("--size", type=_size, help="override the window size, e.g. 1280x800")
+    parser.add_argument("--view", choices=("chats", "code", "research", "documents", "memory"), help="workspace to render in Main.qml")
     parser.add_argument(
         "--mode",
         choices=("dark", "light", "both"),
@@ -101,6 +102,8 @@ def main(argv: list[str] | None = None) -> int:
 
     engine, theme = build_engine(theme=theme, context=ctx.as_context())
     window = load(engine, qml_path)
+    if args.view and not window.setProperty("currentNav", args.view):
+        parser.error("--view requires a root with a currentNav property (Main.qml)")
 
     if args.size:
         window.setWidth(args.size[0])

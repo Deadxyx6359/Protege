@@ -32,7 +32,7 @@ def main():
     window = load(engine, REPO / "protege/ui/qml/SceneGallery.qml")
     window.setWidth(960)
     window.setHeight(540)
-    for scene in ("coast", "space"):
+    for scene in ("coast", "space", "research"):
         window.setProperty("sceneName", scene)
         frames = []
         for frame in range(4):

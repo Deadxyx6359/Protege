@@ -13,6 +13,7 @@ Sidebar 1.0 Sidebar.qml
 TabStrip 1.0 TabStrip.qml
 Composer 1.0 Composer.qml
 ChatView 1.0 ChatView.qml
+ResearchView 1.0 ResearchView.qml
 CodeBlock 1.0 CodeBlock.qml
 MessageBody 1.0 MessageBody.qml
 Sheet 1.0 Sheet.qml
@@ -24,6 +25,7 @@ SettingsSheet 1.0 SettingsSheet.qml
 SceneHost 1.0 scenes/SceneHost.qml
 BotanicaScene 1.0 scenes/BotanicaScene.qml
 SpaceScene 1.0 scenes/SpaceScene.qml
+AbyssScene 1.0 scenes/AbyssScene.qml
 
 squircle.js 1.0 squircle.js
 icons.js 1.0 icons.js
