@@ -8,10 +8,12 @@ between them, plus the trace everything downstream reads.
 
 from .loop import Agent, AgentSpec, Outcome
 from .protocol import Call, parse_calls, render_tools
+from .team import Handoff, Team, TeamOutcome, TeamSpec, research_team, software_team
 from .trace import Event, Kind, Trace
 
 __all__ = [
     "Agent", "AgentSpec", "Outcome",
+    "Team", "TeamSpec", "TeamOutcome", "Handoff", "research_team", "software_team",
     "Call", "parse_calls", "render_tools",
     "Event", "Kind", "Trace",
 ]

@@ -383,3 +383,262 @@ def test_a_tool_failure_does_not_end_the_run(context, workspace):
     outcome = agent.run("try it")
     assert outcome.ok and outcome.stopped == "answered"
     assert outcome.steps == 2
+
+
+# -- teams (A4) --------------------------------------------------------------
+
+
+def two_member_team(**kwargs):
+    from protege.core.agents import TeamSpec
+
+    first = AgentSpec(name="first", role="You go first.", tools=(), max_steps=2)
+    second = AgentSpec(name="second", role="You go second.", tools=(), max_steps=2)
+    return TeamSpec(name="pair", purpose="test", members=(first, second), **kwargs)
+
+
+def build_team(replies, context, spec=None, registry=None):
+    from protege.core.agents import Team
+
+    router = ScriptedRouter(replies)
+    team = Team(spec or two_member_team(), router=router,
+                registry=registry or default_registry(),
+                context=context, trace=Trace())
+    return team, router
+
+
+def test_a_team_runs_its_members_in_order(context):
+    team, _ = build_team(["from first", "from second"], context())
+    outcome = team.run("do the thing")
+    assert outcome.ok and outcome.stopped == "answered"
+    assert list(outcome.contributions) == ["first", "second"]
+
+
+def test_the_answer_is_the_last_contribution(context):
+    team, _ = build_team(["from first", "from second"], context())
+    assert team.run("go").answer == "from second"
+
+
+def test_a_handoff_is_traceable(context):
+    """The MESSAGE edge is what the interface draws between two agents."""
+    team, _ = build_team(["from first", "from second"], context())
+    outcome = team.run("go")
+
+    assert [(h.sender, h.recipient) for h in outcome.handoffs] == [("first", "second")]
+    messages = [e for e in team.trace.events(Kind.MESSAGE)]
+    assert len(messages) == 1
+    assert messages[0].agent == "first" and messages[0].to == "second"
+
+
+def test_each_member_is_told_what_came_before(context):
+    team, router = build_team(["gathered the facts", "and here is the answer"],
+                              context())
+    team.run("the original question")
+
+    second_prompt = router.backend.prompts[-1]
+    brief = next(m.content for m in second_prompt if m.role == "user")
+    assert "the original question" in brief
+    assert "gathered the facts" in brief
+    assert "You are second" in brief
+
+
+def test_a_member_that_fails_does_not_take_the_team_with_it(context):
+    """A research answer missing its critic beats no answer."""
+    class HalfBroken(ScriptedRouter):
+        def __init__(self):
+            super().__init__([])
+            self.turn = 0
+
+        @contextmanager
+        def acquire(self, route):
+            self.turn += 1
+            if self.turn == 1:
+                raise RuntimeError("the first one fell over")
+            yield ScriptedBackend(["the second one managed"])
+
+    from protege.core.agents import Team
+
+    team = Team(two_member_team(), router=HalfBroken(),
+                registry=default_registry(), context=context(), trace=Trace())
+    outcome = team.run("go")
+
+    assert outcome.answer == "the second one managed"
+    assert [who for who, _ in outcome.failures] == ["first"]
+    assert not outcome.ok, "the run finished, but not cleanly, and says so"
+
+
+def test_a_later_member_is_told_the_step_was_lost(context):
+    """Silently handing on less than expected makes a model invent the rest."""
+    class FirstBroken(ScriptedRouter):
+        def __init__(self):
+            super().__init__([])
+            self.turn = 0
+            self.backend = ScriptedBackend(["second speaking"])
+
+        @contextmanager
+        def acquire(self, route):
+            self.turn += 1
+            if self.turn == 1:
+                raise RuntimeError("down")
+            yield self.backend
+
+    from protege.core.agents import Team
+
+    router = FirstBroken()
+    team = Team(two_member_team(), router=router, registry=default_registry(),
+                context=context(), trace=Trace())
+    team.run("go")
+
+    brief = next(m.content for m in router.backend.prompts[-1] if m.role == "user")
+    assert "could not finish" in brief
+
+
+def test_a_team_where_nobody_finishes_says_so(context):
+    class AllBroken(ScriptedRouter):
+        @contextmanager
+        def acquire(self, route):
+            raise RuntimeError("everything is down")
+            yield  # pragma: no cover
+
+    from protege.core.agents import Team
+
+    team = Team(two_member_team(), router=AllBroken([]),
+                registry=default_registry(), context=context(), trace=Trace())
+    outcome = team.run("go")
+
+    assert not outcome.ok and outcome.stopped == "failed"
+    assert "Nobody" in outcome.answer
+
+
+def test_a_member_cannot_exceed_the_teams_permissions(context, workspace):
+    """Joining a team grants nothing. The team's policy is the ceiling."""
+    from protege.core.agents import Team, TeamSpec
+
+    greedy = AgentSpec(name="greedy", role="r",
+                       tools=("read_file", "write_file"), max_steps=2)
+    policy = Policy()
+    policy.grant("files.read", (str(workspace),))   # read only, no write
+
+    # The member tries to write anyway, as a jailbroken one would.
+    target = str(workspace / "new.txt").replace("\\", "\\\\")
+    team = Team(
+        TeamSpec(name="t", purpose="p", members=(greedy,)),
+        router=ScriptedRouter([
+            '<tool_call>{"name": "write_file", "arguments": '
+            '{"path": "%s", "content": "x"}}</tool_call>' % target,
+            "I could not write it.",
+        ]),
+        registry=default_registry(), context=context(policy), trace=Trace())
+
+    outcome = team.run("write a file")
+
+    assert not (workspace / "new.txt").exists(), "the write must not have happened"
+    result = [e for e in team.trace.events(Kind.TOOL_RESULT)]
+    assert result and not result[0].ok
+
+
+def test_cancelling_stops_the_team_between_members(context):
+    team, _ = build_team(["first", "second"], context())
+    outcome = team.run("go", is_cancelled=lambda: True)
+    assert not outcome.ok and outcome.stopped == "cancelled"
+
+
+def test_a_contribution_is_trimmed_before_the_next_member_sees_it(context):
+    """Four members each passing on 6000 characters overflows an 8k context."""
+    from protege.core.agents.team import MAX_CONTRIBUTION_CHARS
+
+    team, router = build_team(["x" * 9000, "done"], context())
+    team.run("go")
+
+    brief = next(m.content for m in router.backend.prompts[-1] if m.role == "user")
+    assert len(brief) < MAX_CONTRIBUTION_CHARS + 500
+
+
+def test_the_shipped_teams_are_well_formed(context):
+    from protege.core.agents import research_team, software_team
+
+    for spec in (research_team(), software_team()):
+        assert spec.members
+        assert len({m.name for m in spec.members}) == len(spec.members)
+
+
+def test_a_team_needs_members():
+    from protege.core.agents import TeamSpec
+
+    with pytest.raises(ValueError):
+        TeamSpec(name="empty", purpose="p", members=())
+
+
+def test_two_members_cannot_share_a_name():
+    from protege.core.agents import TeamSpec
+
+    twin = AgentSpec(name="same", role="r")
+    with pytest.raises(ValueError):
+        TeamSpec(name="t", purpose="p", members=(twin, twin))
+
+
+def test_the_reviewer_cannot_write():
+    """The role narrowing is the point, so it is asserted rather than trusted."""
+    from protege.core.agents.roles import CRITIC, REVIEWER
+
+    assert "write_file" not in REVIEWER.tools
+    assert CRITIC.tools == ()
+
+
+def test_a_backend_that_does_not_stream_still_produces_a_reply():
+    """`generate` returns its text; streaming is an option on top of that.
+
+    A batching backend, or a cloud model reached through `model.cloud`, can
+    satisfy the contract without calling `on_token` once. Rebuilding the reply
+    from the stream alone would end the run with a blank answer.
+    """
+    from dataclasses import dataclass
+
+    @dataclass
+    class Result:
+        text: str
+
+    class Silent:
+        def generate(self, messages, **_):
+            return Result(text="I did not stream this.")
+
+    class SilentRouter:
+        @contextmanager
+        def acquire(self, route):
+            yield Silent()
+
+    policy = Policy()
+    ctx = ToolContext(policy=policy, audit=AuditLog("nowhere/a.jsonl"),
+                      secrets=SecretStore("nowhere/s"))
+    agent = Agent(AgentSpec(name="a", role="r"), router=SilentRouter(),
+                  registry=default_registry(), context=ctx, trace=Trace())
+
+    outcome = agent.run("say something")
+    assert outcome.ok
+    assert outcome.answer == "I did not stream this."
+
+
+def test_reasoning_is_filtered_out_of_a_non_streamed_reply():
+    """The returned text has not been through the filter; the stream had."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class Result:
+        text: str
+
+    class Thinker:
+        def generate(self, messages, **_):
+            return Result(text="<think>hmm, let me see</think>The answer is 41.")
+
+    class ThinkerRouter:
+        @contextmanager
+        def acquire(self, route):
+            yield Thinker()
+
+    ctx = ToolContext(policy=Policy(), audit=AuditLog("nowhere/a.jsonl"),
+                      secrets=SecretStore("nowhere/s"))
+    agent = Agent(AgentSpec(name="a", role="r"), router=ThinkerRouter(),
+                  registry=default_registry(), context=ctx, trace=Trace())
+
+    outcome = agent.run("go")
+    assert "hmm, let me see" not in outcome.answer
+    assert "The answer is 41." in outcome.answer

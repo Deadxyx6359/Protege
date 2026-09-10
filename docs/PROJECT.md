@@ -18,7 +18,8 @@ is not.
 | [PLATFORM.md](PLATFORM.md) | The platform argument: scope honesty, the security inversion, hard lines | Claude |
 | [REBUILD.md](REBUILD.md) | Interface and model layer; measured benchmarks; findings not to rediscover | Claude |
 | [BACKEND_HANDOFF_FOR_CODEX.md](BACKEND_HANDOFF_FOR_CODEX.md) | Live API surface Codex binds the UI to | Claude → Codex |
-| [SCENES_HANDOFF_FOR_CLAUDE.md](SCENES_HANDOFF_FOR_CLAUDE.md) | Scene work handed back the other way | Codex → Claude |
+| [FRONTEND_HANDOFF_FOR_CLAUDE.md](FRONTEND_HANDOFF_FOR_CLAUDE.md) | **Current** frontend handoff: scenes, Research workspace, integration points | Codex → Claude |
+| [SCENES_HANDOFF_FOR_CLAUDE.md](SCENES_HANDOFF_FOR_CLAUDE.md) | Historical — the earlier scene rebuild | Codex → Claude |
 
 **Read order for a fresh session:** this file → the handoff for your role →
 REBUILD.md §"Findings worth not rediscovering" before touching UI or tests.
@@ -227,6 +228,10 @@ model; the confirm callback wired to a real dialog; the audit log as a list.
 is denied — correct, but it means the UI is load-bearing. This unblocks Codex.
 *Done when:* Codex can grant a scoped capability, watch an agent run live, and
 approve a write, entirely from the QML shell.
+*Note from the frontend:* worker callbacks must reach QML through **queued**
+Qt signals — `Trace.listen` fires on the worker thread. The Research view
+exists and deliberately shows no source or agent panels until a bridge with
+real data backs them; do not add panels ahead of the data.
 
 **A6 ○ Scheduler** — `core/schedule/`
 Time-based (daily/weekly/monthly/cron/custom) and event-based triggers, durable
@@ -317,6 +322,11 @@ trigger a follow-up agent.
 Local timezone, season and weather already drive the scenes; this generalises
 it so agents can reason about "now" and "here". Location is `location.read`,
 scoped and revocable.
+*Concrete integration point:* `SceneHost.weather` currently defaults to `clear`
+and `southernHemisphere` is unbound — the renderer already handles every
+weather preset, ocean state and wind value, so this is a connector binding, not
+UI work. Fixed preview conditions are not real conditions; do not confuse the
+two. Local time and season handling already works and must be preserved.
 
 **C8 ○ Purchasing** — staged only
 Assemble the cart, present the total and the payment method, stop. A person

@@ -193,7 +193,7 @@ class Agent:
                     on_token(visible)
 
         with self._router.acquire(self.spec.route) as backend:
-            backend.generate(
+            result = backend.generate(
                 messages,
                 max_tokens=1024,
                 temperature=self.spec.temperature,
@@ -202,4 +202,21 @@ class Agent:
         tail = thinking.flush()
         if tail:
             collected.append(tail)
-        return "".join(collected)
+
+        streamed = "".join(collected)
+        if streamed.strip():
+            return streamed
+
+        # Nothing arrived through the stream. That is not necessarily a
+        # failure: the contract is that `generate` *returns* its text, and
+        # streaming is an option on top. A backend that batches -- or a cloud
+        # model reached through `model.cloud` -- satisfies the contract without
+        # calling `on_token` once, and reconstructing the reply from the stream
+        # alone would hand the loop an empty string and end the run with a
+        # blank answer. The returned text has not passed the filter, so it goes
+        # through a fresh one here.
+        text = getattr(result, "text", "") or ""
+        if not text:
+            return streamed
+        whole = ThinkFilter()
+        return whole.feed(text) + whole.flush()
