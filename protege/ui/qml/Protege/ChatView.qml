@@ -26,12 +26,37 @@ Item {
     /*! Named in plain language: "Loading Qwen3 8B", "Writing". */
     property string busyStage: "Thinking"
 
+    /*! True when an animated backdrop is behind this view.
+
+        The empty state then sits on a translucent card instead of directly on
+        the scene. White text over a summer sky is unreadable, and dimming the
+        whole scene to fix one paragraph throws away the reason it is there. */
+    property bool onScene: false
+
     readonly property int columnWidth: 720
     readonly property int count: model ? model.count : 0
 
     // -- empty state --------------------------------------------------------
 
+    Squircle {
+        anchors.centerIn: greeting
+        width: greeting.width + Theme.space.xxxl * 2
+        height: greeting.height + Theme.space.xl * 2
+        radius: Theme.radius.lg
+        visible: root.onScene && root.count === 0
+        // Translucent rather than opaque: the scene should still be visible
+        // through it, the way a widget sits on a wallpaper.
+        fillColor: Qt.rgba(Theme.canvas.r, Theme.canvas.g, Theme.canvas.b, 0.72)
+        borderColor: Theme.separator
+        opacity: root.count === 0 ? 1 : 0
+
+        Behavior on opacity {
+            NumberAnimation { duration: Theme.duration.slow }
+        }
+    }
+
     ColumnLayout {
+        id: greeting
         anchors.centerIn: parent
         // Optically centred beats geometrically centred when a composer is
         // weighting the bottom of the view.

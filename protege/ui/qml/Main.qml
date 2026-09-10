@@ -140,6 +140,15 @@ Window {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
+                // Behind everything: the world for whichever view this is.
+                // It retreats to nothing the moment there is text to read.
+                SceneHost {
+                    anchors.fill: parent
+                    view: win.currentNav
+                    quiet: Chat.messages.count > 0
+                    motion: ThemeBridge.motionScale
+                }
+
                 ChatView {
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -148,6 +157,7 @@ Window {
                     model: Chat.messages
                     busy: Chat.busy
                     busyStage: Chat.stage
+                    onScene: win.currentNav === "chats" || win.currentNav === "code"
                 }
 
                 Composer {
