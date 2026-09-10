@@ -112,18 +112,23 @@ Item {
         }
     }
 
-    /*  A soft floor under the composer, so a light sky never sits directly
-        behind it. Present even when the scene is the hero.  */
+    /*  A floor under the composer, so a bright meadow never sits directly
+        behind it. Present even when the scene is the hero.
+
+        Three stops rather than two, and reaching the canvas colour well before
+        the bottom edge: the model name sits below the composer, at caption
+        size, and a two-stop fade left it washed out against a summer field.  */
     Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        height: 180
+        height: 260
         visible: !root.quiet
-        opacity: 0.55
         gradient: Gradient {
-            GradientStop { position: 0.0; color: "transparent" }
-            GradientStop { position: 1.0; color: Theme.canvas }
+            GradientStop { position: 0.00; color: "transparent" }
+            GradientStop { position: 0.55; color: Qt.rgba(Theme.canvas.r, Theme.canvas.g,
+                                                          Theme.canvas.b, 0.72) }
+            GradientStop { position: 1.00; color: Theme.canvas }
         }
     }
 }

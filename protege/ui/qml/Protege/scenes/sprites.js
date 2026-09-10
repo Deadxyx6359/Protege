@@ -2,136 +2,108 @@
 
 /*!
     Pixel sprites, written the way sprites have always been written: a grid of
-    characters, one per pixel, with a key that maps each to a palette slot.
+    characters, one per pixel, with a key mapping each to a palette slot.
 
-    Authoring them as data rather than as drawing code means a season's planting
-    is legible at a glance and editable without touching the renderer — and the
-    palette does the seasonal work, so one tree shape serves spring, summer and
-    autumn.
+    Only things with a *shape* live here. Trees, hills and grass are generated
+    in terrain.js, because they need to vary — a forest built from one stamped
+    sprite reads as wallpaper. These are the objects that should look the same
+    every time you see them.
+
+    Their job is to say what time of year it is from across the room, before
+    you have read the sky. Colour alone does not do that; a scarecrow does.
 
     Key
-      .  transparent      L  leaf, light      D  leaf, dark
-      T  trunk            B  blossom / fruit  G  grass highlight
-      S  snow             K  dark accent
+      .  transparent   W  white         E  darkest (eyes, detail)
+      O  orange        P  pumpkin       Y  yellow / straw
+      R  red cloth     K  trunk dark    C  charcoal
+      V  stem green    G  grass dark    S  snow
+      N  pink          T  trunk         L/D  leaf light / dark   B  blossom
 */
 
-var TREE_FULL = [
-    "...DDD..",
-    "..DLLLD.",
-    ".DLLLLLD",
-    "DLLLLLLD",
-    "DLLLDLLD",
-    ".DLLLLD.",
-    "..DLLD..",
-    "...TT...",
-    "...TT...",
-    "..TTTT.."
+/*! Autumn. Five pixels across, so it still reads at a distance. */
+var PUMPKIN = [
+    "..V..",
+    ".OPO.",
+    "OPPPO",
+    "OPPPO",
+    ".OPO."
 ];
 
-/*! Winter, or any deciduous tree without its leaves. The canopy becomes
-    branch-work in trunk colour rather than disappearing. */
-var TREE_BARE = [
-    "........",
-    "..T...T.",
-    "...T.T..",
-    "..T.T.T.",
-    "...TTT..",
-    "....T...",
-    "...TT...",
-    "...TT...",
-    "...TT...",
-    "..TTTT.."
+/*! Autumn. The single clearest "it is October" signal available. */
+var SCARECROW = [
+    "....OOO....",
+    "...OOOOO...",
+    "....YYY....",
+    "...YEYEY...",
+    "....YYY....",
+    "..YYYYYYY..",
+    "RRRRRRRRRRR",
+    "..RRRRRRR..",
+    "...RRRRR...",
+    "...RRRRR...",
+    "...RYYYR...",
+    "....KKK....",
+    "....KKK....",
+    "....KKK....",
+    "....KKK....",
+    "....KKK...."
 ];
 
-/*! Evergreen. Keeps its colour through winter, which is what stops a winter
-    landscape reading as a dead one. */
-var PINE = [
-    "...D...",
-    "..DLD..",
-    ".DLLLD.",
-    "..DLD..",
-    ".DLLLD.",
-    "DLLLLLD",
-    "..DLD..",
-    ".DLLLD.",
-    "DLLLLLD",
-    "...T...",
-    "..TTT.."
+/*! Spring. */
+var BUNNY = [
+    "W.W....",
+    "W.W....",
+    "WWWW...",
+    "WEWWWW.",
+    "WWWWWWW",
+    ".W...W."
 ];
 
-var BUSH = [
-    ".DLD.",
-    "DLLLD",
-    "DLLLD",
-    ".DDD."
+/*! Winter. */
+var SNOWMAN = [
+    "..CCC..",
+    "..CCC..",
+    ".WWWWW.",
+    ".WEWEW.",
+    ".WWWWW.",
+    "WWWWWWW",
+    "WWWWWWW",
+    "WWWWWWW",
+    ".WWWWW."
 ];
 
-var FLOWER = [
-    ".B.",
-    "BLB",
-    ".T."
+/*! Summer. Cut hay, which is what a summer field actually has in it. */
+var HAYSTACK = [
+    "...YYY...",
+    "..YYYYO..",
+    ".YYYYYOO.",
+    "YYYYYYYOO",
+    "YYYYYYYOO",
+    "YOYYYYYOO"
 ];
 
-var GRASS_TUFT = [
-    "G.G",
-    "GGG"
+/*! Summer, animated by the scene rather than stamped into the ground. */
+var BUTTERFLY_A = [
+    "N.N",
+    "NEN",
+    ".E."
 ];
 
-/*! Sprites keyed by name, so a scene can pick by season without a switch. */
+var BUTTERFLY_B = [
+    "...",
+    "NEN",
+    ".E."
+];
+
 var ALL = {
-    treeFull: TREE_FULL,
-    treeBare: TREE_BARE,
-    pine: PINE,
-    bush: BUSH,
-    flower: FLOWER,
-    grass: GRASS_TUFT
+    pumpkin: PUMPKIN,
+    scarecrow: SCARECROW,
+    bunny: BUNNY,
+    snowman: SNOWMAN,
+    haystack: HAYSTACK,
+    butterflyA: BUTTERFLY_A,
+    butterflyB: BUTTERFLY_B
 };
 
 function width(sprite) { return sprite[0].length; }
 function height(sprite) { return sprite.length; }
-
-/*!
-    Paint \a sprite onto a 2D canvas context at \a x, \a y.
-
-    \a colours maps the key letters to CSS colours; a letter with no entry is
-    skipped, which is how one sprite drops its blossom outside spring without
-    needing a second copy.
-*/
-function draw(ctx, sprite, x, y, colours) {
-    for (var row = 0; row < sprite.length; row++) {
-        var line = sprite[row];
-        for (var col = 0; col < line.length; col++) {
-            var key = line.charAt(col);
-            if (key === ".")
-                continue;
-            var colour = colours[key];
-            if (!colour)
-                continue;
-            ctx.fillStyle = colour;
-            ctx.fillRect(x + col, y + row, 1, 1);
-        }
-    }
-}
-
-/*! Scatter a few blossom pixels over a canopy. Spring only.
-
-    Deterministic in \a seed so the same tree blossoms the same way every
-    launch — the landscape has to be the same place each time you open it.
-*/
-function blossom(ctx, sprite, x, y, colour, seed) {
-    var n = 0;
-    for (var row = 0; row < sprite.length; row++) {
-        var line = sprite[row];
-        for (var col = 0; col < line.length; col++) {
-            var key = line.charAt(col);
-            if (key !== "L" && key !== "D")
-                continue;
-            n++;
-            var r = Math.sin((seed + n) * 12.9898) * 43758.5453;
-            if ((r - Math.floor(r)) > 0.78) {
-                ctx.fillStyle = colour;
-                ctx.fillRect(x + col, y + row, 1, 1);
-            }
-        }
-    }
-}
