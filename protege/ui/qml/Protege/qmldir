@@ -1,0 +1,26 @@
+module Protege
+
+singleton Theme 1.0 Theme.qml
+
+ThemeLink 1.0 ThemeLink.qml
+Squircle 1.0 Squircle.qml
+Icon 1.0 Icon.qml
+IconButton 1.0 IconButton.qml
+NavRow 1.0 NavRow.qml
+SectionLabel 1.0 SectionLabel.qml
+SearchField 1.0 SearchField.qml
+Sidebar 1.0 Sidebar.qml
+TabStrip 1.0 TabStrip.qml
+Composer 1.0 Composer.qml
+ChatView 1.0 ChatView.qml
+CodeBlock 1.0 CodeBlock.qml
+MessageBody 1.0 MessageBody.qml
+Sheet 1.0 Sheet.qml
+Segmented 1.0 Segmented.qml
+Toggle 1.0 Toggle.qml
+Select 1.0 Select.qml
+SettingsSheet 1.0 SettingsSheet.qml
+
+squircle.js 1.0 squircle.js
+icons.js 1.0 icons.js
+messageblocks.js 1.0 messageblocks.js

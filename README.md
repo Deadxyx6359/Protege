@@ -1,5 +1,27 @@
 # Protégé
 
+> ### This branch is a rebuild, and this file is out of date
+>
+> Everything below describes the Tkinter application and the knowledge-lock
+> system, both of which are being replaced. It is kept because the old app
+> still runs (`python run.py`) and because the reasoning in it — the hardware
+> measurements, the security posture, the failed experiments — is worth not
+> losing.
+>
+> **The current plan of record is [docs/REBUILD.md](docs/REBUILD.md).**
+>
+> The new interface runs with:
+>
+> ```bash
+> python shell.py
+> ```
+>
+> It uses **Qwen3-8B** for everyday work and **Qwen2.5-Coder-7B** for code,
+> both fully resident on the 6 GB card at 34–38 tok/s. The 24B this file
+> describes is still on disk and still selectable, but it is no longer the
+> default: it ran at 2.2 tok/s.
+
+
 A fully local, offline AI assistant with a **knowledge lock system**. The
 underlying model keeps all its pretrained capability; the application gates what
 it is permitted to use. Topics start locked. You unlock them by teaching them.

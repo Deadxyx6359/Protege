@@ -39,6 +39,31 @@ llama-cpp-python==0.3.34
 nvidia-cuda-runtime-cu12
 nvidia-cublas-cu12
 
+# PySide6-Essentials: Qt 6 bindings. The entire user interface.
+#
+# Chosen over Tkinter, which cannot do what the interface now has to do: no GPU
+# compositing, no scene graph, no real animation, no blur. Chosen over a
+# webview shell (Tauri/Electron/pywebview) because those run a browser engine
+# in a *separate process*, which no in-process guard can cover -- the same
+# reasoning that ruled out Ollama and LM Studio for inference.
+#
+# Renders through Direct3D11 on the Intel Iris Xe, which drives the display.
+# The RTX 3060 stays entirely free for model weights, so the interface costs
+# inference nothing.
+#
+# "Essentials" rather than the full PySide6: it excludes WebEngine (a bundled
+# Chromium), Charts, and the multimedia stack. None are wanted here and the
+# first is actively unwanted.
+#
+# HONEST NOTE ON NETWORKING: Qt ships QtNetwork, and QML's `import QtNetwork`
+# resolves. We never import either, and verify_offline.py cannot see inside a
+# compiled Qt plugin the way it can read Python source -- so for this package
+# the check is weaker than it is for the rest of the tree. Qt is also capable
+# of calling the OS socket API directly from C++, below anything the Python
+# guard patches. The control that actually holds here is the OS firewall rule
+# in the README, not the in-process guard.
+PySide6-Essentials==6.11.2
+
 # argon2-cffi: argon2id password hashing for the launch PIN. Reference
 # implementation of the PHC winner. Pure local computation, no I/O.
 argon2-cffi==23.1.0

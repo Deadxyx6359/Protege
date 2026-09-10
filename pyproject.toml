@@ -15,5 +15,12 @@ testpaths = ["tests"]
 # Import the package from the repo root without an install step. Protege is run
 # from a checkout, not from site-packages.
 pythonpath = ["."]
-addopts = "-q --strict-markers"
+# --capture=sys, not the default fd-level capture. Redirecting real file
+# descriptors breaks Tcl/Tk initialisation partway through a run: a later
+# `tk.Tk()` fails with "Can't find a usable init.tcl" or "tk wasn't installed
+# properly", about files that plainly exist. tests/conftest.py documents the
+# mechanism. It became unavoidable once Qt tests shared the process with the
+# Tkinter ones — without this the suite loses ~19 tests to spurious errors and
+# takes minutes instead of seconds.
+addopts = "-q --strict-markers --capture=sys"
 filterwarnings = ["error::DeprecationWarning:protege.*"]
