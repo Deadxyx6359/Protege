@@ -164,6 +164,18 @@ def _reject_dangerous_components(candidate: PurePath) -> None:
             raise PathViolation(f"path component {part!r} is a reserved Windows device name")
 
 
+def reject_dangerous(candidate: str | os.PathLike[str]) -> None:
+    """Public wrapper over the component checks.
+
+    Exposed so the capability layer can validate a path without importing a
+    private name across modules. The checks themselves — NUL bytes, NTFS
+    alternate data streams, reserved Windows device names — are the same ones
+    the vault has always used, and are worth applying to every path the
+    application touches, not only vault notes.
+    """
+    _reject_dangerous_components(PurePath(os.fspath(candidate)))
+
+
 def is_within(root: Path, candidate: Path) -> bool:
     """True if `candidate` is `root` or lies beneath it.
 

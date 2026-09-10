@@ -209,7 +209,7 @@ the first message is warm. See *Inference* above for the numbers.
 **Next.** Phase 4 — agents and tools. That is where a 7B stops being a chatbot
 that guesses and starts being one that reads the file.
 
-### Two findings worth not rediscovering
+### Findings worth not rediscovering
 
 **Do not register a PySide6 `QObject` subclass as a QML singleton type.**
 PySide6 registers Python subclasses against the plain `QObject` metatype, and
@@ -237,6 +237,20 @@ initialisation partway through a run — a later `tk.Tk()` fails with "tk wasn't
 installed properly" about files that plainly exist. Harmless while the suite was
 pure Tkinter; unavoidable once Qt tests shared the process. Without it the suite
 loses ~19 tests to spurious errors and takes minutes instead of 27 seconds.
+
+**Claim Tkinter's `_default_root` before the tests do.** Tkinter parents any
+widget built without an explicit master to the first `tk.Tk()` created in the
+process. `ProtegeWindow` is its own `tk.Tk`, so whichever test touched Tk first
+silently decided who the default root was — and when that test destroyed its
+window, `_default_root` was left pointing at a torn-down interpreter. Later
+tests then failed with *"application has been destroyed"*, but only under some
+orderings, so the suite was green on a fixed seed and red roughly one run in
+three under `pytest-randomly`. A session-scoped autouse fixture in
+`tests/conftest.py` now builds the shared root up front and never destroys it.
+The matching real defect: `_drain_events` rescheduled itself unconditionally,
+so the 50 ms poll timer outlived `destroy()` — in the application that leaks a
+timer, in the suite it fires into whichever test is pumping the event loop next.
+`destroy()` now cancels it.
 
 **Never let a test write a realistically-sized model file.** The route planner
 decides on file size, so the obvious test writes a 4.7 GB placeholder. On NTFS

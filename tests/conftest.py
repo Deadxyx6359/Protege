@@ -55,6 +55,26 @@ def _ensure_root() -> tk.Tk | None:
     return _root
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _own_the_default_root():
+    """Build the shared interpreter before any test can build one of its own.
+
+    Tkinter keeps a module-level `_default_root`: the first `tk.Tk()` created
+    in the process. Any widget built without an explicit master is parented to
+    it. `ProtegeWindow` is its own `tk.Tk`, so whichever test touched Tk first
+    decided who the default root was -- and when that test destroyed its
+    window, `_default_root` was left pointing at a dead interpreter. Every
+    later test that built an unmastered widget then failed with "application
+    has been destroyed", which test, and whether it happened at all, depended
+    entirely on the order pytest chose that run.
+
+    Claiming the seat here, once, before collection gets going, removes the
+    ordering from the question. The shared root is never destroyed.
+    """
+    _ensure_root()
+    yield
+
+
 @pytest.fixture(scope="session")
 def tk_available() -> bool:
     """Whether Tk works at all in this process.

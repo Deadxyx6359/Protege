@@ -130,7 +130,7 @@ class ProtegeWindow(tk.Tk):
         self._sweep_holding()
         self._load_plugins()
         self._check_retention()
-        self.after(POLL_MS, self._drain_events)
+        self._poll_id = self.after(POLL_MS, self._drain_events)
 
     def _bind_shortcuts(self) -> None:
         """Window-wide keys.
@@ -849,7 +849,11 @@ class ProtegeWindow(tk.Tk):
                     self._fail_turn(payload)
         except queue.Empty:
             pass
-        self.after(POLL_MS, self._drain_events)
+        # Reschedule only while the window is still real. Without this the
+        # timer outlives `destroy()` and Tk reports "invalid command name"
+        # against a torn-down interpreter, once every POLL_MS, forever.
+        if self.winfo_exists():
+            self._poll_id = self.after(POLL_MS, self._drain_events)
 
     def _finish_turn(self, turn: Turn) -> None:
         if turn.blocked:
@@ -1232,6 +1236,24 @@ class ProtegeWindow(tk.Tk):
             "All inference is local. This application opens no network connections.\n"
             "The PIN is an access convenience, not encryption.",
         )
+
+    def destroy(self) -> None:
+        """Cancel the poll timer before tearing the interpreter down.
+
+        `after` callbacks survive the widget that scheduled them. A pending
+        `_drain_events` firing into a destroyed window is harmless in a running
+        application -- nobody sees the stderr line -- but under a test run it
+        lands in whichever test happens to be pumping the event loop next, and
+        turns an unrelated test red depending on the order they ran in.
+        """
+        poll_id = getattr(self, "_poll_id", None)
+        if poll_id is not None:
+            try:
+                self.after_cancel(poll_id)
+            except tk.TclError:
+                pass
+            self._poll_id = None
+        super().destroy()
 
     def _on_close(self) -> None:
         if self._busy and not messagebox.askokcancel(
