@@ -77,6 +77,7 @@ Item {
             weather: root.weather
             southernHemisphere: root.southernHemisphere
             motion: root.motion
+            active: !root.quiet && root.visible
         }
     }
 
@@ -85,6 +86,7 @@ Item {
 
         SpaceScene {
             motion: root.motion
+            active: !root.quiet && root.visible
         }
     }
 
@@ -122,7 +124,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        height: 260
+        height: Math.min(160, parent.height * 0.23)
         visible: !root.quiet
         gradient: Gradient {
             GradientStop { position: 0.00; color: "transparent" }

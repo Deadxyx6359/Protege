@@ -35,3 +35,7 @@ Thumbs.db
 # Scratch output from the screenshot and benchmark harnesses.
 *.bmp
 scratch/
+
+# Repeatable local scene captures (source lives in the QML painters).
+artifacts/scenes/
+coast-preview.png

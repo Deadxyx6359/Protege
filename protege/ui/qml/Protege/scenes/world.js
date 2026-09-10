@@ -36,32 +36,23 @@ function phase(date) {
 
 // -- season -------------------------------------------------------------
 
-/*  Season boundaries as day-of-year, following the solstices and equinoxes.
-
-    An earlier version used whole months, on the reasoning that "autumn" means
-    September onward. That is wrong, and obviously so the moment you look out
-    of a window: the tenth of September is summer nearly everywhere in the
-    northern hemisphere, and the scene was showing autumn colours in what was
-    still shirtsleeve weather. Astronomical boundaries match what people
-    actually see outside, which is the only thing this has to agree with.
-*/
-var SPRING_START = 79;   // ~20 March
-var SUMMER_START = 172;  // ~21 June
-var AUTUMN_START = 265;  // ~22 September
-var WINTER_START = 355;  // ~21 December
+// Approximate astronomical dates, not month boundaries or a local climate
+// model. Exact equinox instants vary by year and location is not connected yet.
 
 function dayOfYear(date) {
-    var start = new Date(date.getFullYear(), 0, 0);
-    return Math.floor((date - start) / 86400000);
+    // Calendar arithmetic: local elapsed milliseconds lose an hour at DST.
+    return Math.round((Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+                     - Date.UTC(date.getFullYear(), 0, 0)) / 86400000);
 }
 
 function season(date, southern) {
-    var d = dayOfYear(date);
+    // Approximate equinox/solstice dates, stable across leap years and DST.
+    var d = (date.getMonth() + 1) * 100 + date.getDate();
     var s;
-    if (d < SPRING_START) s = "winter";
-    else if (d < SUMMER_START) s = "spring";
-    else if (d < AUTUMN_START) s = "summer";
-    else if (d < WINTER_START) s = "autumn";
+    if (d < 320) s = "winter";
+    else if (d < 621) s = "spring";
+    else if (d < 922) s = "summer";
+    else if (d < 1221) s = "autumn";
     else s = "winter";
 
     if (!southern)
@@ -72,15 +63,13 @@ function season(date, southern) {
 
 /*! 0.0 at the start of the season, 1.0 at its end. */
 function seasonProgress(date) {
-    var d = dayOfYear(date);
-    var bounds = [
-        [0, SPRING_START], [SPRING_START, SUMMER_START],
-        [SUMMER_START, AUTUMN_START], [AUTUMN_START, WINTER_START],
-        [WINTER_START, 366]
-    ];
-    for (var i = 0; i < bounds.length; i++) {
-        if (d >= bounds[i][0] && d < bounds[i][1])
-            return (d - bounds[i][0]) / (bounds[i][1] - bounds[i][0]);
+    var y = date.getFullYear();
+    var d = Date.UTC(y, date.getMonth(), date.getDate());
+    var bounds = [Date.UTC(y-1,11,21),Date.UTC(y,2,20),Date.UTC(y,5,21),
+                  Date.UTC(y,8,22),Date.UTC(y,11,21),Date.UTC(y+1,2,20)];
+    for (var i = 0; i < bounds.length-1; i++) {
+        if (d >= bounds[i] && d < bounds[i+1])
+            return (d - bounds[i]) / (bounds[i+1] - bounds[i]);
     }
     return 0;
 }
@@ -162,6 +151,7 @@ function palette(seasonName) {
             trunk: "#6b4a34", trunkDark: "#4a3325",
             water: "#4a7fbf", waterLight: "#7aa9d9", waterDark: "#32588c",
             flowers: ["#f4b8cf", "#fff3b0", "#c8a2e0", "#ffffff", "#ffd9e6", "#a8d8ff"],
+            sand: "#e6d9b8", sandWet: "#c4b48f", foam: "#eaf4fb",
             snow: null
         };
     case "summer":
@@ -177,6 +167,7 @@ function palette(seasonName) {
             trunk: "#5f4230", trunkDark: "#402c20",
             water: "#3f79bd", waterLight: "#6fa3d6", waterDark: "#2b5288",
             flowers: ["#ffe9a8", "#ffffff", "#f7c4d8", "#c9b3e8", "#ffd166", "#e8f0a0"],
+            sand: "#efe0b4", sandWet: "#cbb887", foam: "#f2fafd",
             snow: null
         };
     case "autumn":
@@ -192,6 +183,7 @@ function palette(seasonName) {
             trunk: "#553a29", trunkDark: "#38251a",
             water: "#41739f", waterLight: "#6f9cc2", waterDark: "#2c4f73",
             flowers: ["#e8a34a", "#d9603f", "#f0c674", "#b5893f", "#e0dcc0", "#c98b5a"],
+            sand: "#d8c8a4", sandWet: "#b0a07c", foam: "#e2edf5",
             snow: null
         };
     default: // winter
@@ -207,6 +199,7 @@ function palette(seasonName) {
             trunk: "#4a382c", trunkDark: "#2f231b",
             water: "#5a86ac", waterLight: "#93b4d2", waterDark: "#3d6285",
             flowers: ["#ffffff", "#e8f0f8", "#d4e2ee"],
+            sand: "#dfe4e8", sandWet: "#b8c2cb", foam: "#ffffff",
             snow: "#f4f8fc"
         };
     }
@@ -270,6 +263,7 @@ function normaliseWeather(raw) {
     if (!raw)
         return "clear";
     var w = String(raw).toLowerCase();
+    if (CONDITIONS[w]) return w;
 
     if (w.indexOf("thunder") >= 0 || w.indexOf("lightning") >= 0) return "thunder";
     if (w.indexOf("blizzard") >= 0) return "blizzard";
