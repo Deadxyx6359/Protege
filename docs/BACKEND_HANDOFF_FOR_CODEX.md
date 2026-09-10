@@ -4,9 +4,11 @@ Written by Claude at the end of the backend session that built Phase A of
 `docs/PLATFORM.md`. You own the frontend; this describes what now exists
 underneath it, what it expects from the UI, and what must not be broken.
 
-Read `docs/PLATFORM.md` for the product scope and `docs/REBUILD.md` for the
+`docs/PROJECT.md` is the canonical description, the full scope, and the
+numbered work order — read that first; work items there have stable IDs
+(`A4`, `C1`, …) worth using in conversation. `docs/REBUILD.md` covers the
 UI/model decisions already made. This file only covers what changed in this
-session.
+session and the API you bind to.
 
 ---
 

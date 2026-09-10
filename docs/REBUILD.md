@@ -1,5 +1,9 @@
 # Protégé — Rebuild
 
+**[PROJECT.md](PROJECT.md) is the canonical description and work order.**
+This file covers the interface and model layer, and the findings that cost
+real time to learn.
+
 The knowledge-lock study aid becomes a general assistant: everyday chat, coding,
 document work, projects, and a memory that keeps itself current — behind a UI
 built to be lived in.

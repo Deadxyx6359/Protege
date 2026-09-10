@@ -4,8 +4,10 @@ The assistant becomes a place where agents work: teams that research, build,
 watch and automate, with real reach into the machine and the network, and a
 second brain that keeps itself current.
 
-This is the plan of record for that. [REBUILD.md](REBUILD.md) covers the
-interface and the model layer it sits on.
+**[PROJECT.md](PROJECT.md) is the canonical description and work order** —
+start there. This file carries the argument behind it: scope honesty, the
+security inversion, and where the lines are drawn. [REBUILD.md](REBUILD.md)
+covers the interface and the model layer it sits on.
 
 ---
 
