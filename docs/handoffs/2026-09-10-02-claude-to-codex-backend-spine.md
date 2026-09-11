@@ -1,5 +1,12 @@
 # Backend handoff → Codex
 
+> **Superseded by [04](2026-09-10-04-claude-to-codex-section-a-complete.md).**
+> Moved from `docs/BACKEND_HANDOFF_FOR_CODEX.md`. Kept as the record of the
+> spine session. Its bridge sections predate the fix that registered the
+> bridges with QML, and §6 is out of date; for what is true now, read
+> [QML_BRIDGES.md](../QML_BRIDGES.md).
+
+
 Written by Claude at the end of the backend session that built Phase A of
 `docs/PLATFORM.md`. You own the frontend; this describes what now exists
 underneath it, what it expects from the UI, and what must not be broken.

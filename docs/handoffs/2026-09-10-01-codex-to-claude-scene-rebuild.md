@@ -1,7 +1,13 @@
 # Protégé scene handoff — 10 September 2026
 
+> **Historical.** Moved from `docs/SCENES_HANDOFF_FOR_CLAUDE.md` when the
+> handoffs were gathered into this folder. What is true now lives in
+> [PROJECT.md](../PROJECT.md) and [QML_BRIDGES.md](../QML_BRIDGES.md); the
+> index is in [README.md](README.md).
+
+
 **Historical handoff.** Claude subsequently fixed the roof, shadows and layering
-in `2ed525b`. See [the current frontend handoff](FRONTEND_HANDOFF_FOR_CLAUDE.md)
+in `2ed525b`. See [the current frontend handoff](2026-09-10-03-codex-to-claude-research-workspace.md)
 for the completed detail pass, new Research workspace and abyss scene. The
 pending items and usage figures below record the earlier session, not current
 status.

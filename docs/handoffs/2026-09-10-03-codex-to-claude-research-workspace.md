@@ -1,5 +1,13 @@
 # Frontend handoff — scene details and Research
 
+> Moved from `docs/FRONTEND_HANDOFF_FOR_CLAUDE.md` when the handoffs were
+> gathered into this folder. The file names below are the old ones:
+> `SCENES_HANDOFF_FOR_CLAUDE.md` is now
+> [01](2026-09-10-01-codex-to-claude-scene-rebuild.md) and
+> `BACKEND_HANDOFF_FOR_CODEX.md` is
+> [02](2026-09-10-02-claude-to-codex-backend-spine.md).
+
+
 Date: 2026-09-10. Author: Codex. User-approved scope: frontend/UI.
 
 This is the current handoff. `SCENES_HANDOFF_FOR_CLAUDE.md` describes the earlier

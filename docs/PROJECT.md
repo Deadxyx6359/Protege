@@ -17,12 +17,13 @@ is not.
 | **PROJECT.md** (this file) | What we are building, in what order, and why | Claude |
 | [PLATFORM.md](PLATFORM.md) | The platform argument: scope honesty, the security inversion, hard lines | Claude |
 | [REBUILD.md](REBUILD.md) | Interface and model layer; measured benchmarks; findings not to rediscover | Claude |
-| [BACKEND_HANDOFF_FOR_CODEX.md](BACKEND_HANDOFF_FOR_CODEX.md) | Live API surface Codex binds the UI to | Claude → Codex |
-| [FRONTEND_HANDOFF_FOR_CLAUDE.md](FRONTEND_HANDOFF_FOR_CLAUDE.md) | **Current** frontend handoff: scenes, Research workspace, integration points | Codex → Claude |
-| [SCENES_HANDOFF_FOR_CLAUDE.md](SCENES_HANDOFF_FOR_CLAUDE.md) | Historical — the earlier scene rebuild | Codex → Claude |
+| [QML_BRIDGES.md](QML_BRIDGES.md) | **Living** API: every object QML can reach, and the rules for using it | Claude (shared seam) |
+| [handoffs/](handoffs/README.md) | Point-in-time notes between Claude and Codex, dated and indexed | Both |
 
-**Read order for a fresh session:** this file → the handoff for your role →
-REBUILD.md §"Findings worth not rediscovering" before touching UI or tests.
+**Read order for a fresh session:** this file → the newest handoff addressed
+to you in [handoffs/](handoffs/README.md) → [QML_BRIDGES.md](QML_BRIDGES.md)
+if you touch the interface → REBUILD.md §"Findings worth not rediscovering"
+before touching UI or tests.
 
 ---
 
@@ -410,7 +411,8 @@ passes. Update this line when it changes.
   done, because the interesting cases are all adversarial.
 - **Findings go in REBUILD.md** §"Findings worth not rediscovering" the moment
   they cost more than ten minutes.
-- **Handoffs stay current.** Refresh the Codex handoff at 90% session usage or
-  on request.
+- **Handoffs are written, never refreshed.** A new one goes in `docs/handoffs/`
+  at 90% session usage or on request, following the README there. What is
+  true now belongs in the living documents, which change with the work.
 - **Open source where it fits** — Hermes for tool calling, Whisper, Piper,
   Playwright, and other open agents rather than bespoke reimplementation.
