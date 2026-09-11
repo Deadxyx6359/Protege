@@ -126,7 +126,7 @@ class RunRecord:
     started: float
     finished: float
     status: str
-    """`ok`, `failed`, `skipped`, or `overlap`."""
+    """`ok`, `failed`, `skipped`, `overlap`, or `cancelled`."""
     summary: str = ""
     late: bool = False
     trigger: str = "time"
@@ -220,6 +220,9 @@ class Job:
 class ActionResult:
     ok: bool
     summary: str = ""
+    cancelled: bool = False
+    """Stopped because Protégé was closing. Recorded as such and not counted
+    as a failure: a job must not be paused for having been interrupted."""
 
 
 @dataclass(slots=True)
@@ -234,6 +237,10 @@ class JobContext:
     trace: Trace
     event: dict | None = None
     event_name: str = ""
+    cancelled: Callable[[], bool] = lambda: False
+    """True once Protégé is closing. Long actions pass it on as
+    `is_cancelled`, so an agent stops at its next token rather than holding
+    shutdown up."""
 
 
 Action = Callable[[JobContext], ActionResult]
@@ -414,6 +421,7 @@ class Scheduler:
         self._events: deque[tuple[str, dict]] = deque()
         self.dropped_events = 0
         self.wake = threading.Event()
+        self._interrupted = threading.Event()
 
         jobs, self.warnings = self._store.load()
         self._jobs: dict[str, Job] = {job.id: job for job in jobs}
@@ -434,6 +442,13 @@ class Scheduler:
 
     def set_on_change(self, callback: Callable[[], None] | None) -> None:
         self._on_change = callback
+
+    def interrupt(self) -> None:
+        """Ask running jobs to stop, and start no new ones. For shutdown."""
+        self._interrupted.set()
+
+    def clear_interrupt(self) -> None:
+        self._interrupted.clear()
 
     # -- the job table ------------------------------------------------------
 
@@ -540,6 +555,10 @@ class Scheduler:
         """Run whatever is due at \a now. Returns what happened."""
         now = self._clock() if now is None else now
         records: list[RunRecord] = []
+        if self._interrupted.is_set():
+            # Closing. Whatever is due stays due, and is resolved as missed
+            # the next time Protégé starts.
+            return records
 
         for job, name, payload in self._claim_events(now):
             records.append(self._execute(job, now, trigger="event",
@@ -659,7 +678,8 @@ class Scheduler:
                         actor=actor, confirm=self._confirm)
                     context = JobContext(job=job, arguments=dict(job.arguments),
                                          tools=tools, trace=self._trace,
-                                         event=event, event_name=event_name)
+                                         event=event, event_name=event_name,
+                                         cancelled=self._interrupted.is_set)
                     result = handler(context)
                     if not isinstance(result, ActionResult):
                         result = ActionResult(True, "" if result is None else str(result))
@@ -680,6 +700,8 @@ class Scheduler:
                 job.suppressed = 0
             if result.ok:
                 job.failures = 0
+            elif result.cancelled:
+                pass  # interrupted, not failed: the count is left alone
             else:
                 job.failures += 1
                 if job.failures >= MAX_CONSECUTIVE_FAILURES and job.enabled:
@@ -688,8 +710,8 @@ class Scheduler:
                         f"Paused after {job.failures} failures in a row. "
                         f"The last one: {result.summary[:200]}")
 
-        record = RunRecord(job.id, started, self._clock(),
-                           "ok" if result.ok else "failed",
+        status = "ok" if result.ok else "cancelled" if result.cancelled else "failed"
+        record = RunRecord(job.id, started, self._clock(), status,
                            summary[:MAX_SUMMARY_CHARS], late, trigger)
         self._trace.emit(Kind.ANSWER if result.ok else Kind.FAILED, actor,
                          text=record.summary, ok=result.ok)
@@ -766,6 +788,7 @@ class SchedulerService:
         if self.running:
             return
         self._stop.clear()
+        self._scheduler.clear_interrupt()
         self._thread = threading.Thread(target=self._loop, name="scheduler",
                                         daemon=True)
         self._thread.start()
@@ -784,6 +807,9 @@ class SchedulerService:
 
     def stop(self, timeout: float = 5.0) -> None:
         self._stop.set()
+        # A running agent stops at its next token instead of holding up
+        # shutdown, and holding the model while the router waits to unload.
+        self._scheduler.interrupt()
         self._scheduler.wake.set()
         if self._thread is not None:
             self._thread.join(timeout)

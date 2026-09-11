@@ -27,6 +27,13 @@ SUMMARY_CHARS = 800
 TEAMS = {"research": research_team, "software": software_team}
 
 
+def _result(ok: bool, stopped: str, answer: str) -> ActionResult:
+    if stopped == "cancelled":
+        return ActionResult(False, "Stopped because Protégé was closing.",
+                            cancelled=True)
+    return ActionResult(ok, answer[:SUMMARY_CHARS])
+
+
 def _task(context: JobContext) -> str:
     task = str(context.arguments.get("task", "")).strip()
     if context.event is None:
@@ -34,6 +41,31 @@ def _task(context: JobContext) -> str:
     detail = json.dumps(context.event, ensure_ascii=False)[:1000]
     return (f"{task}\n\nThis run was started by the event "
             f"{context.event_name!r}, which carried: {detail}")
+
+
+def check_arguments(action: str, arguments: dict) -> str:
+    """Why a job with these arguments could not run, or "" if it could.
+
+    Checked when the job is created, so a typo is refused at the moment it is
+    made rather than surfacing as a failed run at three in the morning.
+    """
+    if action == "security_review":
+        return "The security review schedules itself; it runs every day."
+    if action == "agent":
+        role = str(arguments.get("role", ""))
+        if role not in ALL_ROLES:
+            return f"There is no role named {role!r}."
+        who = "agent"
+    elif action == "team":
+        team = str(arguments.get("team", ""))
+        if team not in TEAMS:
+            return f"There is no team named {team!r}."
+        who = "team"
+    else:
+        return ""
+    if not str(arguments.get("task", "")).strip():
+        return f"The job needs a task to give the {who}."
+    return ""
 
 
 def register_agent_actions(actions: ActionRegistry, *, router: ModelRouter,
@@ -49,8 +81,9 @@ def register_agent_actions(actions: ActionRegistry, *, router: ModelRouter,
         if not task:
             return ActionResult(False, "The job has no task to give the agent.")
         outcome = Agent(spec, router=router, registry=registry,
-                        context=context.tools, trace=context.trace).run(task)
-        return ActionResult(outcome.ok, outcome.answer[:SUMMARY_CHARS])
+                        context=context.tools, trace=context.trace,
+                        ).run(task, is_cancelled=context.cancelled)
+        return _result(outcome.ok, outcome.stopped, outcome.answer)
 
     def run_team(context: JobContext) -> ActionResult:
         name = str(context.arguments.get("team", ""))
@@ -61,8 +94,9 @@ def register_agent_actions(actions: ActionRegistry, *, router: ModelRouter,
         if not task:
             return ActionResult(False, "The job has no task to give the team.")
         outcome = Team(build(), router=router, registry=registry,
-                       context=context.tools, trace=context.trace).run(task)
-        return ActionResult(outcome.ok, outcome.answer[:SUMMARY_CHARS])
+                       context=context.tools, trace=context.trace,
+                       ).run(task, is_cancelled=context.cancelled)
+        return _result(outcome.ok, outcome.stopped, outcome.answer)
 
     actions.register("agent", run_agent, "Give one agent a task")
     actions.register("team", run_team, "Give a team a task")

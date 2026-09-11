@@ -278,6 +278,19 @@ three bridges, fully tested, that QML could not reach, because `shell.py` only
 exposed `Chat` and `Settings`. A test now asserts every context name the
 application exposes.
 
+**Hold the model for the whole generation, not just the load.** The router
+held its lock only while loading, then handed the model out unguarded. That
+was fine while the chat turn was the only thing generating. Once the
+scheduler could run an agent while a turn streamed, two threads could
+generate on one llama.cpp model at once, and a thread loading a second large
+model would evict the first mid-generation: freed memory being read, a
+native crash rather than an exception. A settings change from the UI thread
+could do the same. `acquire` now holds a process-wide inference lock for the
+whole block. `update` only marks changed models stale, so the UI thread never
+waits out a generation. `unload_all` waits, and declines rather than crash.
+The tests drive the real `acquire` through a fake llama module; the older
+chat tests replace `acquire` outright, which is why none of them caught it.
+
 **Never let a test write a realistically-sized model file.** The route planner
 decides on file size, so the obvious test writes a 4.7 GB placeholder. On NTFS
 `truncate` allocates rather than sparsifying, and pytest keeps the last few temp

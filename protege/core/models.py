@@ -83,13 +83,25 @@ class ModelRouter:
 
     Safe to call from a worker thread. Loading and unloading are serialised,
     because two threads racing to load a 5 GB model would try to allocate it
-    twice.
+    twice — and so is generation itself, one at a time across the process.
     """
 
     def __init__(self, config: AppConfig) -> None:
         self._config = config
         self._backends: dict[Route, ModelBackend] = {}
+        # Guards the table of loaded backends. Held briefly.
         self._lock = threading.RLock()
+        # Held for the whole of a generation, so only one runs at a time
+        # across the process. llama.cpp is not safe to call from two threads
+        # at once, and evicting a model another thread is still generating on
+        # frees memory it is reading: a native crash, not an exception. While
+        # only the chat turn generated this could not happen; once a scheduled
+        # agent can run while a turn streams, it is load-bearing.
+        # Always taken before `_lock`, never after.
+        self._inference = threading.Lock()
+        # Models whose file changed while something was generating. The next
+        # `acquire` unloads them; it holds `_inference`, so it cannot race one.
+        self._stale: set[Route] = set()
 
     # -- configuration ------------------------------------------------------
 
@@ -104,8 +116,17 @@ class ModelRouter:
                 before = self._model_config(route, self._config)
                 after = self._model_config(route, config)
                 if before.path != after.path:
-                    self._unload(route)
+                    self._stale.add(route)
             self._config = config
+        # Free them now if nothing is generating. If something is, the next
+        # `acquire` does it: this runs on the UI thread, which must never wait
+        # out somebody else's generation.
+        if self._inference.acquire(blocking=False):
+            try:
+                with self._lock:
+                    self._drain_stale()
+            finally:
+                self._inference.release()
 
     def _model_config(self, route: Route, config: AppConfig | None = None) -> ModelConfig:
         cfg = config if config is not None else self._config
@@ -152,6 +173,12 @@ class ModelRouter:
         backend = self._backends.pop(route, None)
         if backend is not None:
             backend.close()
+
+    def _drain_stale(self) -> None:
+        """Unload the models whose file changed. The caller holds both locks."""
+        for route in list(self._stale):
+            self._unload(route)
+        self._stale.clear()
 
     def _evict_for(self, route: Route) -> None:
         """Free room before loading a large model.
@@ -203,13 +230,19 @@ class ModelRouter:
         The backend stays resident afterwards. Unloading on every use would
         make each turn pay the load cost, which for a 5 GB file is several
         seconds before a single token appears.
+
+        Only one caller is inside at a time, across the whole process. The
+        rest wait here: a scheduled agent queues behind a streaming chat turn
+        rather than generating over it. Keep the block to the generation.
         """
         resolved = self.resolve(route)
-        with self._lock:
-            backend = self._backends.get(resolved)
-            if backend is None or not backend.is_loaded:
-                backend = self._load(resolved)
-        yield backend
+        with self._inference:
+            with self._lock:
+                self._drain_stale()
+                backend = self._backends.get(resolved)
+                if backend is None or not backend.is_loaded:
+                    backend = self._load(resolved)
+            yield backend
 
     def warm(self, route: Route) -> bool:
         """Load  route now, reporting success rather than raising.
@@ -224,10 +257,24 @@ class ModelRouter:
         except (ModelUnavailable, OSError, RuntimeError):
             return False
 
-    def unload_all(self) -> None:
-        with self._lock:
-            for route in list(self._backends):
-                self._unload(route)
+    def unload_all(self, timeout: float = 30.0) -> bool:
+        """Unload everything, once any running generation has finished.
+
+        Returns False, unloading nothing, if one is still running after
+        \a timeout. Freeing a model mid-generation crashes the process, and an
+        exiting process gets its memory back regardless, so waiting and then
+        declining is the safe order.
+        """
+        if not self._inference.acquire(timeout=timeout):
+            return False
+        try:
+            with self._lock:
+                for route in list(self._backends):
+                    self._unload(route)
+                self._stale.clear()
+        finally:
+            self._inference.release()
+        return True
 
     def close(self) -> None:
         self.unload_all()

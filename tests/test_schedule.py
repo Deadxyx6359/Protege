@@ -744,3 +744,96 @@ def test_a_scheduled_team_that_does_not_exist_fails_plainly(tmp_path, clock):
                         arguments={"team": "marketing", "task": "x"})
     record = scheduler.run_now(job.id)
     assert record.status == "failed" and "marketing" in record.summary
+
+
+# -- closing ---------------------------------------------------------------------
+
+
+def test_after_an_interrupt_nothing_new_starts(build, clock, calls):
+    scheduler = build()
+    scheduler.add("Morning", "note", Daily(9, 0))
+    scheduler.interrupt()
+    clock.set(datetime(2026, 3, 2, 9, 0, 30))
+    assert scheduler.tick() == [] and calls == []
+
+
+def test_a_run_cut_short_by_closing_is_cancelled_not_failed(build, clock, actions):
+    """A job must not be paused for having been interrupted five times."""
+    actions.register("cut", lambda context: ActionResult(False, "stopped", cancelled=True))
+    scheduler = build()
+    job = scheduler.add("Cut", "cut", Every(3600))
+    for _ in range(scheduler_module.MAX_CONSECUTIVE_FAILURES + 1):
+        clock.advance(hours=1)
+        scheduler.tick()
+    assert job.enabled and job.failures == 0
+    assert job.last_status == "cancelled"
+
+
+def test_stopping_the_service_interrupts_a_running_job(tmp_path, actions):
+    started = threading.Event()
+    saw = []
+
+    def long_job(context):
+        started.set()
+        deadline = time.monotonic() + 10
+        while not context.cancelled() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        saw.append(context.cancelled())
+        return ActionResult(False, "stopped", cancelled=True)
+
+    actions.register("long", long_job)
+    scheduler = Scheduler(actions, policy=Policy,
+                          audit=AuditLog(tmp_path / "a.jsonl"),
+                          secret_store=SecretStore(tmp_path / "s"),
+                          store=JobStore(tmp_path / "schedule.json"))
+    scheduler.add("Long", "long", OnEvent("go"))
+    service = SchedulerService(scheduler, interval_s=30.0)
+    service.start()
+    scheduler.publish("go", {})
+    assert started.wait(5)
+
+    service.stop(timeout=5)
+
+    assert saw == [True]
+    assert not service.running
+
+
+def test_a_scheduled_agent_stops_at_its_next_token_when_protege_closes(tmp_path, clock):
+    from contextlib import contextmanager
+
+    from protege.core.schedule.actions import register_agent_actions
+    from protege.core.tools import default_registry
+
+    streaming = threading.Event()
+
+    class Endless:
+        def generate(self, messages, *, on_token=None, **_):
+            for _ in range(5000):
+                on_token("more ")
+                streaming.set()
+                time.sleep(0.002)
+            return "never finished"
+
+    class Router:
+        @contextmanager
+        def acquire(self, route):
+            yield Endless()
+
+    registry = ActionRegistry()
+    register_agent_actions(registry, router=Router(), registry=default_registry())
+    scheduler = Scheduler(registry, policy=Policy,
+                          audit=AuditLog(tmp_path / "a.jsonl"),
+                          secret_store=SecretStore(tmp_path / "s"),
+                          store=JobStore(tmp_path / "schedule.json"), clock=clock)
+    job = scheduler.add("Long look", "agent", Daily(9, 0),
+                        arguments={"role": "gatherer", "task": "look around"})
+    box = {}
+    worker = threading.Thread(target=lambda: box.update(record=scheduler.run_now(job.id)))
+    worker.start()
+    assert streaming.wait(5)
+
+    scheduler.interrupt()
+    worker.join(10)
+
+    assert box["record"].status == "cancelled"
+    assert job.failures == 0
