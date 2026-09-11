@@ -77,7 +77,7 @@ measured benchmarks, not from optimism.
 | Capability | Verdict | Item |
 |---|---|---|
 | Document management — .docx, .pptx, .xlsx, PDF | **Done**: read all four, create Word and Excel, edit Word and PowerPoint, set Excel cells. Creating decks from scratch still to come | B1 |
-| Obsidian second brain, fully automated, never opened by hand | **Vault and index done**: read, link, write with history and conflict checks, daily notes; ranked search by section, kept current incrementally. Retrieval next | B2 |
+| Obsidian second brain, fully automated, never opened by hand | **Vault, index and retrieval done**: read, link, write with history and conflict checks, daily notes; ranked search by section over notes, documents and past conversations, merged into cited passages. Memory distillation next | B2 |
 | Private RAG, local embeddings | Fine — no network involved | B3–B4 |
 | General memory that updates regularly | Partly exists (legacy `memory/`), needs rebuilding on the new spine | B5 |
 | Projects, easy to access and manage | Legacy `projects.py` exists; needs reconciling | B6 |
@@ -332,10 +332,22 @@ nothing new to install. `search` keeps its shape when they arrive and B4 fuses
 both. A file watcher is also still to do: refresh is on demand, and cheap when
 nothing changed.
 
-**B4 ○ Retrieval / private RAG** — `core/brain/retrieve.py`
+**B4 ✅ Retrieval / private RAG** — `core/brain/retrieve.py`, `core/brain/corpora.py`, tools in `core/tools/builtin/knowledge.py`
 Hybrid retrieval over vault, documents and conversations, with citations back
 to source notes. Retrieval is a *tool*, so it is gated and audited like
 anything else.
+*Done:* `search_notes` answers from the index, and `search_documents` and
+`search_conversations` join it, each ranked by section and held to its own
+permission: `docs.read` for documents (Markdown and text files only where
+`files.read` reaches too), and a new `memory.read` for past conversations, so
+an agent that may read files still cannot trawl what was said in chat.
+`retrieve.gather` searches the sources asked for *through the registry*, so
+every search is checked and audited, merges them by reciprocal rank, keeps a
+budget, and reports what was left out and which sources could not be
+searched. `read_document` and the index share one document-to-text function.
+*Still to do:* calling `gather` from the chat turn (with context assembly),
+embeddings as a second ranked list for the same fusion, and dropping an
+index's stored text when its grant is revoked rather than at the next refresh.
 
 **B5 ○ Memory distillation** — `core/brain/distil.py`
 Scheduled consolidation of conversations into durable notes, deduplicated
@@ -434,12 +446,13 @@ and resumable.
 | B | B1 Document tools | ✅ |
 | B | B2 Obsidian vault | ✅ |
 | B | B3 Vault index (lexical; embeddings deferred) | ✅ |
-| B | B4–B6 Second brain | ▶ next (B4) |
+| B | B4 Retrieval | ✅ |
+| B | B5–B6 Second brain | ▶ next (B5) |
 | C | C1–C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1487 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
+**Tests at last commit:** 1502 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

@@ -24,7 +24,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from protege.core.documents import Package, PackageError, pdf, sheets, slides, word, write_atomically
+from protege.core.documents import (KINDS, Package, PackageError, sheets, slides, text_of, word,
+                                    write_atomically)
 from protege.core.documents.ooxml import MAX_PACKAGE_BYTES
 from protege.security.paths import real
 
@@ -36,10 +37,8 @@ MAX_READ_CHARS = 60_000
 #: Cells one call may set. More than this is a job for Excel, not a prompt.
 MAX_CELLS = 500
 
-_KINDS = {".docx": "word", ".docm": "word", ".dotx": "word",
-          ".xlsx": "sheets", ".xlsm": "sheets",
-          ".pptx": "slides", ".pptm": "slides",
-          ".pdf": "pdf"}
+#: The table the search index reads by too, so the two cannot drift apart.
+_KINDS = KINDS
 _OLD_FORMATS = {".doc": ".docx", ".xls": ".xlsx", ".ppt": ".pptx"}
 
 _LOCKED = ("{name} is open in another program, which has locked it. Close it there "
@@ -91,16 +90,7 @@ def _run_read(arguments: dict, context: ToolContext) -> ToolResult:
     kind = _kind(path)
     raw = _load(path)
     try:
-        if kind == "pdf":
-            text = word.render(pdf.read(raw))
-        else:
-            package = Package(raw, path.name)
-            if kind == "word":
-                text = word.render(word.read(package))
-            elif kind == "sheets":
-                text = sheets.render(sheets.read(package))
-            else:
-                text = slides.render(slides.read(package))
+        text = text_of(raw, path.name)
     except PackageError as exc:
         raise ToolError(str(exc)) from None
 

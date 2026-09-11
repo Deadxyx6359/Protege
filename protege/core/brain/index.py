@@ -1,9 +1,13 @@
-"""A search index over the vault: ranked, incremental, and kept on disk.
+"""A search index: ranked, incremental, and kept on disk.
 
 Searching by reading every note on every query is fine for a few hundred notes
 and not for a few thousand, and it cannot rank: a note that mentions a word
 once scores like one that is about it. The index fixes both, and stays small
 enough to understand in one sitting.
+
+**What it reads is a corpus**: the vault, a folder of documents, the saved
+conversations (`corpora.py`). Anything with a root, the paths under it, a way to
+read one, and a `may_read` check will do.
 
 **Sections, not files.** Notes are split at their headings, and long sections
 into overlapping windows. A hit points at the part of a note that matters — the
@@ -26,12 +30,12 @@ one gets "news" wrong and "business" worse.
 changed, and re-indexed only when its content hash has, so refreshing an
 unchanged vault reads nothing.
 
-**Held to the grant.** Only notes the vault may read are indexed, notes that
+**Held to the grant.** Only notes the corpus may read are indexed, notes that
 are no longer readable are dropped, and results are filtered again when the
 query runs. The index is a cache of what the permission already allowed, never
 a way around it.
 
-The database lives in Protégé's configuration folder, one per vault. It is
+The database lives in Protégé's configuration folder, one per corpus. It is
 disposable: a damaged one is deleted and rebuilt rather than trusted.
 """
 
@@ -46,10 +50,11 @@ import threading
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable, Protocol
 
 from protege.core.config import config_dir
 
-from .vault import Vault, VaultError
+from .vault import VaultError
 
 SCHEMA_VERSION = 1
 CHUNK_CHARS = 1200
@@ -107,8 +112,34 @@ class Result:
     complete: bool
     """Whether the section holds every word of the query."""
 
+    text: str = ""
+    """The whole section, for a model to read."""
 
-def _windows(text: str) -> list[str]:
+    @property
+    def section(self) -> str:
+        """The heading inside the note, without its title; empty for the note as a whole."""
+        return self.heading.split(" › ", 1)[1] if " › " in self.heading else ""
+
+
+class Corpus(Protocol):
+    """What the index reads.
+
+    `read` returns something with `rel`, `title`, `body` and `version`, and may
+    carry `tags` and ready-made `sections`; it raises `VaultError` for anything
+    it will not read, which the index skips. An optional `kind` names the
+    corpus, keeping indexes of the same folder as a vault and as documents apart.
+    """
+
+    root: Path
+
+    def note_paths(self) -> Iterable[Path]: ...
+    def rel(self, path: Path) -> str: ...
+    def read(self, path: Path): ...
+    def may_read(self, path: Path) -> bool: ...
+
+
+def windows(text: str) -> list[str]:
+    """\a text in pieces of at most CHUNK_CHARS, overlapping, broken at spaces."""
     if len(text) <= CHUNK_CHARS:
         return [text]
     pieces, start = [], 0
@@ -161,7 +192,7 @@ def chunks(title: str, body: str) -> list[Chunk]:
     if not sections:
         # A note that is only a title is still findable by it.
         sections.append((title, ""))
-    return [Chunk(name, window) for name, text in sections for window in (_windows(text) or [""])]
+    return [Chunk(name, window) for name, text in sections for window in (windows(text) or [""])]
 
 
 def _snippet(text: str, words: list[str], width: int = 160) -> str:
@@ -176,12 +207,13 @@ def _snippet(text: str, words: list[str], width: int = 160) -> str:
 
 
 class Index:
-    """The search index for one vault."""
+    """The search index for one corpus."""
 
-    def __init__(self, vault: Vault, *, path: Path | None = None) -> None:
-        self.vault = vault
-        key = hashlib.sha256(str(vault.root).lower().encode("utf-8")).hexdigest()[:16]
-        self.path = path if path is not None else config_dir() / "index" / f"{key}.sqlite"
+    def __init__(self, corpus: Corpus, *, path: Path | None = None) -> None:
+        self.corpus = corpus
+        kind = getattr(corpus, "kind", "vault")
+        key = hashlib.sha256(f"{kind}:{corpus.root}".lower().encode("utf-8")).hexdigest()[:16]
+        self.path = path if path is not None else config_dir() / "index" / f"{kind}-{key}.sqlite"
 
     # -- storage -----------------------------------------------------------------------
 
@@ -225,11 +257,13 @@ class Index:
     def _add(db: sqlite3.Connection, note, mtime: float, size: int) -> None:
         db.execute("INSERT OR REPLACE INTO notes (rel, version, mtime, size) VALUES (?, ?, ?, ?)",
                    (note.rel, note.version, mtime, size))
-        for number, chunk in enumerate(chunks(note.title, note.body)[:MAX_CHUNKS_PER_NOTE]):
+        sections = list(getattr(note, "sections", ()) or chunks(note.title, note.body))
+        tags = getattr(note, "tags", ())
+        for number, chunk in enumerate(sections[:MAX_CHUNKS_PER_NOTE]):
             text = chunk.heading + "\n" + chunk.text
-            if number == 0 and note.tags:
+            if number == 0 and tags:
                 # Tags describe the note, so they are counted once, not per section.
-                text += "\n" + " ".join(note.tags)
+                text += "\n" + " ".join(tags)
             words = terms(text)
             cursor = db.execute("INSERT INTO chunks (rel, heading, text, length) VALUES (?, ?, ?, ?)",
                                 (note.rel, chunk.heading, chunk.text, max(len(words), 1)))
@@ -247,8 +281,8 @@ class Index:
             known = {rel: (version, mtime, size) for rel, version, mtime, size
                      in db.execute("SELECT rel, version, mtime, size FROM notes")}
             present: set[str] = set()
-            for path in self.vault.note_paths():
-                rel = self.vault.rel(path)
+            for path in self.corpus.note_paths():
+                rel = self.corpus.rel(path)
                 present.add(rel)
                 try:
                     stat = path.stat()
@@ -258,7 +292,7 @@ class Index:
                 if previous and previous[1] == stat.st_mtime and previous[2] == stat.st_size:
                     continue
                 try:
-                    note = self.vault.read(path)
+                    note = self.corpus.read(path)
                 except VaultError:
                     continue
                 stats["read"] += 1
@@ -313,13 +347,13 @@ class Index:
                 rel, heading, text = db.execute(
                     "SELECT rel, heading, text FROM chunks WHERE id = ?", (chunk_id,)).fetchone()
                 # Checked again here: the index may have been built under a wider grant.
-                if not self.vault.may_read(self.vault.root / rel):
+                if not self.corpus.may_read(self.corpus.root / rel):
                     continue
                 if per_note.get(rel, 0) >= MAX_SECTIONS_PER_NOTE:
                     continue
                 per_note[rel] = per_note.get(rel, 0) + 1
                 results.append(Result(rel, heading, _snippet(text, wanted), round(scores[chunk_id], 3),
-                                      len(matched[chunk_id]) == len(wanted)))
+                                      len(matched[chunk_id]) == len(wanted), text))
                 if len(results) >= limit:
                     break
         return results

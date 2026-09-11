@@ -23,13 +23,14 @@ from pathlib import Path
 
 import yaml
 
-from protege.core.brain import ConflictError, Vault, VaultError, find_root
+from protege.core.brain import ConflictError, Index, Vault, VaultError, find_root
 from protege.security.paths import real
 
 from ..schema import Parameter, Requirement, Tool, ToolContext, ToolError, ToolResult
+from .knowledge import cite_file, present
 
 MAX_BODY_CHARS = 40_000
-MAX_HITS = 25
+MAX_HITS = 12
 
 
 def _vault(path: Path, context: ToolContext) -> Vault:
@@ -40,10 +41,6 @@ def _vault(path: Path, context: ToolContext) -> Vault:
         raise ToolError(str(exc)) from None
 
 
-def _plural(count: int, noun: str) -> str:
-    return f"{count} {noun}" + ("" if count == 1 else "s")
-
-
 # -- search_notes -------------------------------------------------------------------
 
 
@@ -52,23 +49,23 @@ def _run_search(arguments: dict, context: ToolContext) -> ToolResult:
     if not folder.is_dir():
         raise ToolError(f"not a folder: {folder}")
     vault = _vault(folder, context)
+    query = str(arguments["query"])
     try:
-        hits = vault.search(str(arguments["query"]), limit=MAX_HITS)
+        index = Index(vault)
+        index.refresh()
+        results = index.search(query, limit=MAX_HITS)
     except VaultError as exc:
         raise ToolError(str(exc)) from None
-    if not hits:
-        return ToolResult.success(f"No notes match {arguments['query']!r}.", data={"count": 0})
-    lines = [f"{_plural(len(hits), 'note')} match {arguments['query']!r}:", ""]
-    lines += [f"- {hit.rel} — {hit.snippet}" for hit in hits]
-    return ToolResult.success("\n".join(lines), data={"count": len(hits)})
+    return present(results, query, noun="note", cite=cite_file)
 
 
 search_notes = Tool(
     name="search_notes",
-    summary="Search an Obsidian vault for notes containing every word of a query.",
+    summary=("Search an Obsidian vault for the sections most about a query, best first, "
+             "each with its note and heading."),
     parameters=(
         Parameter("vault", "string", "Absolute path to the vault folder."),
-        Parameter("query", "string", "Words to look for. Use #tag to match a tag."),
+        Parameter("query", "string", "What to look for, in a few words. A #tag works too."),
     ),
     requires=(Requirement("vault.read", scope_from="vault"),),
     run=_run_search,

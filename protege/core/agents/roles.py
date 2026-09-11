@@ -34,7 +34,7 @@ GATHERER = AgentSpec(
     ),
     route=Route.CHAT,
     tools=("read_file", "list_directory", "search_files", "read_document",
-           "search_notes", "read_note"),
+           "search_notes", "read_note", "search_documents", "search_conversations"),
     max_steps=6,
     temperature=0.3,
 )
