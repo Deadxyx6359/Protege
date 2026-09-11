@@ -80,6 +80,12 @@ class Requirement:
     the scope on the grant would be decorative.
     """
 
+    scope_of: Callable[[str], str] | None = None
+    """Turns the argument into the scope, when the two differ: a web address into
+    the site it names, so a grant for `example.com` is checked against the site
+    rather than the whole address. Returns "" for an argument with no scope in
+    it, which no grant covers."""
+
     def __post_init__(self) -> None:
         capability = get_capability(self.capability)
         if capability.scope is not ScopeKind.NONE and not self.scope_from:
@@ -226,4 +232,7 @@ class Tool:
         if requirement.scope_from is None:
             return None
         value = arguments.get(requirement.scope_from)
-        return None if value is None else str(value)
+        if value is None:
+            return None
+        text = str(value)
+        return requirement.scope_of(text) if requirement.scope_of is not None else text

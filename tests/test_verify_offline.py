@@ -121,16 +121,47 @@ def test_submodules_resolve_to_their_forbidden_root():
     assert vo.top_level("urllib.request") in vo.FORBIDDEN_ROOTS
 
 
-def test_netguard_is_the_only_exemption():
-    # Every additional exemption is a hole in the guarantee. Keeping this at
-    # exactly one, asserted by test, forces a deliberate decision to add another.
-    assert vo.SOURCE_EXEMPT == frozenset({"protege.security.netguard"})
+# --- the one door ------------------------------------------------------------
+
+
+def test_the_exemptions_are_the_guard_and_the_chokepoint():
+    # Every exemption is a hole in the guarantee. They are listed here with
+    # exactly what each may import, so adding one, or widening one, is a
+    # deliberate act that changes this test.
+    assert vo.EXEMPT_IMPORTS == {
+        "protege.security.netguard": frozenset({"socket"}),
+        "protege.core.net.client": frozenset({"socket", "ssl", "http.client", "urllib.parse"}),
+    }
+    assert vo.SOURCE_EXEMPT == frozenset(vo.EXEMPT_IMPORTS)
+
+
+def test_the_chokepoint_may_not_import_a_client_library():
+    tree = _parse("import ssl\nimport requests\nfrom urllib.request import urlopen\n")
+    findings = vo._exempt_findings(tree, vo.CHOKEPOINT, vo.REPO_ROOT / "fetch.py")
+    assert sorted(f.detail.split("'")[1] for f in findings) == ["requests", "urllib.request"]
+
+
+def test_the_guard_may_not_connect():
+    tree = _parse("import socket\nsocket.create_connection(('example.com', 443))\n")
+    findings = vo._exempt_findings(tree, vo.GUARD, vo.REPO_ROOT / "netguard.py")
+    assert findings and "must never connect" in findings[0].detail
+
+
+def test_only_the_chokepoint_may_open_the_guard():
+    source = ("from protege.security import netguard\n"
+              "with netguard.admitting(hosts=('example.com',)):\n    pass\n")
+    assert vo._admission_findings(_parse(source), "protege.core.tools.builtin.web",
+                                  vo.REPO_ROOT / "web.py")
+    assert not vo._admission_findings(_parse(source), vo.CHOKEPOINT, vo.REPO_ROOT / "fetch.py")
+    sneaky = "from protege.security.netguard import admitting\n"
+    assert vo._admission_findings(_parse(sneaky), "protege.core.agents.loop",
+                                  vo.REPO_ROOT / "loop.py")
 
 
 # --- end-to-end on the real source tree ------------------------------------
 
 
-def test_protege_source_has_no_networking_imports():
+def test_protege_source_has_no_networking_imports_outside_the_door():
     result = vo.ScanResult()
     vo.scan_source(result)
     assert result.errors == [], "\n".join(f.render() for f in result.errors)

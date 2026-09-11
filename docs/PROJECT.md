@@ -70,7 +70,7 @@ measured benchmarks, not from optimism.
 | Agent loop, prompted tool calling | **Done** | A3 |
 | Multiple agents in teams (research team, software team) | Fine — Hermes-3-8B is built for tool calling and fits the card | A4 |
 | Visual display of which model is doing what, and how agents interact | Fine — `Trace` carries it; UI is Codex's | A5 |
-| Coding agent, Claude-Code-like, reads/writes/runs code via VS Code | **Done** — on the tool gate: check, run, test, git, open in VS Code. No push until C1 | A8 |
+| Coding agent, Claude-Code-like, reads/writes/runs code via VS Code | **Done** — on the tool gate: check, run, test, git, open in VS Code. No push yet: git runs as its own process, which the network door does not cover | A8 |
 
 ### 2.2 Knowledge
 
@@ -135,10 +135,11 @@ These are settled. Changing one is a conversation, not a commit.
 4. **Job applications are staged, never submitted unattended.**
 5. **Credentials never reach a model.** Secrets go through DPAPI or are
    refused; there is no obfuscated fallback pretending to be encryption.
-6. **The core stays offline-verifiable.** `verify_offline.py` proves no
-   networking module is reachable from the entry points, and it runs in the
-   suite. Network access lives behind one audited chokepoint (C1) — never
-   imported ad hoc.
+6. **The network has one door.** `verify_offline.py` proves that no
+   networking module is reachable from the entry points except the audited
+   chokepoint (C1, `core/net/client.py`), and that nothing else can open the
+   runtime guard; it runs in the suite. Nothing connects to a site the person
+   has not allowed.
 7. **`model.cloud` is the only door to a cloud model**, off by default, never a
    silent fallback.
 8. **Irreversible actions confirm individually**, regardless of any grant. The
@@ -400,7 +401,7 @@ covers the subject. A removed project's conversations fall back to `Memory/`.
 
 ### Phase C — reach
 
-**C1 ○ The network chokepoint** — `core/net/`
+**C1 ✅ The network chokepoint** — `core/net/`, tool `fetch_page` in `core/tools/builtin/web.py`
 Every outbound request in the entire application goes through one audited
 module that checks `net.http` against the host scope, records the request, and
 enforces timeouts and size caps. `verify_offline.py` is updated to assert that
@@ -409,23 +410,23 @@ socket.
 *Why first in C:* every item below is a client of it. Written second, each one
 would need retrofitting. It is also what finally allows `git push`, left out
 of A8 on purpose.
-*Proposed design, waiting for a go-ahead before any of it is built,* because
-it ends the guarantee that nothing in Protégé can connect:
-- One function, `core/net.fetch`, is the only code besides the guard allowed
-  to import `socket`, `ssl` or `http.client`. `verify_offline.py` names it as
-  the second and last exemption and proves nothing else reaches the network.
-- `https://` only, certificates verified. Private, loopback and link-local
-  addresses are refused, so a public name cannot be pointed back at this
-  machine or the local network.
-- `net.http` is checked for the host of every hop, redirects included (at
-  most five). Responses are capped at 5 MB and 20 seconds. No cookies and no
-  credentials are sent. Every request goes in the audit log with its query
-  string redacted.
-- The guard stays installed. It admits a connection only from inside
-  `fetch`, on that thread, to the address `fetch` itself resolved and checked.
-- Nothing connects until the person grants `net.http` for a host. The
-  README's firewall advice changes from blocking everything to allowing
-  this interpreter only the hosts granted.
+*Done, as proposed and approved:* `core/net.fetch` is the one way out. Its
+module, `client.py`, is the only code besides the guard that may import the
+network, and `verify_offline.py` names exactly those two exemptions and fails
+if any other module opens the guard (`netguard.admitting`). Requests are
+`https://` only, certificates verified; a site that leads to this machine or a
+private network is refused; `net.http` is checked for every hop, redirects
+included (at most five); the connection goes to the address that was checked,
+never looked up again; responses are capped at 5 MB and 20 seconds; no cookies
+or credentials are sent; every request is audited with its query string left
+out. The guard lets a connection through only inside the chokepoint, on that
+thread, to that address. A grant names a site plainly: a bare top-level
+domain, an address or a wildcard is refused. `fetch_page` gives agents pages,
+and PDFs, as text framed as material rather than instructions; the gatherer
+role has it. The README's firewall advice now says what blocking costs.
+*Still to do:* `git push`, which runs git itself, a separate process the guard
+cannot see, so it needs its own design; and the clients: C2 search, C3
+browser, C5 connectors, weather for C7, pages and feeds for C6.
 
 **C2 ○ Web search** — `core/tools/builtin/search.py`
 
@@ -519,14 +520,14 @@ and resumable.
 | B | B4 Retrieval | ✅ |
 | B | B5 Memory distillation | ✅ |
 | B | B6 Projects reconciled | ✅ |
-| C | C1 Network chokepoint | ⏸ design written above; waiting for your go-ahead |
+| C | C1 Network chokepoint | ✅ |
 | C | C6 Monitoring agent | ▶ folders done; pages, inboxes and feeds wait for C1 and C5 |
 | C | C7 Location and time | ▶ now and a set place done; weather waits for C1 |
 | C | C2–C5, C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1608 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
+**Tests at last commit:** 1664 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

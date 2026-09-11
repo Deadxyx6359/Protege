@@ -564,9 +564,12 @@ archive and unpack it only while working.
 
 ### Block egress at the OS level
 
-Protégé installs a runtime guard that raises on outbound connects, DNS
-resolution, and non-loopback binds, and `verify_offline.py` proves no networking
-module is even reachable.
+Protégé reaches the network through one door, `protege/core/net/client.py`, and
+only to sites you allow with the *Fetch web pages* permission: https only, never
+to this computer or your local network, capped in size and time, and recorded
+in the activity log. A runtime guard raises on every other outbound connect,
+DNS lookup and non-loopback bind, and `verify_offline.py` proves that no other
+module can reach the network.
 
 **Neither is as strong as a firewall rule.** Both are application-level controls
 running inside the process they protect; native code can call the OS directly
@@ -581,6 +584,12 @@ New-NetFirewallRule -DisplayName "Block Protege egress" -Direction Outbound -Pro
 
 That blocks *all* Python egress, which is blunt. A dedicated virtualenv
 interpreter for Protégé makes the rule precise.
+
+With the rule in place Protégé still works; only fetching pages fails, and it
+says the site could not be reached. Leave the interpreter unblocked only if you
+want pages from the sites you allow. A firewall rule matches addresses, not site
+names, so the list of sites is enforced inside Protégé, by the chokepoint, not
+by the rule.
 
 ### Audit log
 

@@ -4,8 +4,8 @@ Each module exposes `ALL`, a tuple of its tools. `default_registry()` in
 `protege.core.tools` registers them explicitly.
 """
 
-from . import coding, files, knowledge, notes, office
+from . import coding, files, knowledge, notes, office, web
 
-MODULES = (files, coding, office, notes, knowledge)
+MODULES = (files, coding, office, notes, knowledge, web)
 
-__all__ = ["coding", "files", "knowledge", "notes", "office", "MODULES"]
+__all__ = ["coding", "files", "knowledge", "notes", "office", "web", "MODULES"]

@@ -226,6 +226,20 @@ class Policy:
                 f"{capability.title} must be granted for at least one "
                 f"{capability.scope.value}"
             )
+        if capability.scope is ScopeKind.HOST:
+            # A site, named plainly. A grant covers the site's subdomains, so a
+            # bare "com" would cover every .com site on the internet.
+            checked = []
+            for scope in scopes:
+                host = str(scope).strip().lower().strip(".")
+                if not host or any(mark in host for mark in "/:*@\\ \t"):
+                    raise ValueError(f"{scope!r} is not a site. Name one such as example.com; "
+                                     "that covers its subdomains too.")
+                if "." not in host:
+                    raise ValueError(f"{scope!r} would cover every site ending in .{host}. "
+                                     f"Name a site, such as example.{host}.")
+                checked.append(host)
+            scopes = tuple(checked)
         grant = Grant(capability_id, tuple(scopes), time.time(), expires, note)
         self._grants[capability_id] = grant
         return grant

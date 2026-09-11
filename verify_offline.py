@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Static proof that Protege cannot reach the network.
+"""Static proof that Protégé reaches the network only through its one door.
 
 Run this after every `pip install` and before every release. It exits non-zero
 and prints every offending path if anything fails.
 
-Two independent checks:
+Three checks:
 
 1. **Source scan.** Every module in the `protege` package plus the entry points
    is parsed and walked for imports of networking modules, and for the dynamic
@@ -16,12 +16,18 @@ Two independent checks:
    module found here is a failure; a networking module that exists in an
    installed distribution but is *not reachable* is reported as informational.
 
-That distinction is the whole point of doing this properly rather than with
-grep. `llama-cpp-python` ships `llama_cpp/server/app.py`, which imports FastAPI
-and opens sockets. Its presence on disk is unavoidable and harmless. What
-matters is that no path from `run.py` reaches it. A grep over site-packages
-would fail on this every time and quickly be ignored -- an alarm that always
-fires teaches you to stop looking at it.
+3. **One door.** Two modules are exempt, and each only for the modules named in
+   `EXEMPT_IMPORTS`: the runtime guard, which imports `socket` to patch it, and
+   the chokepoint `protege.core.net.client`, through which Protégé fetches pages
+   from sites the person has allowed. No other module may open the guard's door
+   (`netguard.admitting`), so the chokepoint's rules cannot be walked around.
+
+That distinction in check 2 is the whole point of doing this properly rather
+than with grep. `llama-cpp-python` ships `llama_cpp/server/app.py`, which
+imports FastAPI and opens sockets. Its presence on disk is unavoidable and
+harmless. What matters is that no path from `run.py` reaches it. A grep over
+site-packages would fail on this every time and quickly be ignored -- an alarm
+that always fires teaches you to stop looking at it.
 """
 
 from __future__ import annotations
@@ -35,9 +41,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
 
-# Modules whose presence anywhere in the reachable graph is a failure.
-# Includes both third-party clients and the stdlib primitives beneath them,
-# because blocking only `requests` while permitting `socket` proves nothing.
+# Modules whose presence anywhere in the reachable graph is a failure, outside
+# the exemptions below. Includes both third-party clients and the stdlib
+# primitives beneath them, because blocking only `requests` while permitting
+# `socket` proves nothing.
 FORBIDDEN_ROOTS = frozenset(
     {
         # stdlib networking
@@ -90,11 +97,31 @@ FORBIDDEN_ROOTS = frozenset(
     }
 )
 
-# `protege.security.netguard` imports `socket` on purpose -- it exists to patch
-# it. Exempting it by name is safe because the module never connects; it only
-# replaces connect/bind/resolve with functions that raise. This is the only
-# exemption in the file and it is deliberately not configurable.
-SOURCE_EXEMPT = frozenset({"protege.security.netguard"})
+GUARD = "protege.security.netguard"
+CHOKEPOINT = "protege.core.net.client"
+
+#: The guard's door. Only the chokepoint may open it.
+ADMISSION = "admitting"
+
+# The two modules that may import networking modules, and exactly which.
+#
+# `protege.security.netguard` imports `socket` to patch it. It must never
+# connect: it replaces connect, bind and resolve with functions that raise, and
+# lets through only what the chokepoint has checked.
+#
+# `protege.core.net.client` is the chokepoint (C1), the one path from Protégé to
+# the network. Every request through it is held to `net.http` for its site,
+# https only, never to this machine or its network, capped, and audited. It may
+# import the standard-library pieces a client is built from and nothing more:
+# no `requests`, no `urllib.request`.
+#
+# This is asserted by test. Every name added here is a hole in the guarantee,
+# so adding one must be a deliberate decision.
+EXEMPT_IMPORTS = {
+    GUARD: frozenset({"socket"}),
+    CHOKEPOINT: frozenset({"socket", "ssl", "http.client", "urllib.parse"}),
+}
+SOURCE_EXEMPT = frozenset(EXEMPT_IMPORTS)
 
 DYNAMIC_IMPORT_CALLS = frozenset({"__import__", "import_module", "load_module", "exec_module"})
 
@@ -305,8 +332,53 @@ def _dynamic_import_findings(tree: ast.AST, module: str, path: Path) -> list[Fin
     return findings
 
 
+def _exempt_findings(tree: ast.AST, module: str, path: Path) -> list[Finding]:
+    """An exempt module imports only the networking modules its exemption names,
+    and the guard never connects."""
+    findings: list[Finding] = []
+    allowed = EXEMPT_IMPORTS.get(module, frozenset())
+    for site in _imports_in(tree):
+        if site.name.startswith("."):
+            continue
+        if top_level(site.name) in FORBIDDEN_ROOTS and site.name not in allowed:
+            findings.append(Finding(
+                module, path, site.line,
+                f"imports networking module {site.name!r}, which its exemption does not "
+                f"cover (it may import {', '.join(sorted(allowed))})"))
+    if module == GUARD:
+        # The guard may reference socket but must never connect, except through
+        # its saved originals, which is how it lets the chokepoint through.
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                if node.func.attr in ("connect", "connect_ex", "create_connection"):
+                    if not _is_original_dispatch(node):
+                        findings.append(Finding(
+                            module, path, node.lineno,
+                            f"exempt module calls {node.func.attr}() -- the netguard may "
+                            "reference socket but must never connect"))
+    return findings
+
+
+def _admission_findings(tree: ast.AST, module: str, path: Path) -> list[Finding]:
+    """Nothing but the chokepoint opens the guard's door."""
+    if module in (GUARD, CHOKEPOINT):
+        return []
+    findings: list[Finding] = []
+    for node in ast.walk(tree):
+        opens = (isinstance(node, ast.Attribute) and node.attr == ADMISSION) or (
+            isinstance(node, ast.ImportFrom)
+            and any(alias.name == ADMISSION for alias in node.names))
+        if opens:
+            findings.append(Finding(
+                module, path, node.lineno,
+                f"uses netguard.{ADMISSION}(), which only {CHOKEPOINT} may: every request "
+                "must go through the chokepoint and its checks"))
+    return findings
+
+
 def scan_source(result: ScanResult) -> None:
-    """Check 1: no networking imports in Protege's own source."""
+    """Checks 1 and 3: no networking imports in Protege's own source outside the
+    two exemptions, and no other door opened."""
     sources = sorted((REPO_ROOT / "protege").rglob("*.py"))
     sources += [REPO_ROOT / "run.py"]
     for path in sources:
@@ -320,7 +392,10 @@ def scan_source(result: ScanResult) -> None:
             result.errors.append(Finding(module, path, 0, f"cannot parse: {exc}"))
             continue
 
-        if module not in SOURCE_EXEMPT:
+        if module in SOURCE_EXEMPT:
+            result.errors.extend(_exempt_findings(tree, module, path))
+            result.errors.extend(_dynamic_import_findings(tree, module, path))
+        else:
             for site in _imports_in(tree):
                 if site.name.startswith("."):
                     continue
@@ -348,22 +423,7 @@ def scan_source(result: ScanResult) -> None:
                     )
             else:
                 result.errors.extend(dynamic)
-        else:
-            # Still verify the exemption is being used for what it claims: the
-            # guard may import socket, but it must not call connect on one.
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-                    if node.func.attr in ("connect", "connect_ex", "create_connection"):
-                        if not _is_original_dispatch(node):
-                            result.errors.append(
-                                Finding(
-                                    module,
-                                    path,
-                                    node.lineno,
-                                    f"exempt module calls {node.func.attr}() -- the netguard may "
-                                    "reference socket but must never connect",
-                                )
-                            )
+        result.errors.extend(_admission_findings(tree, module, path))
 
 
 def _is_original_dispatch(node: ast.Call) -> bool:
@@ -425,7 +485,10 @@ def scan_reachable(result: ScanResult, max_modules: int = 6000) -> None:
                 continue
             root = top_level(resolved)
 
-            if root in FORBIDDEN_ROOTS and module not in SOURCE_EXEMPT:
+            if root in FORBIDDEN_ROOTS:
+                if resolved in EXEMPT_IMPORTS.get(module, frozenset()):
+                    # This module's own exemption. The stdlib is not descended into.
+                    continue
                 if site.module_level:
                     result.errors.append(
                         Finding(
@@ -527,10 +590,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nFAIL: {len(result.errors)} networking finding(s):\n")
         for finding in result.errors:
             print(finding.render())
-        print("\nProtege must not be able to reach the network. Fix every finding above.")
+        print(f"\nProtege must reach the network only through {CHOKEPOINT}. "
+              "Fix every finding above.")
         return 1
 
-    print("\nPASS: no networking module is reachable from Protege's entry points.")
+    print(f"\nPASS: nothing but {CHOKEPOINT} can reach the network, and it only the "
+          "sites net.http allows.")
     print("Reminder: this is a static check of Python imports. It cannot see native code "
           "calling the OS directly. An OS firewall rule denying this binary egress is stronger.")
     return 0

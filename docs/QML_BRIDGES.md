@@ -67,6 +67,12 @@ these names, so renaming one is a deliberate, coordinated act.
 - `grant` refuses a scoped capability given no scope, and returns why. Do not
   paper over that with a default. `files.read` with no scope would mean the
   whole disk, which is exactly the mistake scopes exist to prevent.
+- **A site is named plainly**, e.g. `example.com`, and covers its subdomains.
+  `grant("net.http", [...])` refuses a bare top-level domain (`com` would
+  cover every .com site), a full address, a wildcard or a path, with the
+  reason, and stores the name lower-cased. The host picker should ask for a
+  site, not a URL. `net.http` is what lets agents read pages from that site
+  (`fetch_page`), and nothing reaches any site without it.
 - Every grant and revoke is written to the activity log, and the security
   review reports changes, so a grant nobody remembers making gets noticed.
 - `domain` is the grouping key. Read and write are separate capabilities, so
