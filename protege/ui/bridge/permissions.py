@@ -214,19 +214,30 @@ class PermissionsBridge(QObject):
         except (KeyError, ValueError) as exc:
             return str(exc) or "that capability cannot be granted like that"
         self._policy.save()
+        # Recorded, because the security review reports changes: a grant
+        # nobody remembers making is exactly the thing worth noticing.
+        self._audit.permission_change(capability_id, granted=True,
+                                      scopes=tuple(str(s) for s in scopes))
         self.grantsChanged.emit()
         return ""
 
     @Slot(str)
     def revoke(self, capability_id: str) -> None:
+        held = self._policy.granted(capability_id) is not None
         self._policy.revoke(capability_id)
         self._policy.save()
+        if held:
+            self._audit.permission_change(capability_id, granted=False)
         self.grantsChanged.emit()
 
     @Slot()
     def revokeAll(self) -> None:
+        held = [grant.capability for grant in self._policy.active()]
         self._policy.revoke_all()
         self._policy.save()
+        for capability_id in held:
+            self._audit.permission_change(capability_id, granted=False,
+                                          note="revoked along with everything else")
         self.grantsChanged.emit()
 
     # -- the record ---------------------------------------------------------

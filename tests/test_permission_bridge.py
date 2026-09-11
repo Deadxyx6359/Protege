@@ -377,3 +377,14 @@ def test_events_from_a_worker_thread_do_not_touch_the_model_directly():
     app = QCoreApplication.instance() or QCoreApplication([])
     app.processEvents()
     assert bridge.events.count == before + 1
+
+
+def test_permission_changes_made_in_the_interface_are_recorded(tmp_path):
+    """The review reports changes, so a grant nobody remembers making is noticed."""
+    log = AuditLog(tmp_path / "audit.jsonl")
+    bridge = PermissionsBridge(Policy(), log)
+    bridge.grant("files.read", [str(tmp_path)])
+    bridge.revoke("files.read")
+    bridge.revoke("files.read")          # nothing held any more: nothing to record
+    assert [(e.kind, e.action) for e in log.read()] == [
+        ("grant", "files.read"), ("revoke", "files.read")]

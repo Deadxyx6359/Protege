@@ -313,3 +313,13 @@ def test_every_call_is_audited_including_refusals(workspace, context):
     events = ctx.audit.read()
     assert [e.allowed for e in events] == [True, False]
     assert all(e.action == "read_file" for e in events)
+
+
+def test_a_permitted_call_records_where_it_was_used(workspace, context):
+    """The security review suggests narrowing a grant from exactly this."""
+    policy = Policy()
+    policy.grant("files.read", (str(workspace),))
+    ctx = context(policy)
+    default_registry().invoke("read_file", {"path": str(workspace / "notes.md")}, ctx)
+    event = ctx.audit.read()[-1]
+    assert event.allowed and "notes.md" in event.detail.get("scope", "")

@@ -141,6 +141,10 @@ class ToolRegistry:
         context.audit.tool_call(
             context.actor, name, cleaned, allowed=result.ok,
             capability=tool.requires[0].capability if tool.requires else "",
+            # Recorded on success too, not only on refusal, so the security
+            # review can see *where* a grant is actually used — the evidence
+            # for suggesting it be narrowed.
+            scope=(tool.scope_for(tool.requires[0], cleaned) or "") if tool.requires else "",
             duration_ms=int((time.monotonic() - started) * 1000),
             error="" if result.ok else result.content,
             result=result.content if result.ok else None)
