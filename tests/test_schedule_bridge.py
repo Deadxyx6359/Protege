@@ -185,6 +185,7 @@ def test_the_application_puts_every_bridge_in_front_of_qml(app):
                 "Graph", "Monitor", "Place"} <= set(exposed)
         assert ctx.service is None, "building the context must not start threads"
         assert ctx.monitor_service is None, "building the context must not start threads"
+        assert callable(ctx.housekeeping), "the index sweep is not wired"
         names = set(ctx.scheduler.actions.names())
         assert {"security_review", "agent", "team", "distil_memory", "notify"} <= names
     finally:

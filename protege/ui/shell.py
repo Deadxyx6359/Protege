@@ -11,12 +11,14 @@ import sys
 import threading
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from PySide6.QtGui import QGuiApplication, QIcon
 
 from protege.core.agents import Trace
 from protege.core.agents.monitor import Monitor, MonitorService, WatchStore, register_notify_action
 from protege.core.brain.distil import PendingStore, register_distil_action, vault_of
+from protege.core.brain.index import anywhere, sweep
 from protege.core.brain.recall import ContextAssembler
 from protege.core.config import AppConfig, autoconfigure
 from protege.core.context.place import PlaceStore
@@ -77,6 +79,10 @@ class AppContext:
     service: SchedulerService | None = None
     monitor_service: MonitorService | None = None
 
+    housekeeping: Callable[[], None] | None = None
+    """Tidying that runs once at start: dropping what expired grants no longer
+    cover from the search indexes."""
+
     def as_context(self) -> dict:
         """The name → object map exposed to QML."""
         exposed = {"Chat": self.chat, "Settings": self.settings}
@@ -96,6 +102,8 @@ class AppContext:
         very same objects without starting a thread or touching the schedule
         on disk.
         """
+        if self.housekeeping is not None:
+            self.housekeeping()
         if self.scheduler is not None and self.service is None:
             ensure_review_job(self.scheduler)
             self.service = SchedulerService(self.scheduler)
@@ -175,6 +183,17 @@ def build_context(*, persist: bool = True) -> AppContext:
     def working_policy() -> Policy:
         return projects.effective(permissions.policy)
 
+    # The search indexes hold copies of what the grants allowed. When a grant
+    # changes, whatever no grant anywhere still covers is dropped at once, on a
+    # worker so a large index does not stall the window.
+    def sweep_indexes() -> None:
+        covered = anywhere(permissions.policy, *projects.store.policies().values())
+        threading.Thread(target=sweep, args=(covered,), name="index-sweep",
+                         daemon=True).start()
+
+    permissions.grantsChanged.connect(sweep_indexes)
+    projects.grantsChanged.connect(sweep_indexes)
+
     actions = ActionRegistry()
     scheduler = Scheduler(actions, policy=live_policy, audit=audit,
                           secret_store=secret_store, trace=trace,
@@ -222,6 +241,7 @@ def build_context(*, persist: bool = True) -> AppContext:
         graph=GraphBridge(policy=working_policy, audit=audit),
         monitor=monitor,
         place=place,
+        housekeeping=sweep_indexes,
     )
 
 

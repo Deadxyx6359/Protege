@@ -348,9 +348,12 @@ searched. `read_document` and the index share one document-to-text function.
 *Done since:* each chat turn calls `gather` for the sources the person has
 granted (`core/brain/recall.py`), as context for that turn only. A source that
 is not granted is not tried, so it leaves nothing in the activity log.
-*Still to do:* embeddings as a second ranked list for the same fusion, and
-dropping an index's stored text when its grant is revoked rather than at the
-next refresh.
+*Done since:* the indexes drop their stored copy of anything the grants stop
+covering as soon as they change, and once at each start for grants that
+expired meanwhile. Covered means allowed globally or in any project. The
+sweep reads only the index databases, and deletes one that cannot say what it
+holds.
+*Still to do:* embeddings as a second ranked list for the same fusion.
 
 **B5 ✅ Memory distillation** — `core/brain/distil.py`, bridge `ui/bridge/memory.py`
 Scheduled consolidation of conversations into durable notes, deduplicated
@@ -523,7 +526,7 @@ and resumable.
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1600 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
+**Tests at last commit:** 1608 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
 passes. Update this line when it changes.
 
 ---
