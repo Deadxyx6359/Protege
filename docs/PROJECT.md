@@ -91,7 +91,7 @@ measured benchmarks, not from optimism.
 | Screenshots | Fine | C4 |
 | Email, calendar, text, Canvas, docs | Fine, per-connector permissions | C5 |
 | Banking | **Read-only, permanently** | C5 |
-| Monitoring agent — watch for changes | Fine | C6 |
+| Monitoring agent — watch for changes | **Folders done**: changes wake scheduled jobs, which can put up notices. Pages, inboxes and feeds after C1 and C5 | C6 |
 | Time-based and event-based processes (daily/weekly/monthly/custom) | **Done** | A6 |
 | Location and time awareness | Fine | C7 |
 | Purchasing | Possible, but a person presses the button every time | C8 |
@@ -438,9 +438,17 @@ Mail, calendar, messages, Canvas/LMS, cloud docs, banking. Each is a separate
 capability with its own scope, read and write independently grantable.
 **Banking is read-only, permanently.**
 
-**C6 ○ Monitoring agent** — `core/agents/monitor.py`
+**C6 ▶ Monitoring agent** — `core/agents/monitor.py`, bridge `ui/bridge/monitor.py`
 Watch a page, folder, inbox or feed for change; run on the scheduler; notify or
 trigger a follow-up agent.
+*Done, the local half:* watched folders. Each look turns what changed into
+scheduler events (`file.*` per file, `folder.changed` per look), so a job
+waiting for a watch can run an agent over what arrived or put up a notice
+with the new `notify` action (`notify.send`). A file is reported only once it
+has settled. A watch is held to `files.read` at every look and pauses with a
+reason when it is revoked. Polling, standard library only. Until this, the
+scheduler's event triggers had nothing publishing to them.
+*Still to do:* pages, inboxes and feeds, which need C1 and C5.
 
 **C7 ○ Location and time awareness** — `core/context/place.py`
 Local timezone, season and weather already drive the scenes; this generalises
@@ -502,11 +510,12 @@ and resumable.
 | B | B5 Memory distillation | ✅ |
 | B | B6 Projects reconciled | ✅ |
 | C | C1 Network chokepoint | ⏸ design written above; waiting for your go-ahead |
-| C | C2–C8 Reach | ○ |
+| C | C6 Monitoring agent | ▶ folders done; pages, inboxes and feeds wait for C1 and C5 |
+| C | C2–C5, C7, C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1563 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
+**Tests at last commit:** 1577 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

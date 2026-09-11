@@ -15,6 +15,7 @@ from pathlib import Path
 from PySide6.QtGui import QGuiApplication, QIcon
 
 from protege.core.agents import Trace
+from protege.core.agents.monitor import Monitor, MonitorService, WatchStore, register_notify_action
 from protege.core.brain.distil import PendingStore, register_distil_action, vault_of
 from protege.core.brain.recall import ContextAssembler
 from protege.core.config import AppConfig, autoconfigure
@@ -32,6 +33,7 @@ from protege.ui.bridge import (
     ConfirmBridge,
     GraphBridge,
     MemoryBridge,
+    MonitorBridge,
     PermissionsBridge,
     ProjectsBridge,
     ScheduleBridge,
@@ -67,8 +69,10 @@ class AppContext:
     memory: MemoryBridge | None = None
     projects: ProjectsBridge | None = None
     graph: GraphBridge | None = None
+    monitor: MonitorBridge | None = None
     scheduler: Scheduler | None = None
     service: SchedulerService | None = None
+    monitor_service: MonitorService | None = None
 
     def as_context(self) -> dict:
         """The name → object map exposed to QML."""
@@ -76,7 +80,8 @@ class AppContext:
         for name, obj in (("Permissions", self.permissions), ("Confirm", self.confirm),
                           ("AgentTrace", self.trace), ("Schedule", self.schedule),
                           ("Agents", self.agents), ("Memory", self.memory),
-                          ("Projects", self.projects), ("Graph", self.graph)):
+                          ("Projects", self.projects), ("Graph", self.graph),
+                          ("Monitor", self.monitor)):
             if obj is not None:
                 exposed[name] = obj
         return exposed
@@ -92,6 +97,9 @@ class AppContext:
             ensure_review_job(self.scheduler)
             self.service = SchedulerService(self.scheduler)
             self.service.start()
+        if self.monitor is not None and self.monitor_service is None:
+            self.monitor_service = MonitorService(self.monitor.monitor)
+            self.monitor_service.start()
 
     def close(self) -> None:
         # A worker blocked waiting for a confirmation would otherwise hold the
@@ -100,6 +108,9 @@ class AppContext:
             self.agents.stop()
         if self.confirm is not None:
             self.confirm.close()
+        # Stop looking for changes before stopping what would act on them.
+        if self.monitor_service is not None:
+            self.monitor_service.stop()
         if self.service is not None:
             self.service.stop()
         if self.trace is not None:
@@ -177,6 +188,13 @@ def build_context(*, persist: bool = True) -> AppContext:
     register_distil_action(actions, router=router, pending=pending, projects=projects.store,
                            on_proposed=memory.on_proposed)
 
+    # Watched folders publish what changed as scheduler events. Like scheduled
+    # jobs they run in the background, so they use the global grants.
+    monitor = MonitorBridge(Monitor(WatchStore(), policy=live_policy,
+                                    publish=scheduler.publish, audit=audit), audit=audit)
+    monitor.monitor.set_on_change(monitor.changed)
+    register_notify_action(actions, notify=monitor.notify)
+
     # Each chat turn draws on what the person has granted, as agents do, and on
     # the open project. The notes searched are the vault memory is kept in.
     assembler = ContextAssembler(registry=default_registry(), policy=working_policy,
@@ -198,6 +216,7 @@ def build_context(*, persist: bool = True) -> AppContext:
         memory=memory,
         projects=projects,
         graph=GraphBridge(policy=working_policy, audit=audit),
+        monitor=monitor,
     )
 
 

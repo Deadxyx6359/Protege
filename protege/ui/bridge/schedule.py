@@ -87,7 +87,7 @@ class ScheduleBridge(QObject):
     def addJob(self, spec: dict) -> str:
         """Create a job. Returns "" on success, or why it was refused.
 
-        `spec` holds `name`; `action` (`agent` or `team`); `trigger`, a map
+        `spec` holds `name`; `action` (`agent`, `team` or `notify`); `trigger`, a map
         such as `{"kind": "daily", "time": "07:30"}`; `arguments` (`role` or
         `team`, and `task`); `grants`, a list of `{"capability", "scopes"}`;
         and `missed`, either `run_late` or `skip`.

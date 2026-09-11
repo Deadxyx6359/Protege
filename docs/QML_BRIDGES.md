@@ -40,6 +40,7 @@ before changing it.
 | `Memory` | `MemoryBridge` | Notes distilled from conversations, waiting for a person to accept |
 | `Projects` | `ProjectsBridge` | Projects, the open one, and the grants that belong to it |
 | `Graph` | `GraphBridge` | A tag map and a link graph of a folder of notes |
+| `Monitor` | `MonitorBridge` | Watched folders, and the notices jobs put up |
 
 Registered in `protege/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
@@ -154,7 +155,10 @@ Schedule.addJob({
   `monthly` `{day: 1–31, time}` (the 31st means the last day in shorter
   months), `cron` `{expr}`, and `event` `{name, match, cooldown}` (a cooldown of
   at least 5 seconds).
-- **Arguments:** for `agent`, `role` and `task`; for `team`, `team` and `task`.
+- **Arguments:** for `agent`, `role` and `task`; for `team`, `team` and `task`;
+  for `notify`, `text` and optionally `title` (the job's name otherwise). A
+  `notify` job needs `notify.send` in its `grants`. See `Monitor` for the usual
+  pairing with a watched folder.
 - **`grants` are the most a job may use.** Each run gets only what the person
   *also* holds at that moment, so scheduling a job grants nothing, and a
   revocation reaches the next run.
@@ -263,6 +267,49 @@ Schedule.addJob({
   counted in `unresolved`, not drawn.
 - It reads under the global grants plus the open project's, like agents, and
   each request is in the activity log as `draw_map`.
+
+## `Monitor` — watched folders, and notices
+
+| Member | Kind | Notes |
+|---|---|---|
+| `watches` | Property, notifies `watchesChanged` | Each: `id`, `folder`, `patterns` (e.g. `*.pdf`; empty means every file), `paused` (why it is not being looked at, or `""`), `lastChange` (epoch seconds, 0 if never) |
+| `addWatch(folder, patterns)` | Slot → string | Watch a folder: `""`, or why not, including **Not permitted** without `files.read` there |
+| `removeWatch(id)` | Slot → string | `""`, or why not |
+| `warnings` | Property, notifies `watchesChanged` | Problems loading or saving the list of watches. Show them |
+| `notices` | Property, notifies `noticesChanged` | Newest first, at most 50: `title`, `text`, `at` |
+| `noticed(title, text)` | Signal | Once per notice as it arrives. **The moment to put something on screen** |
+| `clearNotices()` | Slot | |
+
+- **What a watch does on its own: nothing visible.** It turns changes into
+  scheduler events. Something happens only when a job waits for them. The
+  pair a person usually wants is a watch plus a `notify` job:
+
+  ```js
+  Monitor.addWatch("C:/Users/me/Downloads", ["*.pdf"])
+  Schedule.addJob({
+      name: "New PDFs",
+      action: "notify",
+      trigger: { kind: "event", name: "folder.changed", match: { watch: "<id from Monitor.watches>" }, cooldown: 60 },
+      arguments: { text: "New PDFs arrived." },
+      grants: [ { capability: "notify.send", scopes: [] } ],
+      missed: "skip"
+  })
+  ```
+
+  `action: "agent"` or `"team"` works the same way, when something should be
+  done about what arrived. The event's details are appended to the task.
+- **Events:** `file.created`, `file.changed` and `file.deleted` for each file
+  (`watch`, `folder`, `path`, `name`), and one `folder.changed` per look (`watch`,
+  `folder`, `created`, `changed`, `deleted` counts, and the first 20 `paths`).
+  Match on `watch`, not `folder`.
+- **A file is reported once it has settled**, which takes two looks, about a
+  minute. A download in progress is not announced half-finished.
+- **`paused` is written for the person.** It fills when the permission is
+  revoked, the folder disappears, or it holds too many files. The watch
+  resumes by itself when the cause goes away. Show the reason where the watch
+  is listed.
+- Watches use the **global** grants, like scheduled jobs, never the open
+  project's.
 
 ## `Chat` — what a turn drew on
 

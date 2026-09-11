@@ -51,6 +51,12 @@ def check_arguments(action: str, arguments: dict) -> str:
     """
     if action == "security_review":
         return "The security review schedules itself; it runs every day."
+    if action == "distil_memory":
+        return "Memory sets itself up when a vault is chosen for it."
+    if action == "notify":
+        if not str(arguments.get("text", "")).strip():
+            return "A notice needs something to say."
+        return ""
     if action == "agent":
         role = str(arguments.get("role", ""))
         if role not in ALL_ROLES:
