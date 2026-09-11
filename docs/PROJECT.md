@@ -77,7 +77,7 @@ measured benchmarks, not from optimism.
 | Capability | Verdict | Item |
 |---|---|---|
 | Document management — .docx, .pptx, .xlsx, PDF | **Done**: read all four, create Word and Excel, edit Word and PowerPoint, set Excel cells. Creating decks from scratch still to come | B1 |
-| Obsidian second brain, fully automated, never opened by hand | Fine | B2 |
+| Obsidian second brain, fully automated, never opened by hand | **Vault layer done**: read, link, search, write with history and conflict checks, daily notes. Indexing and retrieval next | B2 |
 | Private RAG, local embeddings | Fine — no network involved | B3–B4 |
 | General memory that updates regularly | Partly exists (legacy `memory/`), needs rebuilding on the new spine | B5 |
 | Projects, easy to access and manage | Legacy `projects.py` exists; needs reconciling | B6 |
@@ -300,12 +300,22 @@ read with coordinates and real dates; cells keep their style. Creating never
 overwrites. *Still to do:* creating a PowerPoint deck from nothing, which needs
 a master and theme that can only be trusted once checked against PowerPoint.
 
-**B2 ○ Obsidian vault adapter** — `core/brain/vault.py`
+**B2 ✅ Obsidian vault adapter** — `core/brain/`, tools in `core/tools/builtin/notes.py`
 Read and write the vault as markdown: frontmatter, `[[wikilinks]]`, tags,
 attachments, daily notes. Writes are atomic and conflict-aware, because the
 user may have Obsidian open even if they never open it on purpose.
 *Constraint:* the user never opens Obsidian. Anything requiring a manual step
 there is a failed design.
+*Done:* writing is automatic and never unrecoverable. Every overwrite first
+saves the previous version, outside the vault, and `restore_note` brings any
+version back. Replacing a note needs the version that was read, so an edit
+made in Obsidian meanwhile is refused rather than lost. Links resolve as
+Obsidian resolves them. Tags and links inside code are ignored. The daily
+note follows the vault's own settings. `.obsidian` and every dot-folder are
+never touched. Search, backlinks and the daily note are held to the granted
+folder even when the vault root sits above it.
+*Still to do:* attachments, and a file watcher so changes made on another
+device reach the index (B3) without a rescan.
 
 **B3 ○ Local embeddings and index** — `core/brain/index.py`
 Local embedding model, vector store, incremental reindexing on file change. No
@@ -411,12 +421,13 @@ and resumable.
 | A | A7 Security audit | ✅ |
 | A | A8 Coding on the gate | ✅ |
 | B | B1 Document tools | ✅ |
-| B | B2–B6 Second brain | ▶ next (B2) |
+| B | B2 Obsidian vault | ✅ |
+| B | B3–B6 Second brain | ▶ next (B3) |
 | C | C1–C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1411 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
+**Tests at last commit:** 1468 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

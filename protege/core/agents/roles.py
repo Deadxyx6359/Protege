@@ -33,7 +33,8 @@ GATHERER = AgentSpec(
         "from memory."
     ),
     route=Route.CHAT,
-    tools=("read_file", "list_directory", "search_files", "read_document"),
+    tools=("read_file", "list_directory", "search_files", "read_document",
+           "search_notes", "read_note"),
     max_steps=6,
     temperature=0.3,
 )
@@ -47,7 +48,7 @@ ANALYST = AgentSpec(
         "settle. Cite the source for every claim you make."
     ),
     route=Route.CHAT,
-    tools=("read_file", "search_files", "read_document"),
+    tools=("read_file", "search_files", "read_document", "read_note"),
     max_steps=5,
     temperature=0.4,
 )
