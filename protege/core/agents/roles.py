@@ -94,7 +94,7 @@ ARCHITECT = AgentSpec(
         "write the implementation."
     ),
     route=Route.CODE,
-    tools=("read_file", "list_directory", "search_files"),
+    tools=("read_file", "list_directory", "search_files", "git_status", "git_log"),
     max_steps=6,
     temperature=0.3,
 )
@@ -109,7 +109,9 @@ IMPLEMENTER = AgentSpec(
         "change."
     ),
     route=Route.CODE,
-    tools=("read_file", "list_directory", "search_files", "write_file"),
+    # Tests, not commits: whether a change is recorded is a person's call.
+    tools=("read_file", "list_directory", "search_files", "write_file",
+           "check_syntax", "run_tests"),
     max_steps=10,
     temperature=0.2,
 )
@@ -124,7 +126,8 @@ REVIEWER = AgentSpec(
     ),
     route=Route.CODE,
     # Read-only on purpose. See the module docstring.
-    tools=("read_file", "list_directory", "search_files"),
+    tools=("read_file", "list_directory", "search_files", "check_syntax",
+           "git_status", "git_diff"),
     max_steps=6,
     temperature=0.3,
 )

@@ -642,3 +642,14 @@ def test_reasoning_is_filtered_out_of_a_non_streamed_reply():
     outcome = agent.run("go")
     assert "hmm, let me see" not in outcome.answer
     assert "The answer is 41." in outcome.answer
+
+
+def test_the_reviewer_holds_nothing_irreversible():
+    """Read-only by construction, not by the reviewer's good behaviour."""
+    from protege.core.agents.roles import REVIEWER
+    from protege.core.tools.builtin import MODULES
+
+    tools = {tool.name: tool for module in MODULES for tool in module.ALL}
+    for name in REVIEWER.tools:
+        assert name in tools, f"the reviewer names a tool that does not exist: {name}"
+        assert tools[name].reversible, f"the reviewer can do something irreversible: {name}"

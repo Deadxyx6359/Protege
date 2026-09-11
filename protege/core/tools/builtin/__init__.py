@@ -5,8 +5,8 @@ assembles them; nothing here registers itself on import, so a test can build a
 registry holding exactly the tools it means to exercise.
 """
 
-from . import files
+from . import coding, files
 
-MODULES = (files,)
+MODULES = (files, coding)
 
-__all__ = ["files", "MODULES"]
+__all__ = ["coding", "files", "MODULES"]
