@@ -264,10 +264,31 @@ Schedule.addJob({
 - It reads under the global grants plus the open project's, like agents, and
   each request is in the activity log as `draw_map`.
 
+## `Chat` — what a turn drew on
+
+`Chat` is otherwise as it was (see `bridge/chat.py`). Two properties and a
+stage are new:
+
+| Member | Kind | Notes |
+|---|---|---|
+| `lastSources` | Property, notifies `sourcesChanged` | What the last turn drew on: `source` (`notes`, `documents` or `conversations`) and `cite`, where to find it. Empty when nothing was used |
+| `lastContextNote` | Property, notifies `sourcesChanged` | What the search found and what it could not search, in a sentence. Also carries the reason when looking failed |
+| `stage` | Existing property | Now also `Looking through your notes` before the model starts |
+
+- Before each turn, passages are gathered from the sources the person has
+  granted, and the open project's personality is added. Both go with that
+  turn only and are never saved with the conversation. A source that is not
+  granted is not searched.
+- Show `lastSources` under the answer, as the citations the model was asked
+  to give. A turn that used nothing shows nothing.
+- If gathering fails, the turn still answers without it, and
+  `lastContextNote` says why.
+
 ## Not reachable yet
 
-- **Tools in the conversation.** `Chat` is the plain conversation path. It does
-  not use tools or agents, so nothing typed into it touches files.
+- **Tools in the conversation.** `Chat` does not call tools on the model's
+  behalf, and nothing typed into it changes a file. It does read, before each
+  turn, from the sources the person has granted (see `Chat` above).
 
 ## Changing the seam
 

@@ -345,9 +345,12 @@ an agent that may read files still cannot trawl what was said in chat.
 every search is checked and audited, merges them by reciprocal rank, keeps a
 budget, and reports what was left out and which sources could not be
 searched. `read_document` and the index share one document-to-text function.
-*Still to do:* calling `gather` from the chat turn (with context assembly),
-embeddings as a second ranked list for the same fusion, and dropping an
-index's stored text when its grant is revoked rather than at the next refresh.
+*Done since:* each chat turn calls `gather` for the sources the person has
+granted (`core/brain/recall.py`), as context for that turn only. A source that
+is not granted is not tried, so it leaves nothing in the activity log.
+*Still to do:* embeddings as a second ranked list for the same fusion, and
+dropping an index's stored text when its grant is revoked rather than at the
+next refresh.
 
 **B5 ✅ Memory distillation** — `core/brain/distil.py`, bridge `ui/bridge/memory.py`
 Scheduled consolidation of conversations into durable notes, deduplicated
@@ -384,8 +387,9 @@ checks every project's grants. Bridge: `Projects`.
 *Done since:* the graph, folded from legacy `knowledge_graph.py` onto the
 vault: a tag map with nested tags as hubs, laid out the same way every time,
 and the links between notes. Bridge: `Graph`.
-*Still to do:* memory distilled per project, and the personality override
-applied in the conversation. Skills wait for their own item.
+*Done since:* the open project's personality reaches the conversation, for
+each turn, alongside what was retrieved.
+*Still to do:* memory distilled per project. Skills wait for their own item.
 
 ### Phase C — reach
 
@@ -398,6 +402,23 @@ socket.
 *Why first in C:* every item below is a client of it. Written second, each one
 would need retrofitting. It is also what finally allows `git push`, left out
 of A8 on purpose.
+*Proposed design, waiting for a go-ahead before any of it is built,* because
+it ends the guarantee that nothing in Protégé can connect:
+- One function, `core/net.fetch`, is the only code besides the guard allowed
+  to import `socket`, `ssl` or `http.client`. `verify_offline.py` names it as
+  the second and last exemption and proves nothing else reaches the network.
+- `https://` only, certificates verified. Private, loopback and link-local
+  addresses are refused, so a public name cannot be pointed back at this
+  machine or the local network.
+- `net.http` is checked for the host of every hop, redirects included (at
+  most five). Responses are capped at 5 MB and 20 seconds. No cookies and no
+  credentials are sent. Every request goes in the audit log with its query
+  string redacted.
+- The guard stays installed. It admits a connection only from inside
+  `fetch`, on that thread, to the address `fetch` itself resolved and checked.
+- Nothing connects until the person grants `net.http` for a host. The
+  README's firewall advice changes from blocking everything to allowing
+  this interpreter only the hosts granted.
 
 **C2 ○ Web search** — `core/tools/builtin/search.py`
 
@@ -475,12 +496,13 @@ and resumable.
 | B | B3 Vault index (lexical; embeddings deferred) | ✅ |
 | B | B4 Retrieval | ✅ |
 | B | B5 Memory distillation | ✅ |
-| B | B6 Projects reconciled | ▶ in progress: projects, grants and graph done; per-project memory and personality to do |
-| C | C1–C8 Reach | ○ |
+| B | B6 Projects reconciled | ▶ in progress: projects, grants, graph and personality done; per-project memory to do |
+| C | C1 Network chokepoint | ⏸ design written above; waiting for your go-ahead |
+| C | C2–C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1548 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
+**Tests at last commit:** 1556 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

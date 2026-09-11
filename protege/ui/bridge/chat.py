@@ -5,11 +5,17 @@ it, so a turn runs on a worker thread and reports back through Qt signals.
 Because this object lives on the main thread, those emissions are queued
 automatically — nothing here touches the model or a QML property from the
 worker.
+
+When given a `context` callable, each turn first asks it what to know for this
+message — the open project, passages from the person's own sources — and sends
+that with the turn without saving it. What was used is shown as `lastSources`.
+The callable decides everything; this bridge only carries its answer.
 """
 
 from __future__ import annotations
 
 import threading
+from typing import TYPE_CHECKING, Callable
 
 from PySide6.QtCore import (
     Property,
@@ -27,6 +33,9 @@ from protege.core.conversation import Cancelled, Conversation, Responder, route_
 from protege.core.conversations import ConversationError, ConversationStore, relative_time
 from protege.core.models import ModelRouter, Route
 from protege.models.base import ModelError
+
+if TYPE_CHECKING:
+    from protege.core.brain.recall import TurnContext
 
 
 class MessageListModel(QAbstractListModel):
@@ -107,9 +116,12 @@ class ChatBridge(QObject):
     readyChanged = Signal()
     routeChanged = Signal()
     recentsChanged = Signal()
+    sourcesChanged = Signal()
 
     _tokenArrived = Signal(str)
     _turnEnded = Signal(str)
+    _stageRequested = Signal(str)
+    _contextReady = Signal(object)
 
     def __init__(
         self,
@@ -117,12 +129,15 @@ class ChatBridge(QObject):
         config: AppConfig,
         store: ConversationStore | None = None,
         parent: QObject | None = None,
+        *,
+        context: Callable[[str], TurnContext] | None = None,
     ) -> None:
         super().__init__(parent)
         self._router = router
         self._config = config
         self._responder = Responder(router, config)
         self._store = store if store is not None else ConversationStore()
+        self._context = context
 
         self._conversation = Conversation()
         self._model = MessageListModel(self)
@@ -133,11 +148,15 @@ class ChatBridge(QObject):
         self._route = Route.CHAT
         self._cancel = threading.Event()
         self._worker: threading.Thread | None = None
+        self._sources: list = []
+        self._context_note = ""
 
         # Queued across the thread boundary because this object lives on the
         # main thread and the worker does not.
         self._tokenArrived.connect(self._on_token)
         self._turnEnded.connect(self._on_ended)
+        self._stageRequested.connect(self._on_stage)
+        self._contextReady.connect(self._on_context)
 
         self._recents: list = []
         self._refresh_recents()
@@ -181,6 +200,17 @@ class ChatBridge(QObject):
     @Property(str, notify=titleChanged)
     def conversationId(self) -> str:
         return self._conversation.id
+
+    @Property("QVariantList", notify=sourcesChanged)
+    def lastSources(self) -> list:
+        """What the last turn drew on: `source` (`notes`, `documents` or
+        `conversations`) and `cite`, where to find it. Empty when nothing was."""
+        return self._sources
+
+    @Property(str, notify=sourcesChanged)
+    def lastContextNote(self) -> str:
+        """What the last turn's search found and could not search, in a sentence."""
+        return self._context_note
 
     # -- actions ------------------------------------------------------------
 
@@ -248,11 +278,14 @@ class ChatBridge(QObject):
         self._conversation.add("assistant")
         self._model.appended()
 
+        self._set_sources([], "")
+        opening = self._opening_stage()
         self._set_busy(True)
-        self._set_stage(self._opening_stage())
+        self._set_stage(opening)
 
         self._cancel.clear()
-        self._worker = threading.Thread(target=self._run_turn, daemon=True)
+        self._worker = threading.Thread(target=self._run_turn, args=(payload, opening),
+                                        daemon=True)
         self._worker.start()
 
     @Slot()
@@ -290,14 +323,33 @@ class ChatBridge(QObject):
             return f"Loading {self._router.status(resolved).label}"
         return "Thinking"
 
-    def _run_turn(self) -> None:
+    def _gather(self, payload: str, opening: str) -> str:
+        """Worker thread. This turn's context, or none if it could not be had."""
+        self._stageRequested.emit("Looking through your notes")
+        try:
+            found = self._context(payload)
+        except Exception as exc:  # noqa: BLE001 - failing to look must not cost the answer
+            self._contextReady.emit(
+                ([], f"Could not look through your notes: {type(exc).__name__}: {exc}"))
+            text = ""
+        else:
+            self._contextReady.emit((list(found.sources), found.note))
+            text = found.text
+        self._stageRequested.emit(opening)
+        return text
+
+    def _run_turn(self, payload: str = "", opening: str = "Thinking") -> None:
         """Worker thread. Emits only signals; touches no Qt property directly."""
         try:
+            extra = self._gather(payload, opening) if self._context is not None else ""
+            if self._cancel.is_set():
+                raise Cancelled()
             self._responder.respond(
                 self._conversation,
                 route=self._route,
                 on_token=lambda chunk: self._tokenArrived.emit(chunk),
                 is_cancelled=self._cancel.is_set,
+                extra_system=extra,
             )
             self._turnEnded.emit("")
         except Cancelled:
@@ -306,6 +358,16 @@ class ChatBridge(QObject):
             self._turnEnded.emit(str(exc))
         except Exception as exc:  # noqa: BLE001 - a crashed worker must not be silent
             self._turnEnded.emit(f"{type(exc).__name__}: {exc}")
+
+    @Slot(str)
+    def _on_stage(self, value: str) -> None:
+        if not self._cancel.is_set():
+            self._set_stage(value)
+
+    @Slot(object)
+    def _on_context(self, result) -> None:
+        sources, note = result
+        self._set_sources(sources, note)
 
     @Slot(str)
     def _on_token(self, chunk: str) -> None:
@@ -378,3 +440,7 @@ class ChatBridge(QObject):
         if value != self._stage:
             self._stage = value
             self.stageChanged.emit()
+
+    def _set_sources(self, sources: list, note: str) -> None:
+        self._sources, self._context_note = sources, note
+        self.sourcesChanged.emit()

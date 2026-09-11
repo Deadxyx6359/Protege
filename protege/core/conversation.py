@@ -99,6 +99,7 @@ def build_prompt(
     backend: ModelBackend,
     *,
     reply_budget: int,
+    extra_system: str = "",
 ) -> list[ChatMessage]:
     """Assemble the messages to send, newest-first until the context is full.
 
@@ -106,11 +107,18 @@ def build_prompt(
     most recent question. Dropping from the front is what keeps a long
     conversation coherent — the last few exchanges carry almost all the
     relevant context, and the opening small talk carries almost none.
+
+    \a extra_system is context for this turn only — the open project, what was
+    retrieved — added after the system prompt and never saved with the
+    conversation.
     """
     limit = max(512, backend.n_ctx - reply_budget - _CONTEXT_HEADROOM)
 
-    system = ChatMessage(role="system", content=conversation.system_prompt)
-    used = backend.count_tokens(conversation.system_prompt)
+    prompt = conversation.system_prompt
+    if extra_system.strip():
+        prompt = f"{prompt}\n\n{extra_system.strip()}"
+    system = ChatMessage(role="system", content=prompt)
+    used = backend.count_tokens(prompt)
 
     kept: list[ChatMessage] = []
     for message in reversed(conversation.messages):
@@ -143,12 +151,14 @@ class Responder:
         route: Route = Route.CHAT,
         on_token: Callable[[str], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
+        extra_system: str = "",
     ) -> GenerationResult:
         """Generate a reply to the conversation as it stands.
 
         \a on_token receives text already stripped of reasoning blocks, so a
         caller can append it straight to the view. \a is_cancelled is polled on
         every token; returning True raises `Cancelled` out of the generation.
+        \a extra_system is this turn's context; see `build_prompt`.
         """
         resolved = self._router.resolve(route)
         model = self._config.models.get(resolved.value)
@@ -166,7 +176,8 @@ class Responder:
                 on_token(visible)
 
         with self._router.acquire(resolved) as backend:
-            messages = build_prompt(conversation, backend, reply_budget=reply_budget)
+            messages = build_prompt(conversation, backend, reply_budget=reply_budget,
+                                    extra_system=extra_system)
             result = backend.generate(
                 messages,
                 max_tokens=reply_budget,

@@ -15,7 +15,8 @@ from pathlib import Path
 from PySide6.QtGui import QGuiApplication, QIcon
 
 from protege.core.agents import Trace
-from protege.core.brain.distil import PendingStore, register_distil_action
+from protege.core.brain.distil import PendingStore, register_distil_action, vault_of
+from protege.core.brain.recall import ContextAssembler
 from protege.core.config import AppConfig, autoconfigure
 from protege.core.models import ModelRouter, Route
 from protege.core.permissions import AuditLog, Policy, SecretStore
@@ -176,11 +177,17 @@ def build_context(*, persist: bool = True) -> AppContext:
     register_distil_action(actions, router=router, pending=pending,
                            on_proposed=memory.on_proposed)
 
+    # Each chat turn draws on what the person has granted, as agents do, and on
+    # the open project. The notes searched are the vault memory is kept in.
+    assembler = ContextAssembler(registry=default_registry(), policy=working_policy,
+                                 audit=audit, secrets=secret_store, projects=projects.store,
+                                 vault=lambda: vault_of(scheduler))
+
     return AppContext(
         config=config,
         router=router,
         theme=theme,
-        chat=ChatBridge(router, config),
+        chat=ChatBridge(router, config, context=assembler),
         settings=SettingsBridge(config, router),
         permissions=permissions,
         confirm=confirm,
