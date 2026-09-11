@@ -25,6 +25,17 @@ before changing it.
 4. **Deny by default.** No "allow all", no default scope, and no "don't ask
    again" for irreversible actions. None of these exist in the backend, and
    none may be added in the UI.
+5. **Text from outside is plain text.** Replies, answers, notes, file names,
+   page text, notices: anything a bridge passes on that the interface did not
+   write itself is shown with `textFormat: Text.PlainText`. Qt's default,
+   `Text.AutoText`, renders whatever looks like HTML, and loads an `<img>` in
+   it. A web address is refused, because the engine's network access is shut
+   (`protege/security/qtguard.py`). A `file://server/share/…` address is not:
+   Qt reads it as a local file, and Windows opens it as a network share, which
+   offers that server the person's sign-in. The one exception is Markdown a
+   bridge serves ready for it, `Chat` message text and `Agents.answer`, whose
+   pictures arrive as links. Nothing else goes to `Text.MarkdownText`,
+   `Text.RichText` or `Text.StyledText`.
 
 ## Context properties
 
@@ -197,6 +208,8 @@ Schedule.addJob({
   starting, tool calls, hand-offs. The answer arrives through `finished`.
 - A run waits its turn at the model behind a chat turn or a scheduled job.
   Until its first trace event arrives, it is waiting, not stuck.
+- `answer` is Markdown with its pictures served as links, like `Chat` text.
+  Show it with `Text.MarkdownText` or as plain text, never as rich text.
 
 ## `Memory` — notes distilled from conversations
 
@@ -356,6 +369,10 @@ stage are new:
   to give. A turn that used nothing shows nothing.
 - If gathering fails, the turn still answers without it, and
   `lastContextNote` says why.
+- **Message text is served for Markdown.** A picture in a reply arrives as a
+  link, `\![alt](address)`, so it is shown and never loaded (see rule 5). The
+  saved conversation keeps the words as written. An error's text is plain;
+  show it plain.
 
 ## Not reachable yet
 

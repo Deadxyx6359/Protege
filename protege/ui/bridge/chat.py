@@ -33,6 +33,7 @@ from protege.core.conversation import Cancelled, Conversation, Responder, route_
 from protege.core.conversations import ConversationError, ConversationStore, relative_time
 from protege.core.models import ModelRouter, Route
 from protege.models.base import ModelError
+from protege.security.qtguard import inert_markdown
 
 if TYPE_CHECKING:
     from protege.core.brain.recall import TurnContext
@@ -67,7 +68,10 @@ class MessageListModel(QAbstractListModel):
             case self.RoleRole:
                 return message.role
             case self.TextRole:
-                return message.text
+                # Shown as Markdown, so a picture is served as a link and never
+                # loaded: its address could name a server (see qtguard). The
+                # transcript keeps the words as written. An error is plain text.
+                return message.text if message.error else inert_markdown(message.text)
             case self.ErrorRole:
                 return message.error
         return None

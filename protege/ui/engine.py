@@ -16,6 +16,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 
 from protege.design import ThemeController
+from protege.security import qtguard
 
 QML_ROOT = Path(__file__).parent / "qml"
 """Import root. ``Protege/qmldir`` sits directly beneath it, which is what
@@ -58,6 +59,10 @@ def build_engine(
     QQuickStyle.setStyle("Basic")
 
     engine = QQmlApplicationEngine(parent)
+    # Before anything loads. Qt fetches web addresses in QML with its own
+    # sockets, out of sight of the network guard, so the engine is given an
+    # access manager that refuses them all. See protege/security/qtguard.py.
+    qtguard.shut(engine)
     engine.addImportPath(str(QML_ROOT))
 
     controller = theme if theme is not None else ThemeController()

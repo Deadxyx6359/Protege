@@ -353,6 +353,24 @@ screen at midnight.
 `-qq`, which drops the final "N passed" line, so a log looks cut off. For exact
 counts, run with `--junitxml` and read that.
 
+**Qt has its own way to the network, and the Python guards cannot see it.** An
+`Image`, a font, an `XMLHttpRequest`, and a picture in any `Text` showing
+Markdown or HTML (the default `AutoText` included) are fetched by Qt in C++.
+`qtguard.shut` gives every engine an access manager that refuses them all.
+`verify_offline.py` fails on an engine made without it, and on QML importing
+`QtWebSockets` or the like, which bypass that manager.
+
+**On Windows, `file://server/share/x.png` is a network request.** Qt reads a
+`file:` address with a host as a UNC path, and Windows opens the share and
+offers the server the person's sign-in. It never reaches the access manager,
+so it cannot be refused there. Pictures in model-written Markdown are served as
+links instead, and everything else from outside must be shown as plain text.
+
+**A Python `QQmlAbstractUrlInterceptor` deadlocks PySide6.** Loading QML hangs
+for good once one is added: the engine's loader thread calls into Python while
+the thread that called `load` holds the interpreter lock. That is why the
+file-share case is handled in the text, not with an interceptor.
+
 ## Phases
 
 Each phase ends with something runnable. No phase leaves the app in a state

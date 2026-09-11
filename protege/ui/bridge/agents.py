@@ -32,6 +32,7 @@ from protege.core.agents.team import Team
 from protege.core.models import ModelRouter
 from protege.core.permissions import AuditLog, Policy, SecretStore
 from protege.core.tools import ToolContext, ToolRegistry
+from protege.security.qtguard import inert_markdown
 
 #: A task longer than this belongs in a file the agent is pointed at.
 MAX_TASK_CHARS = 4000
@@ -199,6 +200,10 @@ class AgentsBridge(QObject):
 
     def _on_done(self, result) -> None:
         ok, answer, stopped = result
+        # An answer is Markdown, and may be shown as such: a picture in it is
+        # served as a link, never loaded, since its address could name a
+        # server (see protege/security/qtguard.py).
+        answer = inert_markdown(answer)
         self._ok, self._answer, self._stopped = ok, answer, stopped
         self._busy, self._running = False, ""
         self.busyChanged.emit()

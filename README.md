@@ -571,6 +571,12 @@ in the activity log. A runtime guard raises on every other outbound connect,
 DNS lookup and non-loopback bind, and `verify_offline.py` proves that no other
 module can reach the network.
 
+The interface is held to the same door. Qt, which draws it, can fetch pictures,
+fonts and pages by itself, in C++, where neither check would see it. So every
+QML engine Protégé makes refuses the network outright, `verify_offline.py`
+checks that it does, and pictures in replies are shown as links rather than
+loaded.
+
 **Neither is as strong as a firewall rule.** Both are application-level controls
 running inside the process they protect; native code can call the OS directly
 via ctypes without touching anything they guard. Network-level blocking is

@@ -4,7 +4,7 @@
 Run this after every `pip install` and before every release. It exits non-zero
 and prints every offending path if anything fails.
 
-Three checks:
+Four checks:
 
 1. **Source scan.** Every module in the `protege` package plus the entry points
    is parsed and walked for imports of networking modules, and for the dynamic
@@ -16,11 +16,19 @@ Three checks:
    module found here is a failure; a networking module that exists in an
    installed distribution but is *not reachable* is reported as informational.
 
-3. **One door.** Two modules are exempt, and each only for the modules named in
-   `EXEMPT_IMPORTS`: the runtime guard, which imports `socket` to patch it, and
-   the chokepoint `protege.core.net.client`, through which Protégé fetches pages
+3. **One door.** Three modules are exempt, and each only for the modules named
+   in `EXEMPT_IMPORTS`: the runtime guard, which imports `socket` to patch it;
+   the Qt guard, which imports `PySide6.QtNetwork` to refuse it; and the
+   chokepoint `protege.core.net.client`, through which Protégé fetches pages
    from sites the person has allowed. No other module may open the guard's door
    (`netguard.admitting`), so the chokepoint's rules cannot be walked around.
+
+4. **The interface's own door, shut.** Qt fetches in C++, over its own sockets,
+   out of sight of both the runtime guard and the Python import scan. So the Qt
+   modules that reach the network are forbidden like the stdlib ones, every QML
+   engine Protégé makes must be given `qtguard.shut`, and no QML or JavaScript
+   file under `protege/ui/qml` may import a module that brings its own
+   connection, such as `QtWebSockets` or `QtWebEngine`.
 
 That distinction in check 2 is the whole point of doing this properly rather
 than with grep. `llama-cpp-python` ships `llama_cpp/server/app.py`, which
@@ -34,6 +42,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import re
 import sys
 import sysconfig
 from dataclasses import dataclass, field
@@ -97,13 +106,56 @@ FORBIDDEN_ROOTS = frozenset(
     }
 )
 
+# Qt modules that reach the network by themselves, in C++, where neither the
+# runtime guard nor a reading of Python imports would follow them. Named in
+# full, because the rest of PySide6 is the interface.
+FORBIDDEN_QT = frozenset(
+    {
+        "PySide6.QtNetwork",
+        "PySide6.QtNetworkAuth",
+        "PySide6.QtWebEngineCore",
+        "PySide6.QtWebEngineWidgets",
+        "PySide6.QtWebEngineQuick",
+        "PySide6.QtWebSockets",
+        "PySide6.QtWebView",
+        "PySide6.QtHttpServer",
+        "PySide6.QtRemoteObjects",
+        "PySide6.QtMqtt",
+        "PySide6.QtCoap",
+        "PySide6.QtLocation",  # downloads map tiles
+        "PySide6.QtMultimedia",  # a media source can be a web address
+    }
+)
+
+# Packages whose modules are named in `from package import Module`, so the
+# alias is what has to be checked.
+QT_PACKAGES = frozenset({"PySide6"})
+
+# The same, as QML imports. A QML file importing one of these can connect
+# without going through the engine's access manager, which is what is shut.
+FORBIDDEN_QML = frozenset(
+    {"QtWebEngine", "QtWebSockets", "QtWebView", "QtLocation", "QtMultimedia",
+     "QtRemoteObjects", "QtMqtt", "QtCoap"}
+)
+
+QML_ROOT = REPO_ROOT / "protege" / "ui" / "qml"
+QML_SUFFIXES = (".qml", ".js", ".mjs")
+_QML_IMPORT = re.compile(r"^[ \t]*\.?import[ \t]+([A-Za-z_][\w.]*)", re.M)
+
+# Constructing one of these makes an engine that could fetch on its own.
+ENGINE_TYPES = frozenset({"QQmlApplicationEngine", "QQmlEngine", "QQuickView", "QQuickWidget"})
+
 GUARD = "protege.security.netguard"
 CHOKEPOINT = "protege.core.net.client"
+QT_GUARD = "protege.security.qtguard"
+
+#: What shuts an engine's own access to the network.
+SHUT = "shut"
 
 #: The guard's door. Only the chokepoint may open it.
 ADMISSION = "admitting"
 
-# The two modules that may import networking modules, and exactly which.
+# The three modules that may import networking modules, and exactly which.
 #
 # `protege.security.netguard` imports `socket` to patch it. It must never
 # connect: it replaces connect, bind and resolve with functions that raise, and
@@ -115,11 +167,15 @@ ADMISSION = "admitting"
 # import the standard-library pieces a client is built from and nothing more:
 # no `requests`, no `urllib.request`.
 #
+# `protege.security.qtguard` imports `PySide6.QtNetwork` for one thing: an
+# access manager that refuses every request, which each QML engine is given.
+#
 # This is asserted by test. Every name added here is a hole in the guarantee,
 # so adding one must be a deliberate decision.
 EXEMPT_IMPORTS = {
     GUARD: frozenset({"socket"}),
     CHOKEPOINT: frozenset({"socket", "ssl", "http.client", "urllib.parse"}),
+    QT_GUARD: frozenset({"PySide6.QtNetwork"}),
 }
 SOURCE_EXEMPT = frozenset(EXEMPT_IMPORTS)
 
@@ -176,11 +232,19 @@ class ScanResult:
     errors: list[Finding] = field(default_factory=list)
     notes: list[Finding] = field(default_factory=list)
     modules_scanned: int = 0
+    qml_scanned: int = 0
     external_scanned: int = 0
 
 
 def top_level(module: str) -> str:
     return module.split(".", 1)[0]
+
+
+def is_forbidden(module: str) -> bool:
+    """Whether importing \a module reaches for the network."""
+    if top_level(module) in FORBIDDEN_ROOTS:
+        return True
+    return any(module == qt or module.startswith(qt + ".") for qt in FORBIDDEN_QT)
 
 
 def _site_packages() -> list[Path]:
@@ -273,6 +337,10 @@ def _imports_in(tree: ast.AST) -> list[ImportSite]:
             else:
                 continue
             found.append(ImportSite(name, node.lineno, not enclosing, enclosing))
+            if name in QT_PACKAGES:
+                # `from PySide6 import QtNetwork` names the module in the alias.
+                found.extend(ImportSite(f"{name}.{alias.name}", node.lineno, not enclosing,
+                                        enclosing) for alias in node.names)
 
         for child in ast.iter_child_nodes(node):
             if isinstance(child, _SCOPED_NODES):
@@ -340,7 +408,7 @@ def _exempt_findings(tree: ast.AST, module: str, path: Path) -> list[Finding]:
     for site in _imports_in(tree):
         if site.name.startswith("."):
             continue
-        if top_level(site.name) in FORBIDDEN_ROOTS and site.name not in allowed:
+        if is_forbidden(site.name) and site.name not in allowed:
             findings.append(Finding(
                 module, path, site.line,
                 f"imports networking module {site.name!r}, which its exemption does not "
@@ -376,11 +444,60 @@ def _admission_findings(tree: ast.AST, module: str, path: Path) -> list[Finding]
     return findings
 
 
+def _called(node: ast.Call) -> str:
+    func = node.func
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return ""
+
+
+def _engine_findings(tree: ast.AST, module: str, path: Path) -> list[Finding]:
+    """A module that makes a QML engine also shuts its own access to the network."""
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
+    made = [node for node in calls if _called(node) in ENGINE_TYPES]
+    if not made or any(_called(node) == SHUT for node in calls):
+        return []
+    return [Finding(module, path, node.lineno,
+                    f"makes a {_called(node)} without {QT_GUARD}.{SHUT}(): the engine could "
+                    "fetch web addresses in QML with its own sockets")
+            for node in made]
+
+
+def _qml_findings(text: str, path: Path) -> list[Finding]:
+    """No QML or JavaScript file imports a module that brings its own connection."""
+    findings: list[Finding] = []
+    for match in _QML_IMPORT.finditer(text):
+        name = match.group(1)
+        if top_level(name) in FORBIDDEN_QML:
+            findings.append(Finding(
+                _module_name_for(path), path, text.count("\n", 0, match.start()) + 1,
+                f"QML imports {name}, which connects without the engine's access manager"))
+    return findings
+
+
+def scan_qml(result: ScanResult) -> None:
+    """Check 4, for the interface's own files."""
+    if not QML_ROOT.is_dir():
+        return
+    for path in sorted(QML_ROOT.rglob("*")):
+        if path.suffix not in QML_SUFFIXES or not path.is_file():
+            continue
+        result.qml_scanned += 1
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            result.errors.append(Finding(_module_name_for(path), path, 0, f"cannot read: {exc}"))
+            continue
+        result.errors.extend(_qml_findings(text, path))
+
+
 def scan_source(result: ScanResult) -> None:
-    """Checks 1 and 3: no networking imports in Protege's own source outside the
-    two exemptions, and no other door opened."""
+    """Checks 1, 3 and 4: no networking imports in Protege's own source outside
+    the exemptions, no other door opened, and no QML engine left open."""
     sources = sorted((REPO_ROOT / "protege").rglob("*.py"))
-    sources += [REPO_ROOT / "run.py"]
+    sources += [REPO_ROOT / "run.py", REPO_ROOT / "shell.py"]
     for path in sources:
         if not path.is_file():
             continue
@@ -399,7 +516,7 @@ def scan_source(result: ScanResult) -> None:
             for site in _imports_in(tree):
                 if site.name.startswith("."):
                     continue
-                if top_level(site.name) in FORBIDDEN_ROOTS:
+                if is_forbidden(site.name):
                     # No module-level/function-level distinction here. That
                     # allowance exists for third-party code we did not write and
                     # cannot change. We wrote this code; a lazy import of a
@@ -424,6 +541,7 @@ def scan_source(result: ScanResult) -> None:
             else:
                 result.errors.extend(dynamic)
         result.errors.extend(_admission_findings(tree, module, path))
+        result.errors.extend(_engine_findings(tree, module, path))
 
 
 def _is_original_dispatch(node: ast.Call) -> bool:
@@ -483,9 +601,8 @@ def scan_reachable(result: ScanResult, max_modules: int = 6000) -> None:
             )
             if not resolved:
                 continue
-            root = top_level(resolved)
 
-            if root in FORBIDDEN_ROOTS:
+            if is_forbidden(resolved):
                 if resolved in EXEMPT_IMPORTS.get(module, frozenset()):
                     # This module's own exemption. The stdlib is not descended into.
                     continue
@@ -547,7 +664,7 @@ def scan_installed_inventory(result: ScanResult) -> None:
                 except (OSError, SyntaxError, UnicodeDecodeError):
                     continue
                 for site in _imports_in(tree):
-                    if not site.name.startswith(".") and top_level(site.name) in FORBIDDEN_ROOTS:
+                    if not site.name.startswith(".") and is_forbidden(site.name):
                         result.notes.append(
                             Finding(
                                 _module_name_for(path),
@@ -572,11 +689,13 @@ def main(argv: list[str] | None = None) -> int:
 
     result = ScanResult()
     scan_source(result)
+    scan_qml(result)
     if not args.source_only:
         scan_reachable(result)
         scan_installed_inventory(result)
 
     print(f"verify_offline: scanned {result.modules_scanned} Protege modules, "
+          f"{result.qml_scanned} QML and script files, "
           f"{result.external_scanned} reachable external modules")
 
     if result.notes and not args.quiet:
@@ -596,6 +715,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"\nPASS: nothing but {CHOKEPOINT} can reach the network, and it only the "
           "sites net.http allows.")
+    print(f"The interface's own access to the network is shut ({QT_GUARD}).")
     print("Reminder: this is a static check of Python imports. It cannot see native code "
           "calling the OS directly. An OS firewall rule denying this binary egress is stronger.")
     return 0

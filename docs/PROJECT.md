@@ -424,6 +424,13 @@ thread, to that address. A grant names a site plainly: a bare top-level
 domain, an address or a wildcard is refused. `fetch_page` gives agents pages,
 and PDFs, as text framed as material rather than instructions; the gatherer
 role has it. The README's firewall advice now says what blocking costs.
+*The interface's own door, shut:* Qt fetches web addresses in QML itself
+(pictures, including those in Markdown and HTML text, fonts, `XMLHttpRequest`)
+in C++, out of sight of both checks. Every engine now refuses the network
+(`security/qtguard.py`); `verify_offline.py` fails on an engine made without it
+and on QML that imports its own connection; and pictures in replies are served
+as links, because Qt opens `file://server/…` as a file and Windows as a
+network share.
 *Still to do:* `git push`, which runs git itself, a separate process the guard
 cannot see, so it needs its own design; and the clients: C2 search, C3
 browser, C5 connectors, weather for C7, pages and feeds for C6.
@@ -527,7 +534,7 @@ and resumable.
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1664 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
+**Tests at last commit:** 1694 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

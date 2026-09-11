@@ -124,13 +124,14 @@ def test_submodules_resolve_to_their_forbidden_root():
 # --- the one door ------------------------------------------------------------
 
 
-def test_the_exemptions_are_the_guard_and_the_chokepoint():
+def test_the_exemptions_are_the_guards_and_the_chokepoint():
     # Every exemption is a hole in the guarantee. They are listed here with
     # exactly what each may import, so adding one, or widening one, is a
     # deliberate act that changes this test.
     assert vo.EXEMPT_IMPORTS == {
         "protege.security.netguard": frozenset({"socket"}),
         "protege.core.net.client": frozenset({"socket", "ssl", "http.client", "urllib.parse"}),
+        "protege.security.qtguard": frozenset({"PySide6.QtNetwork"}),
     }
     assert vo.SOURCE_EXEMPT == frozenset(vo.EXEMPT_IMPORTS)
 
@@ -158,6 +159,49 @@ def test_only_the_chokepoint_may_open_the_guard():
                                   vo.REPO_ROOT / "loop.py")
 
 
+# --- the interface's own door ----------------------------------------------
+
+
+@pytest.mark.parametrize("module", ["PySide6.QtNetwork", "PySide6.QtNetwork.QNetworkReply",
+                                    "PySide6.QtWebSockets", "PySide6.QtWebEngineCore",
+                                    "PySide6.QtNetworkAuth", "PySide6.QtMultimedia"])
+def test_qt_modules_that_reach_the_network_are_forbidden(module):
+    assert vo.is_forbidden(module)
+
+
+@pytest.mark.parametrize("module", ["PySide6", "PySide6.QtCore", "PySide6.QtQml",
+                                    "PySide6.QtGui", "PySide6.QtQuickControls2"])
+def test_the_rest_of_qt_is_the_interface(module):
+    assert not vo.is_forbidden(module)
+
+
+def test_qt_network_named_in_a_from_import_is_seen():
+    sites = vo._imports_in(_parse("from PySide6 import QtCore, QtNetwork\n"))
+    assert [s.name for s in sites if vo.is_forbidden(s.name)] == ["PySide6.QtNetwork"]
+
+
+def test_only_the_qt_guard_may_import_qt_network():
+    tree = _parse("from PySide6.QtNetwork import QNetworkAccessManager\n")
+    assert not vo._exempt_findings(tree, vo.QT_GUARD, vo.REPO_ROOT / "qtguard.py")
+    websockets = _parse("from PySide6.QtWebSockets import QWebSocket\n")
+    assert vo._exempt_findings(websockets, vo.QT_GUARD, vo.REPO_ROOT / "qtguard.py")
+
+
+def test_a_qml_engine_must_be_shut():
+    made = "from PySide6.QtQml import QQmlApplicationEngine\nengine = QQmlApplicationEngine()\n"
+    assert vo._engine_findings(_parse(made), "m", vo.REPO_ROOT / "m.py")
+    shut = made + "qtguard.shut(engine)\n"
+    assert not vo._engine_findings(_parse(shut), "m", vo.REPO_ROOT / "m.py")
+
+
+def test_qml_may_not_bring_its_own_connection():
+    text = 'import QtQuick\nimport QtWebSockets 1.0\nimport "local.js" as Local\n'
+    assert [f.line for f in vo._qml_findings(text, vo.REPO_ROOT / "x.qml")] == [2]
+    assert vo._qml_findings(".import QtWebEngine 1.0 as Web\n", vo.REPO_ROOT / "x.js")
+    assert not vo._qml_findings(".import QtQuick.LocalStorage 2.0 as Sql\n",
+                                vo.REPO_ROOT / "x.js")
+
+
 # --- end-to-end on the real source tree ------------------------------------
 
 
@@ -166,6 +210,13 @@ def test_protege_source_has_no_networking_imports_outside_the_door():
     vo.scan_source(result)
     assert result.errors == [], "\n".join(f.render() for f in result.errors)
     assert result.modules_scanned > 0
+
+
+def test_protege_qml_brings_no_connection_of_its_own():
+    result = vo.ScanResult()
+    vo.scan_qml(result)
+    assert result.errors == [], "\n".join(f.render() for f in result.errors)
+    assert result.qml_scanned > 0
 
 
 def test_verifier_exits_zero_on_source_only_scan(capsys):
