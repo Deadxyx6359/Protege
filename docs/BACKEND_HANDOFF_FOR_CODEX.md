@@ -100,7 +100,7 @@ trace.replay()                            # everything so far, for a late-attach
 `ANSWER`, `FAILED`, `NOTE`.
 
 `MESSAGE` + `to` is the agent-to-agent edge — that is what you draw when you
-visualise a team. Teams themselves are not built yet (see §6).
+visualise a team. Teams landed in A4 and emit one on every hand-off.
 
 Two things to know: `listen` callbacks fire on the **worker thread**, so marshal
 onto the Qt thread before touching anything visual. And a listener that raises
@@ -239,6 +239,45 @@ them they are on the UI thread — you do not need to marshal anything yourself.
 landed, so these now actually fire** — the research and software teams emit one
 per hand-off, and the interaction graph will no longer be empty.
 
+### 3.3c What QML can actually reach — the context properties
+
+**Correction to the A5 notes above:** the bridges were built and tested but not
+registered with the engine, so QML could not see them. `shell.py` now exposes:
+
+| Name in QML | Object | For |
+|---|---|---|
+| `Chat` | `ChatBridge` | unchanged |
+| `Settings` | `SettingsBridge` | unchanged |
+| `Permissions` | `PermissionsBridge` | the permission screen and activity log |
+| `Confirm` | `ConfirmBridge` | the irreversible-action dialog |
+| `AgentTrace` | `TraceBridge` | watching agents and teams work |
+| `Schedule` | `ScheduleBridge` | scheduled jobs and the security review |
+
+`AgentTrace`, not `Trace`, to keep it distinct from the core class. A test
+asserts these names, so renaming one is a deliberate act.
+
+### 3.3d `Schedule` — jobs and the security review (A6, A7)
+
+| Member | Kind | Notes |
+|---|---|---|
+| `jobs` | Property, notifies `jobsChanged` | Maps: `id`, `name`, `action`, `when` (plain English), `nextRun`, `lastRun` (epoch seconds, 0 if never), `lastStatus`, `enabled`, `done`, `pausedReason`, `missed`, `running` |
+| `warnings` | Property | Plain-language problems loading the schedule — show them |
+| `history(id)` | Slot → list | Runs, newest first: `status` (`ok`/`failed`/`skipped`/`overlap`), `summary`, `late`, `trigger` |
+| `pause(id)`, `resume(id)`, `remove(id)` | Slots | |
+| `runNow(id)` | Slot | Starts a worker thread and returns at once |
+| `findings` | Property, notifies `reviewChanged` | Worst first. Maps: `severity` (`critical`/`warn`/`info`), `code`, `title`, `detail`, `suggestion`, `capability` |
+| `reviewSummary`, `lastReviewAt`, `criticalCount` | Properties | `"Not reviewed yet"` before the first review |
+| `runReview()` | Slot | Runs the review now, off the UI thread |
+| `criticalFound(int)` | Signal | **Raise something visible.** The point of the review is that critical findings are not left in a list |
+
+The review never fixes anything itself. When a finding names a `capability`,
+the natural action is a link to that capability on the permission screen, where
+the person can revoke or narrow it. A paused job's `pausedReason` is written for
+the person — show it verbatim.
+
+A scheduled job that reaches an irreversible step asks through `Confirm` like
+anything else — and if nobody answers within five minutes, it is refused.
+
 ### 3.4 `AuditLog` — the activity view
 
 ```python
@@ -296,7 +335,7 @@ In the order I would build it:
 
 ## 7. Test state at handoff
 
-Full suite: **1086 passed, 2 skipped, 0 failed** out of 1088 collected, confirmed clean across repeated randomised orderings. `verify_offline.py` passes.
+Full suite, at the end of section A: **1311 passed, 2 skipped, 0 failed**, confirmed clean across repeated randomised orderings. `verify_offline.py` passes.
 
 Two fixes this session worth knowing about, both recorded in `REBUILD.md`:
 

@@ -61,7 +61,7 @@ measured benchmarks, not from optimism.
 | Agent loop, prompted tool calling | **Done** | A3 |
 | Multiple agents in teams (research team, software team) | Fine — Hermes-3-8B is built for tool calling and fits the card | A4 |
 | Visual display of which model is doing what, and how agents interact | Fine — `Trace` carries it; UI is Codex's | A5 |
-| Coding agent, Claude-Code-like, reads/writes/runs code via VS Code | Largely done in the legacy app; needs porting onto the tool gate | A8 |
+| Coding agent, Claude-Code-like, reads/writes/runs code via VS Code | **Done** — on the tool gate: check, run, test, git, open in VS Code. No push until C1 | A8 |
 
 ### 2.2 Knowledge
 
@@ -83,7 +83,7 @@ measured benchmarks, not from optimism.
 | Email, calendar, text, Canvas, docs | Fine, per-connector permissions | C5 |
 | Banking | **Read-only, permanently** | C5 |
 | Monitoring agent — watch for changes | Fine | C6 |
-| Time-based and event-based processes (daily/weekly/monthly/custom) | Fine | A6 |
+| Time-based and event-based processes (daily/weekly/monthly/custom) | **Done** | A6 |
 | Location and time awareness | Fine | C7 |
 | Purchasing | Possible, but a person presses the button every time | C8 |
 
@@ -147,6 +147,8 @@ protege/
     permissions/         capabilities, grants, scope matching, audit, secrets
     tools/               tool schema, the gate, built-in tools
     agents/              loop, protocol, trace, teams
+    schedule/            time and event triggers, jobs, narrowed per-run policy
+    review.py            the routine security review
     models.py            task-routed local inference
     conversation*.py     turn state and storage
   security/              path safety, offline verification support
@@ -233,25 +235,43 @@ Qt signals — `Trace.listen` fires on the worker thread. The Research view
 exists and deliberately shows no source or agent panels until a bridge with
 real data backs them; do not add panels ahead of the data.
 
-**A6 ▶ Scheduler** — `core/schedule/`
+**A6 ✅ Scheduler** — `core/schedule/`
 Time-based (daily/weekly/monthly/cron/custom) and event-based triggers, durable
 across restarts, each job running under its own scoped policy. Missed jobs
 resolve explicitly — run late or skip — never silently.
 *Why here:* monitoring (C6), the security audit (A7), memory distillation (B5)
 and the content pipeline (E3) are all scheduler clients.
+*Done:* daily, weekly, monthly (the 31st means the last day in shorter
+months), every-N and five-field cron, plus event triggers with a mandatory
+cooldown. Wall-clock local time, so DST does not shift jobs. Each run gets
+the intersection of what the job asked for and what the user holds *now*, in
+a policy that refuses to be saved. Missed runs coalesce into one late run or
+an explicit skip. Five failures in a row pause a job with the reason.
+Unattended runs cannot approve anything irreversible.
 
-**A7 ○ Routine security audit** — `core/audit/review.py`
+**A7 ✅ Routine security audit** — `core/review.py`
 Scheduled review: grants that are broader than their use, capabilities granted
 and never exercised, expired-but-present entries, refusal patterns suggesting a
 prompt-injection attempt, secrets present without an owner. Findings surface in
 the UI.
 *Why here:* needs the audit log (A1) and the scheduler (A6), and every later
 phase adds attack surface it should already be watching.
+*Done:* runs daily at 09:00, late if the machine was off, and on demand. Also
+flags reaching for credentials or Protégé's own settings (always critical),
+grant-file tampering, mid-log damage, and permission changes in the window.
+It only reads — it never revokes anything itself. Critical findings raise a
+signal of their own rather than waiting in a list.
 
-**A8 ○ Coding environment on the gate** — `core/tools/builtin/code.py`
+**A8 ✅ Coding environment on the gate** — `core/tools/builtin/coding.py`
 Port the legacy coding surface onto the tool layer: run code, run tests, read
 diagnostics, VS Code integration, git through `vcs.read`/`vcs.write`. Shell
 access is `shell.run` — irreversible, therefore always confirmed.
+*Done:* `check_syntax` (parses, never executes), `run_python`, `run_tests`,
+`git_status`/`git_diff`/`git_log`/`git_commit`, `open_in_editor`. Code runs
+behind the network guard with a scrubbed environment. Git is hardened
+against config-driven execution (fsmonitor, hooks, credential helpers,
+signing, lazy fetch). VS Code starts without cmd.exe. **No push** — it
+waits for C1.
 
 ### Phase B — the second brain
 
@@ -298,7 +318,8 @@ enforces timeouts and size caps. `verify_offline.py` is updated to assert that
 this is the *only* path — the core must still prove nothing else opens a
 socket.
 *Why first in C:* every item below is a client of it. Written second, each one
-would need retrofitting.
+would need retrofitting. It is also what finally allows `git push`, left out
+of A8 on purpose.
 
 **C2 ○ Web search** — `core/tools/builtin/search.py`
 
@@ -368,15 +389,15 @@ and resumable.
 | A | A3 Agent loop | ✅ |
 | A | A4 Teams and roles | ✅ |
 | A | A5 UI bridge | ✅ |
-| A | A6 Scheduler | ▶ next |
-| A | A7 Security audit | ○ |
-| A | A8 Coding on the gate | ○ |
-| B | B1–B6 Second brain | ○ |
+| A | A6 Scheduler | ✅ |
+| A | A7 Security audit | ✅ |
+| A | A8 Coding on the gate | ✅ |
+| B | B1–B6 Second brain | ▶ next (B1) |
 | C | C1–C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1158 passed, 2 skipped, 0 failed; `verify_offline.py`
+**Tests at last commit:** 1311 passed, 2 skipped, 0 failed; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

@@ -7,11 +7,12 @@ No decisions live at this layer — if a rule is being applied, it belongs in
 
 from .chat import ChatBridge, MessageListModel
 from .permissions import ConfirmBridge, PermissionsBridge
+from .schedule import ScheduleBridge
 from .settings import SettingsBridge
 from .trace import TraceBridge, TraceListModel
 
 __all__ = [
     "ChatBridge", "MessageListModel", "SettingsBridge",
-    "PermissionsBridge", "ConfirmBridge",
+    "PermissionsBridge", "ConfirmBridge", "ScheduleBridge",
     "TraceBridge", "TraceListModel",
 ]

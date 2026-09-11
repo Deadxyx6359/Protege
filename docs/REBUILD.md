@@ -256,6 +256,28 @@ so the 50 ms poll timer outlived `destroy()` — in the application that leaks a
 timer, in the suite it fires into whichever test is pumping the event loop next.
 `destroy()` now cancels it.
 
+**Read-only git is not read-only.** A repository's own configuration can make
+`git status` run a program — `core.fsmonitor` names a command git executes on
+every status — and hooks, credential helpers and signing programs are more
+commands a repository can name. A partial clone even fetches over the network
+on demand. `coding.py` overrides all of these on every call. The tests carry
+*controls*: each first shows plain git running the planted command, and skips
+if it does not, so a pass means the defence did something rather than that the
+attack was inert. What cannot be switched off generically is a clean/smudge
+filter in a repository's own `.git/config`.
+
+**Never pass model-supplied text through a batch file.** VS Code's `code`
+command is `code.cmd`, and cmd.exe re-parses a batch file's arguments, so a
+filename containing `&` can become a second command. `open_in_editor` starts
+`Code.exe` with its `cli.js` directly — exactly what the batch file does — and
+refuses rather than falling back to it. The CLI script sits under a
+commit-hash folder in current installs, not under `resources/` directly.
+
+**A bridge that is not registered with the engine does not exist.** A5 shipped
+three bridges, fully tested, that QML could not reach, because `shell.py` only
+exposed `Chat` and `Settings`. A test now asserts every context name the
+application exposes.
+
 **Never let a test write a realistically-sized model file.** The route planner
 decides on file size, so the obvious test writes a 4.7 GB placeholder. On NTFS
 `truncate` allocates rather than sparsifying, and pytest keeps the last few temp

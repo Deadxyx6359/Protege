@@ -14,10 +14,23 @@ from pathlib import Path
 
 from PySide6.QtGui import QGuiApplication, QIcon
 
+from protege.core.agents import Trace
 from protege.core.config import AppConfig, autoconfigure
 from protege.core.models import ModelRouter, Route
+from protege.core.permissions import AuditLog, Policy, SecretStore
+from protege.core.review import ensure_review_job, register_review_action
+from protege.core.schedule import ActionRegistry, Scheduler, SchedulerService
+from protege.core.schedule.actions import register_agent_actions
+from protege.core.tools import default_registry
 from protege.design import ThemeController
-from protege.ui.bridge import ChatBridge, SettingsBridge
+from protege.ui.bridge import (
+    ChatBridge,
+    ConfirmBridge,
+    PermissionsBridge,
+    ScheduleBridge,
+    SettingsBridge,
+    TraceBridge,
+)
 
 from .engine import QML_ROOT, QmlError, build_engine, configure_application, load
 
@@ -39,12 +52,43 @@ class AppContext:
     theme: ThemeController
     chat: ChatBridge
     settings: SettingsBridge
+    permissions: PermissionsBridge | None = None
+    confirm: ConfirmBridge | None = None
+    trace: TraceBridge | None = None
+    schedule: ScheduleBridge | None = None
+    scheduler: Scheduler | None = None
+    service: SchedulerService | None = None
 
     def as_context(self) -> dict:
         """The name → object map exposed to QML."""
-        return {"Chat": self.chat, "Settings": self.settings}
+        exposed = {"Chat": self.chat, "Settings": self.settings}
+        for name, obj in (("Permissions", self.permissions), ("Confirm", self.confirm),
+                          ("AgentTrace", self.trace), ("Schedule", self.schedule)):
+            if obj is not None:
+                exposed[name] = obj
+        return exposed
+
+    def start_services(self) -> None:
+        """Begin background work.
+
+        Only the real application calls this. Previews and tests build the
+        very same objects without starting a thread or touching the schedule
+        on disk.
+        """
+        if self.scheduler is not None and self.service is None:
+            ensure_review_job(self.scheduler)
+            self.service = SchedulerService(self.scheduler)
+            self.service.start()
 
     def close(self) -> None:
+        # A worker blocked waiting for a confirmation would otherwise hold the
+        # scheduler thread past shutdown, so it is woken with a refusal first.
+        if self.confirm is not None:
+            self.confirm.close()
+        if self.service is not None:
+            self.service.stop()
+        if self.trace is not None:
+            self.trace.detach()
         # Order matters: save before unloading. A crash during model teardown
         # would otherwise take the last turn with it.
         self.chat.flush()
@@ -79,12 +123,37 @@ def build_context(*, persist: bool = True) -> AppContext:
             else None
         ),
     )
+    audit = AuditLog()
+    secret_store = SecretStore()
+    trace = Trace()
+    permissions = PermissionsBridge(Policy.load(), audit)
+    confirm = ConfirmBridge()
+
+    # The scheduler reads the very policy the permission screen edits, so a
+    # revocation in Settings reaches the next scheduled run.
+    def live_policy() -> Policy:
+        return permissions.policy
+
+    actions = ActionRegistry()
+    scheduler = Scheduler(actions, policy=live_policy, audit=audit,
+                          secret_store=secret_store, trace=trace,
+                          confirm=confirm.ask)
+    schedule = ScheduleBridge(scheduler)
+    register_review_action(actions, policy=live_policy, audit=audit,
+                           secret_store=secret_store, on_review=schedule.on_review)
+    register_agent_actions(actions, router=router, registry=default_registry())
+
     return AppContext(
         config=config,
         router=router,
         theme=theme,
         chat=ChatBridge(router, config),
         settings=SettingsBridge(config, router),
+        permissions=permissions,
+        confirm=confirm,
+        trace=TraceBridge(trace),
+        schedule=schedule,
+        scheduler=scheduler,
     )
 
 
@@ -108,6 +177,10 @@ def run_shell(argv: list[str] | None = None) -> int:
     # Without this the process lingers after the window closes, because the
     # engine still holds the root object and Qt has nothing left to quit on.
     engine.quit.connect(app.quit)
+
+    # Scheduled jobs, the daily security review among them, start once the
+    # window exists: the first tick may run a review that missed its time.
+    ctx.start_services()
 
     if ctx.config.preload:
         # On a worker thread, and started only after the window exists: loading
