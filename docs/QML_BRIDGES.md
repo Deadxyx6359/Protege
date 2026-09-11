@@ -37,6 +37,7 @@ before changing it.
 | `AgentTrace` | `TraceBridge` | Watching agents and teams work |
 | `Schedule` | `ScheduleBridge` | Scheduled jobs and the security review |
 | `Agents` | `AgentsBridge` | Starting an agent or a team on a task |
+| `Memory` | `MemoryBridge` | Notes distilled from conversations, waiting for a person to accept |
 
 Registered in `protege/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
@@ -183,6 +184,33 @@ Schedule.addJob({
   starting, tool calls, hand-offs. The answer arrives through `finished`.
 - A run waits its turn at the model behind a chat turn or a scheduled job.
   Until its first trace event arrives, it is waiting, not stuck.
+
+## `Memory` — notes distilled from conversations
+
+| Member | Kind | Notes |
+|---|---|---|
+| `vault` | Property, notifies `vaultChanged` | The vault memory is kept in. `""` until one is chosen |
+| `setVault(path)` | Slot → string | Choose the vault: `""`, or why not. Sets up the nightly job (03:30, run late if the machine was off) |
+| `pending` | Property, notifies `pendingChanged` | Proposals, oldest first. Maps: `id`, `title`, `target` (its path inside the vault), `addsTo` (adds to an existing note rather than making one), `preview` (the new note, or a unified diff of the addition), `sources` (conversation titles), `created` (epoch seconds) |
+| `pendingCount` | Property, notifies `pendingChanged` | |
+| `accept(id)` | Slot → string | Write it into the vault: `""`, or why not, including **Not permitted** when `vault.write` does not cover that note |
+| `reject(id)` | Slot → string | Discard it. The conversation it came from is untouched |
+| `distilNow()` | Slot → string | Read recent conversations now rather than tonight. Starts a worker and returns at once |
+| `busy`, `lastRun` | Properties, notify `busyChanged` | `lastRun` is the last run started here, in a sentence, e.g. "2 notes proposed from 3 conversations; waiting for review." |
+
+- **Nothing reaches the vault until `accept`.** Proposals wait outside it and
+  are not searchable, so what the model wrote cannot shape an answer before a
+  person has read it. Show `preview` verbatim; for an addition it is a diff.
+- **The job needs two grants the person makes separately:** `memory.read`, and
+  `vault.read` for the vault. Without them a run fails, and its summary in
+  `Schedule.history` names what is missing. A setup screen can offer both
+  grants beside the vault picker.
+- **`accept` can refuse after the fact.** If the note changed since the
+  proposal was made, nothing is written: the proposal is re-based on the note
+  as it is now and `pendingChanged` fires. Show the reason and the new preview.
+- Accepting is recorded in the activity log as `accept_memory`, and an accepted
+  note can be undone from its history like any vault write.
+- The job shows in `Schedule.jobs` as "Memory". Choosing another vault moves it.
 
 ## Not reachable yet
 

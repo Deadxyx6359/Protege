@@ -143,7 +143,8 @@ class ConversationArchive:
         if self.root.is_dir():
             yield from sorted(p for p in self.root.glob("*.json") if not p.name.startswith("."))
 
-    def read(self, path: Path) -> Item:
+    def load(self, path: Path) -> tuple[str, str, list[tuple[str, str]]]:
+        """(title, version, exchanges): each exchange a question and its answer."""
         try:
             raw = path.read_bytes()
         except OSError as exc:
@@ -158,7 +159,7 @@ class ConversationArchive:
             raise VaultError(f"conversation {path.stem} is not readable.")
 
         title = " ".join(str(data.get("title") or "Untitled").split())
-        sections: list[Chunk] = []
+        exchanges: list[tuple[str, str]] = []
         question = None
         for message in data.get("messages") or []:
             if not isinstance(message, dict) or message.get("error"):
@@ -168,12 +169,18 @@ class ConversationArchive:
                 continue
             if message.get("role") == "user":
                 if question is not None:
-                    sections += _exchange(title, question, "")
+                    exchanges.append((question, ""))
                 question = text
             elif message.get("role") == "assistant":
-                sections += _exchange(title, question or "", text)
+                exchanges.append((question or "", text))
                 question = None
         if question is not None:
-            sections += _exchange(title, question, "")
+            exchanges.append((question, ""))
+        return title, version_of(raw), exchanges
+
+    def read(self, path: Path) -> Item:
+        title, version, exchanges = self.load(path)
+        sections = [chunk for question, answer in exchanges
+                    for chunk in _exchange(title, question, answer)]
         body = "\n\n".join(chunk.text for chunk in sections)
-        return Item(path.stem, title, body, version_of(raw), sections=tuple(sections))
+        return Item(path.stem, title, body, version, sections=tuple(sections))

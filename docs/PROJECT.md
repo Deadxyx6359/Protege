@@ -77,7 +77,7 @@ measured benchmarks, not from optimism.
 | Capability | Verdict | Item |
 |---|---|---|
 | Document management — .docx, .pptx, .xlsx, PDF | **Done**: read all four, create Word and Excel, edit Word and PowerPoint, set Excel cells. Creating decks from scratch still to come | B1 |
-| Obsidian second brain, fully automated, never opened by hand | **Vault, index and retrieval done**: read, link, write with history and conflict checks, daily notes; ranked search by section over notes, documents and past conversations, merged into cited passages. Memory distillation next | B2 |
+| Obsidian second brain, fully automated, never opened by hand | **Vault, index and retrieval done**: read, link, write with history and conflict checks, daily notes; ranked search by section over notes, documents and past conversations, merged into cited passages; conversations distilled nightly into proposed notes a person accepts. Projects next | B2 |
 | Private RAG, local embeddings | Fine — no network involved | B3–B4 |
 | General memory that updates regularly | Partly exists (legacy `memory/`), needs rebuilding on the new spine | B5 |
 | Projects, easy to access and manage | Legacy `projects.py` exists; needs reconciling | B6 |
@@ -349,10 +349,24 @@ searched. `read_document` and the index share one document-to-text function.
 embeddings as a second ranked list for the same fusion, and dropping an
 index's stored text when its grant is revoked rather than at the next refresh.
 
-**B5 ○ Memory distillation** — `core/brain/distil.py`
+**B5 ✅ Memory distillation** — `core/brain/distil.py`, bridge `ui/bridge/memory.py`
 Scheduled consolidation of conversations into durable notes, deduplicated
 against what exists. Supersedes legacy `memory/consolidate.py`; port its
 pending/holding staging, which is good design worth keeping.
+*Done:* a nightly job reads each conversation that changed — only the
+exchanges since it was last read — and asks the local model what is worth
+keeping. Answers become proposals in the configuration folder, never notes:
+nothing indexes them, so unreviewed model output cannot shape an answer. A
+proposal on a subject the vault already has becomes an addition carrying only
+the lines the note lacks; one that adds nothing is dropped, and two
+conversations proposing one note make one proposal. The job needs
+`memory.read` and `vault.read` and writes nothing but proposals. A person
+accepts through the `Memory` bridge, held to `vault.write` for that note and
+audited; the write goes through the vault, so it can be undone, and a note
+edited since is re-based rather than overwritten. The holding area is not
+ported because nothing is deleted: the conversation stays where it was.
+*Still to do:* the review screen (Codex, on `Memory`), and retention settings
+for conversations themselves.
 
 **B6 ○ Projects reconciled** — `core/projects.py`
 Fold legacy `projects.py` and `knowledge_graph.py` onto the new spine: a
@@ -447,12 +461,13 @@ and resumable.
 | B | B2 Obsidian vault | ✅ |
 | B | B3 Vault index (lexical; embeddings deferred) | ✅ |
 | B | B4 Retrieval | ✅ |
-| B | B5–B6 Second brain | ▶ next (B5) |
+| B | B5 Memory distillation | ✅ |
+| B | B6 Projects reconciled | ▶ next (B6) |
 | C | C1–C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1502 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
+**Tests at last commit:** 1522 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

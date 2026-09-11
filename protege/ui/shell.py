@@ -15,6 +15,7 @@ from pathlib import Path
 from PySide6.QtGui import QGuiApplication, QIcon
 
 from protege.core.agents import Trace
+from protege.core.brain.distil import PendingStore, register_distil_action
 from protege.core.config import AppConfig, autoconfigure
 from protege.core.models import ModelRouter, Route
 from protege.core.permissions import AuditLog, Policy, SecretStore
@@ -27,6 +28,7 @@ from protege.ui.bridge import (
     AgentsBridge,
     ChatBridge,
     ConfirmBridge,
+    MemoryBridge,
     PermissionsBridge,
     ScheduleBridge,
     SettingsBridge,
@@ -58,6 +60,7 @@ class AppContext:
     trace: TraceBridge | None = None
     schedule: ScheduleBridge | None = None
     agents: AgentsBridge | None = None
+    memory: MemoryBridge | None = None
     scheduler: Scheduler | None = None
     service: SchedulerService | None = None
 
@@ -66,7 +69,7 @@ class AppContext:
         exposed = {"Chat": self.chat, "Settings": self.settings}
         for name, obj in (("Permissions", self.permissions), ("Confirm", self.confirm),
                           ("AgentTrace", self.trace), ("Schedule", self.schedule),
-                          ("Agents", self.agents)):
+                          ("Agents", self.agents), ("Memory", self.memory)):
             if obj is not None:
                 exposed[name] = obj
         return exposed
@@ -154,6 +157,10 @@ def build_context(*, persist: bool = True) -> AppContext:
     agents = AgentsBridge(router, default_registry(), policy=live_policy,
                           audit=audit, secret_store=secret_store, trace=trace,
                           confirm=confirm.ask)
+    pending = PendingStore()
+    memory = MemoryBridge(scheduler, policy=live_policy, audit=audit, pending=pending)
+    register_distil_action(actions, router=router, pending=pending,
+                           on_proposed=memory.on_proposed)
 
     return AppContext(
         config=config,
@@ -167,6 +174,7 @@ def build_context(*, persist: bool = True) -> AppContext:
         schedule=schedule,
         scheduler=scheduler,
         agents=agents,
+        memory=memory,
     )
 
 
