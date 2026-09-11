@@ -39,6 +39,7 @@ before changing it.
 | `Agents` | `AgentsBridge` | Starting an agent or a team on a task |
 | `Memory` | `MemoryBridge` | Notes distilled from conversations, waiting for a person to accept |
 | `Projects` | `ProjectsBridge` | Projects, the open one, and the grants that belong to it |
+| `Graph` | `GraphBridge` | A tag map and a link graph of a folder of notes |
 
 Registered in `protege/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
@@ -240,6 +241,28 @@ Schedule.addJob({
   name, and the security review checks them like any other grant.
 - `personality` is stored, but the conversation does not use it yet. `folder` is
   where the project's notes live; it grants nothing.
+
+## `Graph` — what a folder of notes knows
+
+| Member | Kind | Notes |
+|---|---|---|
+| `build(folder, width, height)` | Slot → string | Read the notes under `folder` and draw them for a canvas that size. `""` once started, otherwise why not, including **Not permitted** without `vault.read` there |
+| `busy` | Property, notifies `busyChanged` | |
+| `tags` | Property, notifies `builtChanged` | The tag map, laid out: `nodes` (`id`, `label`, `hub`, `real`, `weight`, `x`, `y`, `radius`), `edges` (`a`, `b`, `kind`: `branch` or `cotag`), `hidden`, `summary` |
+| `links` | Property, notifies `builtChanged` | The link graph, **not** laid out: `nodes` (`id` is the note's path in the vault, `label` its title, `weight` how many links touch it), `edges` (`kind` `link`, from `a` to `b`), `unresolved`, `hidden`, `summary` |
+| `error` | Property, notifies `builtChanged` | Why the last build failed, or `""` |
+
+- **The tag map holds still.** The same notes always give the same positions
+  for the same canvas, so the person can learn the map. Rebuild on resize
+  rather than animating nodes about.
+- A hub with `real` false is a group nobody tagged directly (only
+  `#travel/japan`, never `#travel`). Draw it, but not as a tag.
+- `summary` is written for the person. Show it, especially when the map is
+  empty (it says how to start) or `hidden` is not zero.
+- The link graph is QML's to place. Links to notes that do not exist yet are
+  counted in `unresolved`, not drawn.
+- It reads under the global grants plus the open project's, like agents, and
+  each request is in the activity log as `draw_map`.
 
 ## Not reachable yet
 

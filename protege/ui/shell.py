@@ -29,6 +29,7 @@ from protege.ui.bridge import (
     AgentsBridge,
     ChatBridge,
     ConfirmBridge,
+    GraphBridge,
     MemoryBridge,
     PermissionsBridge,
     ProjectsBridge,
@@ -64,6 +65,7 @@ class AppContext:
     agents: AgentsBridge | None = None
     memory: MemoryBridge | None = None
     projects: ProjectsBridge | None = None
+    graph: GraphBridge | None = None
     scheduler: Scheduler | None = None
     service: SchedulerService | None = None
 
@@ -73,7 +75,7 @@ class AppContext:
         for name, obj in (("Permissions", self.permissions), ("Confirm", self.confirm),
                           ("AgentTrace", self.trace), ("Schedule", self.schedule),
                           ("Agents", self.agents), ("Memory", self.memory),
-                          ("Projects", self.projects)):
+                          ("Projects", self.projects), ("Graph", self.graph)):
             if obj is not None:
                 exposed[name] = obj
         return exposed
@@ -188,6 +190,7 @@ def build_context(*, persist: bool = True) -> AppContext:
         agents=agents,
         memory=memory,
         projects=projects,
+        graph=GraphBridge(policy=working_policy, audit=audit),
     )
 
 
