@@ -291,6 +291,30 @@ waits out a generation. `unload_all` waits, and declines rather than crash.
 The tests drive the real `acquire` through a fake llama module; the older
 chat tests replace `acquire` outright, which is why none of them caught it.
 
+**An unanchored ignore rule can swallow source.** `.gitignore` said `models/`,
+meaning the folder of GGUF weights, but a pattern without a leading slash
+matches that name anywhere, and it silently excluded the `protege/models`
+package: the model manager, the llama backend and the rest were never
+committed. The application ran because the files were on disk. It surfaced
+only when the suite ran in a clean worktree of HEAD and failed at collection.
+Anchor ignore rules, and occasionally run the suite from a clean checkout.
+
+**The offline proof stops at the standard library; the runtime guard covers
+the rest.** `verify_offline.py` deliberately does not descend into the stdlib,
+which imports `socket` and `urllib` for its own reasons in many innocuous
+places. Even `pathlib` imports `urllib.parse`. So an innocent-looking import
+can bring a networking module along, and `xml.sax.saxutils` pulls in
+`urllib.request`. The static check will not see it, by design, which makes
+`netguard` in the launcher load-bearing. The Qt launcher, `shell.py`, never
+installed it, and was not an entry point the proof walked either. Both are
+fixed and tested. The document code escapes with `html`, not `saxutils`.
+
+**Never round-trip an Office part through ElementTree.** It renames namespace
+prefixes and drops declarations no element uses, including those named only
+in `mc:Ignorable`, and Word then calls the file unreadable. Parse to read;
+to write, splice into the original string. `core/documents/ooxml.py` does
+that, and its tests compare bytes.
+
 **Never let a test write a realistically-sized model file.** The route planner
 decides on file size, so the obvious test writes a 4.7 GB placeholder. On NTFS
 `truncate` allocates rather than sparsifying, and pytest keeps the last few temp

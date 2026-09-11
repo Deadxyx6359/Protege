@@ -76,7 +76,7 @@ measured benchmarks, not from optimism.
 
 | Capability | Verdict | Item |
 |---|---|---|
-| Document management — .docx, .pptx, .xlsx, PDF | Fine — library work, no model needed | B1 |
+| Document management — .docx, .pptx, .xlsx, PDF | **Done**: read all four, create Word and Excel, edit Word and PowerPoint, set Excel cells. Creating decks from scratch still to come | B1 |
 | Obsidian second brain, fully automated, never opened by hand | Fine | B2 |
 | Private RAG, local embeddings | Fine — no network involved | B3–B4 |
 | General memory that updates regularly | Partly exists (legacy `memory/`), needs rebuilding on the new spine | B5 |
@@ -287,12 +287,18 @@ waits for C1.
 
 ### Phase B — the second brain
 
-**B1 ○ Document tools** — `core/tools/builtin/documents.py`
+**B1 ✅ Document tools** — `core/documents/`, tools in `core/tools/builtin/office.py`
 Read and write .docx, .pptx, .xlsx; PDF text extraction (legacy `pdftext.py`
 ports here). Round-trip fidelity matters — opening and saving must not destroy
 formatting the user did not touch.
 *Why first in B:* purely library work, no model or index needed, and it is the
 "plugins for Word/PowerPoint" ask.
+*Done:* standard library only. Edits are surgical: text is spliced into the
+original XML, so every other byte and every other part is untouched, and the
+tests assert exact bytes. Replacement spans Word's arbitrary runs. Spreadsheets
+read with coordinates and real dates; cells keep their style. Creating never
+overwrites. *Still to do:* creating a PowerPoint deck from nothing, which needs
+a master and theme that can only be trusted once checked against PowerPoint.
 
 **B2 ○ Obsidian vault adapter** — `core/brain/vault.py`
 Read and write the vault as markdown: frontmatter, `[[wikilinks]]`, tags,
@@ -404,12 +410,13 @@ and resumable.
 | A | A6 Scheduler | ✅ |
 | A | A7 Security audit | ✅ |
 | A | A8 Coding on the gate | ✅ |
-| B | B1–B6 Second brain | ▶ next (B1) |
+| B | B1 Document tools | ✅ |
+| B | B2–B6 Second brain | ▶ next (B2) |
 | C | C1–C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1341 passed, 2 skipped, 2 failed (two legacy Tk geometry tests that fail at clean HEAD too, on this 960-px-tall display); `verify_offline.py`
+**Tests at last commit:** 1411 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
 passes. Update this line when it changes.
 
 ---
