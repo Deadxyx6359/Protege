@@ -181,9 +181,56 @@ def test_the_application_puts_every_bridge_in_front_of_qml(app):
     try:
         exposed = ctx.as_context()
         assert {"Chat", "Settings", "Permissions", "Confirm",
-                "AgentTrace", "Schedule"} <= set(exposed)
+                "AgentTrace", "Schedule", "Agents"} <= set(exposed)
         assert ctx.service is None, "building the context must not start threads"
         names = set(ctx.scheduler.actions.names())
         assert {"security_review", "agent", "team"} <= names
     finally:
         ctx.close()
+
+
+# -- creating jobs from the interface ------------------------------------------------
+
+
+def _with_agent_actions(actions):
+    from protege.core.schedule.actions import register_agent_actions
+    from protege.core.tools import default_registry
+
+    register_agent_actions(actions, router=None, registry=default_registry())
+
+
+def test_a_job_can_be_created_from_the_interface(parts):
+    actions, _, bridge, _, _ = parts
+    _with_agent_actions(actions)
+    reason = bridge.addJob({
+        "name": "Morning research", "action": "team",
+        "trigger": {"kind": "daily", "time": "07:30"},
+        "arguments": {"team": "research", "task": "What changed in my notes?"},
+        "missed": "skip",
+    })
+    assert reason == ""
+    assert bridge.jobs[0]["when"] == "Every day at 07:30"
+    assert bridge.jobs[0]["missed"] == "skip"
+
+
+@pytest.mark.parametrize("change, expected", [
+    ({"action": "summon"}, "no action named 'summon'"),
+    ({"arguments": {"team": "research"}}, "needs a task"),
+    ({"arguments": {"team": "marketing", "task": "x"}}, "no team named"),
+    ({"trigger": {"kind": "daily", "time": "25:00"}}, "not a time of day"),
+    ({"trigger": {"kind": "lunar"}}, "unknown trigger kind"),
+    ({"missed": "sometimes"}, "run late or be skipped"),
+    ({"grants": [{"capability": "files.read", "scopes": []}]}, "must be limited"),
+    ({"action": "security_review"}, "schedules itself"),
+    ({"name": "   "}, "needs a name"),
+])
+def test_a_job_that_could_not_run_is_refused_with_a_reason(parts, change, expected):
+    actions, _, bridge, _, _ = parts
+    _with_agent_actions(actions)
+    spec = {"name": "Nightly", "action": "team",
+            "trigger": {"kind": "daily", "time": "02:00"},
+            "arguments": {"team": "research", "task": "Summarise the day"}}
+    spec.update(change)
+    reason = bridge.addJob(spec)
+    assert expected in reason
+    assert bridge.jobs == []

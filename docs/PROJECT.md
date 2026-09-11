@@ -1,5 +1,13 @@
 # Protégé — the project
 
+> **Renaming to Akira.** The product is now called **Akira**, after Akira
+> Nakashima; Codex's logo concepts are in `docs/branding/`. The code, the
+> `protege` package and the on-disk paths still use the old name. Renaming
+> those is deliberate work, not a find-and-replace: the configuration folder
+> (`%LOCALAPPDATA%\Protege`) holds the user's permissions, schedule, activity
+> log and saved credentials, and moving it needs a migration so none of that
+> is orphaned.
+
 **This file is the canonical description and the work order.** Everything else
 is detail hanging off it. If a document disagrees with this one, this one is
 right and the other needs updating.
@@ -235,6 +243,9 @@ approve a write, entirely from the QML shell.
 Qt signals — `Trace.listen` fires on the worker thread. The Research view
 exists and deliberately shows no source or agent panels until a bridge with
 real data backs them; do not add panels ahead of the data.
+*Follow-up, after A8:* nothing could actually *start* an agent from QML, so
+"watch an agent run live" was not reachable. The `Agents` bridge closes that,
+and `Schedule.addJob` lets the interface create jobs.
 
 **A6 ✅ Scheduler** — `core/schedule/`
 Time-based (daily/weekly/monthly/cron/custom) and event-based triggers, durable
@@ -398,7 +409,7 @@ and resumable.
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1311 passed, 2 skipped, 0 failed; `verify_offline.py`
+**Tests at last commit:** 1341 passed, 2 skipped, 2 failed (two legacy Tk geometry tests that fail at clean HEAD too, on this 960-px-tall display); `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

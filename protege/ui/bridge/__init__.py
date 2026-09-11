@@ -5,6 +5,7 @@ No decisions live at this layer — if a rule is being applied, it belongs in
 ``protege.core`` where it can be tested without a running Qt application.
 """
 
+from .agents import AgentsBridge
 from .chat import ChatBridge, MessageListModel
 from .permissions import ConfirmBridge, PermissionsBridge
 from .schedule import ScheduleBridge
@@ -14,5 +15,5 @@ from .trace import TraceBridge, TraceListModel
 __all__ = [
     "ChatBridge", "MessageListModel", "SettingsBridge",
     "PermissionsBridge", "ConfirmBridge", "ScheduleBridge",
-    "TraceBridge", "TraceListModel",
+    "TraceBridge", "TraceListModel", "AgentsBridge",
 ]

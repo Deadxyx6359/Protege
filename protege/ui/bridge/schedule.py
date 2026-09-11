@@ -22,7 +22,8 @@ import threading
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
 from protege.core.review import REVIEW_ACTION, Review, ReviewStore
-from protege.core.schedule import Scheduler
+from protege.core.schedule import Missed, Scheduler, trigger_from_json
+from protege.core.schedule.actions import check_arguments
 
 
 class ScheduleBridge(QObject):
@@ -81,6 +82,36 @@ class ScheduleBridge(QObject):
     @Slot(str)
     def remove(self, job_id: str) -> None:
         self._scheduler.remove(job_id)
+
+    @Slot("QVariantMap", result=str)
+    def addJob(self, spec: dict) -> str:
+        """Create a job. Returns "" on success, or why it was refused.
+
+        `spec` holds `name`; `action` (`agent` or `team`); `trigger`, a map
+        such as `{"kind": "daily", "time": "07:30"}`; `arguments` (`role` or
+        `team`, and `task`); `grants`, a list of `{"capability", "scopes"}`;
+        and `missed`, either `run_late` or `skip`.
+        """
+        spec = dict(spec or {})
+        action = str(spec.get("action") or "")
+        arguments = spec.get("arguments") or {}
+        missed = str(spec.get("missed") or Missed.RUN_LATE.value)
+        if not isinstance(arguments, dict):
+            return "A job's arguments must be a set of named values."
+        if missed not in {m.value for m in Missed}:
+            return "A missed run can either run late or be skipped."
+        problem = check_arguments(action, arguments)
+        if problem:
+            return problem
+        try:
+            trigger = trigger_from_json(spec.get("trigger"))
+            self._scheduler.add(str(spec.get("name") or ""), action, trigger,
+                                arguments=arguments,
+                                grants=list(spec.get("grants") or ()),
+                                missed=missed)
+        except (KeyError, ValueError, TypeError) as exc:
+            return str(exc.args[0]) if exc.args else type(exc).__name__
+        return ""
 
     @Slot(str)
     def runNow(self, job_id: str) -> None:

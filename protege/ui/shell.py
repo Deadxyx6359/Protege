@@ -24,6 +24,7 @@ from protege.core.schedule.actions import register_agent_actions
 from protege.core.tools import default_registry
 from protege.design import ThemeController
 from protege.ui.bridge import (
+    AgentsBridge,
     ChatBridge,
     ConfirmBridge,
     PermissionsBridge,
@@ -56,6 +57,7 @@ class AppContext:
     confirm: ConfirmBridge | None = None
     trace: TraceBridge | None = None
     schedule: ScheduleBridge | None = None
+    agents: AgentsBridge | None = None
     scheduler: Scheduler | None = None
     service: SchedulerService | None = None
 
@@ -63,7 +65,8 @@ class AppContext:
         """The name → object map exposed to QML."""
         exposed = {"Chat": self.chat, "Settings": self.settings}
         for name, obj in (("Permissions", self.permissions), ("Confirm", self.confirm),
-                          ("AgentTrace", self.trace), ("Schedule", self.schedule)):
+                          ("AgentTrace", self.trace), ("Schedule", self.schedule),
+                          ("Agents", self.agents)):
             if obj is not None:
                 exposed[name] = obj
         return exposed
@@ -83,12 +86,18 @@ class AppContext:
     def close(self) -> None:
         # A worker blocked waiting for a confirmation would otherwise hold the
         # scheduler thread past shutdown, so it is woken with a refusal first.
+        if self.agents is not None:
+            self.agents.stop()
         if self.confirm is not None:
             self.confirm.close()
         if self.service is not None:
             self.service.stop()
         if self.trace is not None:
             self.trace.detach()
+        # A turn still streaming holds the model; asking it to stop lets the
+        # router unload promptly instead of waiting out the generation.
+        if self.chat.busy:
+            self.chat.stop()
         # Order matters: save before unloading. A crash during model teardown
         # would otherwise take the last turn with it.
         self.chat.flush()
@@ -142,6 +151,9 @@ def build_context(*, persist: bool = True) -> AppContext:
     register_review_action(actions, policy=live_policy, audit=audit,
                            secret_store=secret_store, on_review=schedule.on_review)
     register_agent_actions(actions, router=router, registry=default_registry())
+    agents = AgentsBridge(router, default_registry(), policy=live_policy,
+                          audit=audit, secret_store=secret_store, trace=trace,
+                          confirm=confirm.ask)
 
     return AppContext(
         config=config,
@@ -154,6 +166,7 @@ def build_context(*, persist: bool = True) -> AppContext:
         trace=TraceBridge(trace),
         schedule=schedule,
         scheduler=scheduler,
+        agents=agents,
     )
 
 

@@ -36,6 +36,7 @@ before changing it.
 | `Confirm` | `ConfirmBridge` | The irreversible-action dialog |
 | `AgentTrace` | `TraceBridge` | Watching agents and teams work |
 | `Schedule` | `ScheduleBridge` | Scheduled jobs and the security review |
+| `Agents` | `AgentsBridge` | Starting an agent or a team on a task |
 
 Registered in `protege/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
@@ -108,9 +109,10 @@ The model keeps the newest 500 events; older ones fall off the front.
 |---|---|---|
 | `jobs` | Property, notifies `jobsChanged` | Maps: `id`, `name`, `action`, `when` (plain English, e.g. "Weekdays at 09:00"), `nextRun`, `lastRun` (epoch seconds, 0 if never), `lastStatus`, `enabled`, `done`, `pausedReason`, `missed` (`run_late`/`skip`), `running` |
 | `warnings` | Property | Plain-language problems loading or saving the schedule. Show them |
-| `history(id)` | Slot → list | Runs, newest first: `status` (`ok`/`failed`/`skipped`/`overlap`), `summary`, `late`, `trigger` (`time`/`event`/`manual`), `started`, `finished` |
+| `history(id)` | Slot → list | Runs, newest first: `status` (`ok`/`failed`/`skipped`/`overlap`/`cancelled`), `summary`, `late`, `trigger` (`time`/`event`/`manual`), `started`, `finished` |
 | `pause(id)`, `resume(id)`, `remove(id)` | Slots | Resuming counts forward from now. The runs inside a pause are not "missed" |
 | `runNow(id)` | Slot | Starts a worker and returns at once |
+| `addJob(spec)` | Slot → string | Create a job: `""`, or why it was refused. See below |
 | `findings` | Property, notifies `reviewChanged` | Latest review, worst first. Maps: `severity` (`critical`/`warn`/`info`), `code`, `title`, `detail`, `suggestion`, `capability` |
 | `reviewSummary` | Property | e.g. "1 critical, 2 notes", or "Not reviewed yet" |
 | `lastReviewAt`, `criticalCount` | Properties | |
@@ -123,14 +125,65 @@ The model keeps the newest 500 events; older ones fall off the front.
 - `pausedReason` and run `summary` are written for the person. Show them
   verbatim.
 - The daily security review job is created on first run of the application.
+- A run stopped because the application was closing is `cancelled`, and
+  does not count towards pausing the job.
+
+### Creating a job: `Schedule.addJob(spec)`
+
+Returns `""` on success, otherwise a reason written for the person. A job that
+could not run is refused when it is made, not at 3 a.m.
+
+```js
+Schedule.addJob({
+    name: "Morning research",
+    action: "team",                                  // or "agent"
+    trigger: { kind: "daily", time: "07:30" },
+    arguments: { team: "research", task: "What changed in my notes overnight?" },
+    grants: [ { capability: "files.read", scopes: ["C:/Users/me/Notes"] } ],
+    missed: "run_late"                               // or "skip"
+})
+```
+
+- **Triggers:** `once` `{at: "2026-09-11T09:00"}`, `every` `{seconds}` (at
+  least 60), `daily` `{time}`, `weekly` `{days: [0..6], time}` with Monday as 0,
+  `monthly` `{day: 1–31, time}` (the 31st means the last day in shorter
+  months), `cron` `{expr}`, and `event` `{name, match, cooldown}` (a cooldown of
+  at least 5 seconds).
+- **Arguments:** for `agent`, `role` and `task`; for `team`, `team` and `task`.
+- **`grants` are the most a job may use.** Each run gets only what the person
+  *also* holds at that moment, so scheduling a job grants nothing, and a
+  revocation reaches the next run.
+- The security review schedules itself and cannot be added.
 
 ---
 
+## `Agents` — starting work
+
+| Member | Kind | Notes |
+|---|---|---|
+| `teams` | Property | Each team: `name`, `purpose`, and `members` in the order they work |
+| `roles` | Property | Each role: `name`, a one-line `summary`, `route`, and `tools` (at most; the policy can still withhold them) |
+| `runTeam(team, task, folder)` | Slot → string | `""` once started, otherwise why it was not. `folder` may be `""` |
+| `runAgent(role, task, folder)` | Slot → string | The same, for one agent |
+| `stop()` | Slot | The run stops at its next token |
+| `busy`, `running` | Properties, notify `busyChanged` | `running` names what is working, e.g. "The research team" |
+| `answer`, `ok`, `stopped` | Properties, notify `resultChanged` | The last run's result. `stopped` is `answered`, `budget`, `cancelled` or `failed` |
+| `finished(ok, answer)` | Signal | Once per run, however it ended |
+
+- **One run at a time from here.** A second request is refused, and the
+  reason names what is still running. Show it rather than queueing silently.
+- **Naming a folder grants nothing.** It tells the agents where to work; the
+  permission screen decides what they may read. When a run needs a folder the
+  person has not granted, the natural interface is to offer the grant right
+  there, e.g. `Permissions.grant("files.read", [folder])` after the person
+  agrees, rather than sending them off to Settings.
+- **Progress is in `AgentTrace`**, which shows the run as it happens: members
+  starting, tool calls, hand-offs. The answer arrives through `finished`.
+- A run waits its turn at the model behind a chat turn or a scheduled job.
+  Until its first trace event arrives, it is waiting, not stuck.
+
 ## Not reachable yet
 
-- **Starting an agent or a team from QML.** Teams exist and can run as
-  scheduled jobs, but no slot starts one on demand, and `Schedule` cannot
-  create jobs. This is the next backend item. It will appear here as `Agents`.
 - **Tools in the conversation.** `Chat` is the plain conversation path. It does
   not use tools or agents, so nothing typed into it touches files.
 
