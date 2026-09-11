@@ -75,6 +75,20 @@ def test_a_place_is_checked_kept_and_forgotten(tmp_path):
     assert store.load() == Place()
 
 
+def test_a_position_is_checked_rounded_and_decides_the_hemisphere(tmp_path):
+    place = check_place("Sydney", "north", -33.86785, 151.20732)
+    assert place == Place("Sydney", "south", -33.87, 151.21)
+    assert place.coordinates == (-33.87, 151.21)
+    for latitude, longitude in [(91, 0), (0, 181), (float("nan"), 0), ("north", 0)]:
+        with pytest.raises(PlaceError):
+            check_place("x", "", latitude, longitude)
+    with pytest.raises(PlaceError, match="both"):
+        check_place("x", "", 10, None)
+    store = PlaceStore(tmp_path / "place.json")
+    store.save(place)
+    assert store.load() == place
+
+
 def test_location_permission_decides_what_the_model_hears(tmp_path):
     store = PlaceStore(tmp_path / "place.json")
     store.save(Place("Bristol, UK", "north"))

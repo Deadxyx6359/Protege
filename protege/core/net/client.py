@@ -38,7 +38,7 @@ import ssl
 import time
 import zlib
 from dataclasses import dataclass
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urlencode, urljoin, urlsplit
 
 from protege import __version__
 from protege.core.permissions import AuditLog
@@ -114,6 +114,11 @@ def fetchable(url: str) -> str:
     site, a name or password in it. Nothing is looked up or sent.
     """
     return _target(url).url.split("#", 1)[0]
+
+
+def with_query(url: str, params: dict[str, str]) -> str:
+    """\a url with \a params as its query string, every name and value encoded."""
+    return f"{url}?{urlencode(params)}"
 
 
 def redact(url: str) -> str:

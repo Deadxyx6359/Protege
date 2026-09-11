@@ -5,7 +5,7 @@ held to are in `client`, the only module allowed to import the network.
 """
 
 from .client import (MAX_BYTES, MAX_REDIRECTS, TIMEOUT_S, NetError, Response, fetch, fetchable,
-                     host_of, is_public, redact)
+                     host_of, is_public, redact, with_query)
 
 __all__ = ["MAX_BYTES", "MAX_REDIRECTS", "TIMEOUT_S", "NetError", "Response", "fetch",
-           "fetchable", "host_of", "is_public", "redact"]
+           "fetchable", "host_of", "is_public", "redact", "with_query"]

@@ -93,7 +93,7 @@ measured benchmarks, not from optimism.
 | Banking | **Read-only, permanently** | C5 |
 | Monitoring agent — watch for changes | **Folders, pages and feeds done**: changes wake scheduled jobs, which can put up notices or set an agent to work. Inboxes after C5 | C6 |
 | Time-based and event-based processes (daily/weekly/monthly/custom) | **Done** | A6 |
-| Location and time awareness | **Local half done**: agents and the chat are told the date and time, and the place and time zone with `location.read`; the scenes know the hemisphere. Weather after C1 | C7 |
+| Location and time awareness | **Done**: agents and the chat are told the date and time, and the place, time zone and weather with `location.read`; the scenes know the hemisphere and the weather | C7 |
 | Purchasing | Possible, but a person presses the button every time | C8 |
 
 ### 2.4 Voice
@@ -433,7 +433,7 @@ as links, because Qt opens `file://server/…` as a file and Windows as a
 network share.
 *Still to do:* `git push`, which runs git itself, a separate process the guard
 cannot see, so it needs its own design; and the clients: C2 search, C3
-browser, C5 connectors, weather for C7.
+browser, C5 connectors.
 
 **C2 ○ Web search** — `core/tools/builtin/search.py`
 
@@ -469,7 +469,7 @@ a document type is refused before anything is expanded. A job's agent is told
 that what an event carries is material, not instructions.
 *Still to do:* inboxes, which need C5.
 
-**C7 ▶ Location and time awareness** — `core/context/place.py`, bridge `ui/bridge/place.py`
+**C7 ✅ Location and time awareness** — `core/context/place.py`, `core/context/weather.py`, bridge `ui/bridge/place.py`
 Local timezone, season and weather already drive the scenes; this generalises
 it so agents can reason about "now" and "here". Location is `location.read`,
 scoped and revocable.
@@ -484,7 +484,16 @@ time. The time zone and a place the person sets are added only while
 `scenes/world.js` exactly, so the scenery and the assistant agree, and the
 place's hemisphere gives `SceneHost.southernHemisphere` its binding through
 the `Place` bridge. The scenes' own time and season handling is untouched.
-*Still to do:* weather, which is a network reading and waits for C1.
+*Done, the weather:* read from Open-Meteo, which needs no account or key,
+through the chokepoint, and only while `location.read` and `net.http` for
+open-meteo.com are both granted, checked before every reading. The position is
+kept to two decimals and sent to one (about 11 km); the log keeps the request
+without it. Readings are turned into the scenes' own weather names, checked by
+test against `scenes/world.js`, and bind `SceneHost.weather` through `Place`.
+Every half hour in the background; a reading over three hours old is not
+reported as now, and a reading for another place never is. Models are told it
+with the place. A place can be looked up by name for its position, on the same
+site, when the person asks.
 
 **C8 ○ Purchasing** — staged only
 Assemble the cart, present the total and the payment method, stop. A person
@@ -537,12 +546,12 @@ and resumable.
 | B | B6 Projects reconciled | ✅ |
 | C | C1 Network chokepoint | ✅ |
 | C | C6 Monitoring agent | ▶ folders, pages and feeds done; inboxes wait for C5 |
-| C | C7 Location and time | ▶ now and a set place done; weather waits for C1 |
+| C | C7 Location and time | ✅ |
 | C | C2–C5, C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1726 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 1757 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

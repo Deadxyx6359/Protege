@@ -354,23 +354,49 @@ Schedule.addJob({
 - Watches use the **global** grants, like scheduled jobs, never the open
   project's.
 
-## `Place` — where the person is, and the scenes' hemisphere
+## `Place` — where the person is, the scenes' hemisphere, and the weather there
 
 | Member | Kind | Notes |
 |---|---|---|
 | `name` | Property, notifies `placeChanged` | The place the person set, e.g. "Bristol, UK", or `""` |
-| `hemisphere` | Property, notifies `placeChanged` | `north`, `south`, or `""` |
-| `southernHemisphere` | Property, notifies `placeChanged` | **Bind `SceneHost.southernHemisphere` to this.** It has been unbound until now |
+| `hemisphere` | Property, notifies `placeChanged` | `north`, `south`, or `""`. A position decides it |
+| `southernHemisphere` | Property, notifies `placeChanged` | **Bind `SceneHost.southernHemisphere` to this** |
 | `season` | Property, notifies `placeChanged` | Today's season in that hemisphere, by the scenes' own rule |
-| `setPlace(name, hemisphere)` | Slot → string | `""`, or why not |
-| `clearPlace()` | Slot | |
+| `hasPosition`, `latitude`, `longitude` | Properties, notify `placeChanged` | The place's position, which the weather needs. `latitude` and `longitude` are 0 when `hasPosition` is false |
+| `setPlace(name, hemisphere)` | Slot → string | `""`, or why not. A new name forgets the old one's position |
+| `setPosition(latitude, longitude)` | Slot → string | Give the place a position directly. `""`, or why not |
+| `findPlace(text)` | Slot → string | Look a place up by name, on a worker. `""` once started, or why not |
+| `candidates` | Property, notifies `lookupChanged` | What the lookup found, best first: `label`, `latitude`, `longitude` |
+| `lookupNote`, `lookingUp` | Properties, notify `lookupChanged` | Why the lookup found nothing, or `""`; whether one is running |
+| `choosePlace(index)` | Slot → string | Keep one of `candidates`, with its position. `""`, or why not |
+| `clearPlace()` | Slot | Forgets the place, its position and its weather |
+| `weather` | Property, notifies `weatherChanged` | **Bind `SceneHost.weather` to `Place.weather \|\| "clear"`.** One of the scenes' names, or `""` when there is no current reading |
+| `weatherSummary`, `weatherAt` | Properties, notify `weatherChanged` | e.g. "14°C, light rain", and when it was read (epoch seconds). Empty and 0 without a reading |
+| `weatherNote` | Property, notifies `weatherChanged` | Why there is no current reading, written for the person, or `""` |
+| `weatherSite` | Constant | `open-meteo.com`, the site to offer for `net.http` |
+| `refreshWeather()` | Slot → string | Read it now, on a worker. `""` once started, or why not |
 
-- **Setting a place grants nothing.** Models are told the place and the time
-  zone only while `location.read` is granted. They are always told the date
-  and time, which say nothing about where anyone is.
-- The Python season rule is the one in `scenes/world.js`, so the scenery and
-  the assistant agree. Keep them the same if either changes.
-- Weather still needs the network (C1), so `SceneHost.weather` stays `clear`.
+- **Setting a place grants nothing.** Models are told the place, the time zone
+  and the weather only while `location.read` is granted. They are always told
+  the date and time, which say nothing about where anyone is.
+- **The weather needs two grants and a position.** `location.read`, and
+  `net.http` for `weatherSite`, which covers both the forecast and the lookup.
+  Without them nothing is sent and `weatherNote` says what is missing: offer
+  the grants there, after the person agrees, rather than sending them to
+  Settings. Looking a place up needs only `net.http`; the person typed it and
+  asked.
+- **Approximate.** A position is kept to two decimals, about a kilometre, and
+  sent to the weather service to one, about eleven. The activity log keeps the
+  requests without the position.
+- **Read every half hour** in the background, under the global grants. A
+  reading more than three hours old is not the weather now: `weather` goes
+  back to `""` and the scene to its default. A new position forgets the old
+  reading at once and reads the new one.
+- `candidates` labels come from the lookup service, so show them as plain text
+  (rule 5).
+- The Python season rule is the one in `scenes/world.js`, and the weather
+  names are its `WEATHER` list, so the scenery and the assistant agree. A test
+  checks the names. Keep them the same if either changes.
 
 ## `Chat` — what a turn drew on
 

@@ -22,6 +22,7 @@ from protege.core.brain.index import anywhere, sweep
 from protege.core.brain.recall import ContextAssembler
 from protege.core.config import AppConfig, autoconfigure
 from protege.core.context.place import PlaceStore
+from protege.core.context.weather import Weather, WeatherService
 from protege.core.models import ModelRouter, Route
 from protege.core.permissions import AuditLog, Policy, SecretStore
 from protege.core.projects import ProjectStore
@@ -78,6 +79,7 @@ class AppContext:
     scheduler: Scheduler | None = None
     service: SchedulerService | None = None
     monitor_service: MonitorService | None = None
+    weather_service: WeatherService | None = None
 
     housekeeping: Callable[[], None] | None = None
     """Tidying that runs once at start: dropping what expired grants no longer
@@ -111,6 +113,9 @@ class AppContext:
         if self.monitor is not None and self.monitor_service is None:
             self.monitor_service = MonitorService(self.monitor.monitor)
             self.monitor_service.start()
+        if self.place is not None and self.place.reader is not None and self.weather_service is None:
+            self.weather_service = WeatherService(self.place.reader)
+            self.weather_service.start()
 
     def close(self) -> None:
         # A worker blocked waiting for a confirmation would otherwise hold the
@@ -119,6 +124,8 @@ class AppContext:
             self.agents.stop()
         if self.confirm is not None:
             self.confirm.close()
+        if self.weather_service is not None:
+            self.weather_service.stop()
         # Stop looking for changes before stopping what would act on them.
         if self.monitor_service is not None:
             self.monitor_service.stop()
@@ -170,7 +177,6 @@ def build_context(*, persist: bool = True) -> AppContext:
     permissions = PermissionsBridge(Policy.load(), audit)
     confirm = ConfirmBridge()
     projects = ProjectsBridge(ProjectStore(), audit)
-    place = PlaceBridge(PlaceStore())
 
     # The scheduler reads the very policy the permission screen edits, so a
     # revocation in Settings reaches the next scheduled run. It is the global
@@ -182,6 +188,13 @@ def build_context(*, persist: bool = True) -> AppContext:
     # Work started from the interface also gets the open project's own grants.
     def working_policy() -> Policy:
         return projects.effective(permissions.policy)
+
+    # The weather is read in the background, like a scheduled job, so under the
+    # global grants: location.read, and net.http for its site.
+    place_store = PlaceStore()
+    place = PlaceBridge(place_store, Weather(policy=live_policy,
+                                             where=lambda: place_store.load().coordinates,
+                                             audit=audit))
 
     # The search indexes hold copies of what the grants allowed. When a grant
     # changes, whatever no grant anywhere still covers is dropped at once, on a
