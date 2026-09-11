@@ -182,7 +182,7 @@ def test_the_application_puts_every_bridge_in_front_of_qml(app):
         exposed = ctx.as_context()
         assert {"Chat", "Settings", "Permissions", "Confirm",
                 "AgentTrace", "Schedule", "Agents", "Memory", "Projects",
-                "Graph", "Monitor"} <= set(exposed)
+                "Graph", "Monitor", "Place"} <= set(exposed)
         assert ctx.service is None, "building the context must not start threads"
         assert ctx.monitor_service is None, "building the context must not start threads"
         names = set(ctx.scheduler.actions.names())

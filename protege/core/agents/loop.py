@@ -22,6 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
+from protege.core.context.place import now_line
 from protege.core.conversation import Cancelled
 from protege.core.models import ModelRouter, Route
 from protege.core.tools import ToolContext, ToolRegistry
@@ -102,6 +103,8 @@ class Agent:
         parts = [self.spec.role.strip(), "", render_tools(self._tools())]
         if self._context.workspace:
             parts += ["", f"You are working in: {self._context.workspace}"]
+        # A model has no clock. The place and time zone only with location.read.
+        parts += ["", now_line(self._context.policy)]
         return "\n".join(parts)
 
     # -- the loop -------------------------------------------------------------

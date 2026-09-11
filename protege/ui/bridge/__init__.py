@@ -11,6 +11,7 @@ from .graph import GraphBridge
 from .memory import MemoryBridge
 from .monitor import MonitorBridge
 from .permissions import ConfirmBridge, PermissionsBridge
+from .place import PlaceBridge
 from .projects import ProjectsBridge
 from .schedule import ScheduleBridge
 from .settings import SettingsBridge
@@ -20,5 +21,5 @@ __all__ = [
     "ChatBridge", "MessageListModel", "SettingsBridge",
     "PermissionsBridge", "ConfirmBridge", "ScheduleBridge",
     "TraceBridge", "TraceListModel", "AgentsBridge", "MemoryBridge",
-    "ProjectsBridge", "GraphBridge", "MonitorBridge",
+    "ProjectsBridge", "GraphBridge", "MonitorBridge", "PlaceBridge",
 ]

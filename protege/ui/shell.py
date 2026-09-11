@@ -19,6 +19,7 @@ from protege.core.agents.monitor import Monitor, MonitorService, WatchStore, reg
 from protege.core.brain.distil import PendingStore, register_distil_action, vault_of
 from protege.core.brain.recall import ContextAssembler
 from protege.core.config import AppConfig, autoconfigure
+from protege.core.context.place import PlaceStore
 from protege.core.models import ModelRouter, Route
 from protege.core.permissions import AuditLog, Policy, SecretStore
 from protege.core.projects import ProjectStore
@@ -35,6 +36,7 @@ from protege.ui.bridge import (
     MemoryBridge,
     MonitorBridge,
     PermissionsBridge,
+    PlaceBridge,
     ProjectsBridge,
     ScheduleBridge,
     SettingsBridge,
@@ -70,6 +72,7 @@ class AppContext:
     projects: ProjectsBridge | None = None
     graph: GraphBridge | None = None
     monitor: MonitorBridge | None = None
+    place: PlaceBridge | None = None
     scheduler: Scheduler | None = None
     service: SchedulerService | None = None
     monitor_service: MonitorService | None = None
@@ -81,7 +84,7 @@ class AppContext:
                           ("AgentTrace", self.trace), ("Schedule", self.schedule),
                           ("Agents", self.agents), ("Memory", self.memory),
                           ("Projects", self.projects), ("Graph", self.graph),
-                          ("Monitor", self.monitor)):
+                          ("Monitor", self.monitor), ("Place", self.place)):
             if obj is not None:
                 exposed[name] = obj
         return exposed
@@ -159,6 +162,7 @@ def build_context(*, persist: bool = True) -> AppContext:
     permissions = PermissionsBridge(Policy.load(), audit)
     confirm = ConfirmBridge()
     projects = ProjectsBridge(ProjectStore(), audit)
+    place = PlaceBridge(PlaceStore())
 
     # The scheduler reads the very policy the permission screen edits, so a
     # revocation in Settings reaches the next scheduled run. It is the global
@@ -199,7 +203,7 @@ def build_context(*, persist: bool = True) -> AppContext:
     # the open project. The notes searched are the vault memory is kept in.
     assembler = ContextAssembler(registry=default_registry(), policy=working_policy,
                                  audit=audit, secrets=secret_store, projects=projects.store,
-                                 vault=lambda: vault_of(scheduler))
+                                 vault=lambda: vault_of(scheduler), place=place.store)
 
     return AppContext(
         config=config,
@@ -217,6 +221,7 @@ def build_context(*, persist: bool = True) -> AppContext:
         projects=projects,
         graph=GraphBridge(policy=working_policy, audit=audit),
         monitor=monitor,
+        place=place,
     )
 
 

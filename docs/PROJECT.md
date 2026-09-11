@@ -93,7 +93,7 @@ measured benchmarks, not from optimism.
 | Banking | **Read-only, permanently** | C5 |
 | Monitoring agent — watch for changes | **Folders done**: changes wake scheduled jobs, which can put up notices. Pages, inboxes and feeds after C1 and C5 | C6 |
 | Time-based and event-based processes (daily/weekly/monthly/custom) | **Done** | A6 |
-| Location and time awareness | Fine | C7 |
+| Location and time awareness | **Local half done**: agents and the chat are told the date and time, and the place and time zone with `location.read`; the scenes know the hemisphere. Weather after C1 | C7 |
 | Purchasing | Possible, but a person presses the button every time | C8 |
 
 ### 2.4 Voice
@@ -450,7 +450,7 @@ reason when it is revoked. Polling, standard library only. Until this, the
 scheduler's event triggers had nothing publishing to them.
 *Still to do:* pages, inboxes and feeds, which need C1 and C5.
 
-**C7 ○ Location and time awareness** — `core/context/place.py`
+**C7 ▶ Location and time awareness** — `core/context/place.py`, bridge `ui/bridge/place.py`
 Local timezone, season and weather already drive the scenes; this generalises
 it so agents can reason about "now" and "here". Location is `location.read`,
 scoped and revocable.
@@ -459,6 +459,13 @@ and `southernHemisphere` is unbound — the renderer already handles every
 weather preset, ocean state and wind value, so this is a connector binding, not
 UI work. Fixed preview conditions are not real conditions; do not confuse the
 two. Local time and season handling already works and must be preserved.
+*Done, the local half:* every agent and every chat turn is told the date and
+time. The time zone and a place the person sets are added only while
+`location.read` is granted, checked each time. The season rule mirrors
+`scenes/world.js` exactly, so the scenery and the assistant agree, and the
+place's hemisphere gives `SceneHost.southernHemisphere` its binding through
+the `Place` bridge. The scenes' own time and season handling is untouched.
+*Still to do:* weather, which is a network reading and waits for C1.
 
 **C8 ○ Purchasing** — staged only
 Assemble the cart, present the total and the payment method, stop. A person
@@ -511,11 +518,12 @@ and resumable.
 | B | B6 Projects reconciled | ✅ |
 | C | C1 Network chokepoint | ⏸ design written above; waiting for your go-ahead |
 | C | C6 Monitoring agent | ▶ folders done; pages, inboxes and feeds wait for C1 and C5 |
-| C | C2–C5, C7, C8 Reach | ○ |
+| C | C7 Location and time | ▶ now and a set place done; weather waits for C1 |
+| C | C2–C5, C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1577 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
+**Tests at last commit:** 1600 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

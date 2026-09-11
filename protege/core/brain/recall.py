@@ -1,9 +1,12 @@
-"""What a conversation turn gets to know: the open project, and what was found.
+"""What a conversation turn gets to know: when it is, the open project, and what
+was found.
 
 Before each chat turn the core assembles context for that turn only, never saved
 into the conversation:
 
-- **the open project's personality**, when it has one, and
+- **the date and time**, always, and the place and time zone while
+  `location.read` is granted (`protege.core.context.place`);
+- **the open project's personality**, when it has one; and
 - **passages retrieved for the message** through `retrieve.gather`, from the
   sources the person has granted: notes (`vault.read`), the open project's
   documents (`docs.read`) and past conversations (`memory.read`).
@@ -20,9 +23,11 @@ file can be written to look like an order.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+from protege.core.context.place import PlaceStore, now_line
 from protege.core.permissions import AuditLog, Policy, SecretStore
 from protege.core.projects import ProjectStore
 from protege.core.tools import ToolContext, ToolRegistry
@@ -55,17 +60,20 @@ class TurnContext:
 
 
 class ContextAssembler:
-    """Builds a turn's context from the open project and the granted sources."""
+    """Builds a turn's context from the clock, the open project and the granted sources."""
 
     def __init__(self, *, registry: ToolRegistry, policy: Callable[[], Policy],
                  audit: AuditLog, secrets: SecretStore, projects: ProjectStore | None = None,
-                 vault: Callable[[], str] = lambda: "") -> None:
+                 vault: Callable[[], str] = lambda: "", place: PlaceStore | None = None,
+                 clock: Callable[[], datetime] | None = None) -> None:
         self._registry = registry
         self._policy = policy
         self._audit = audit
         self._secrets = secrets
         self._projects = projects
         self._vault = vault
+        self._place = place
+        self._clock = clock
 
     def __call__(self, message: str) -> TurnContext:
         policy = self._policy()
@@ -93,5 +101,7 @@ class ContextAssembler:
             if found.passages:
                 parts.append(f"{PREAMBLE}\n\n{found.for_prompt()}")
                 context.sources = [{"source": p.source, "cite": p.cite} for p in found.passages]
+
+        parts.append(now_line(policy, store=self._place, clock=self._clock))
         context.text = "\n\n".join(parts)
         return context

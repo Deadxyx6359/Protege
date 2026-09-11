@@ -41,6 +41,7 @@ before changing it.
 | `Projects` | `ProjectsBridge` | Projects, the open one, and the grants that belong to it |
 | `Graph` | `GraphBridge` | A tag map and a link graph of a folder of notes |
 | `Monitor` | `MonitorBridge` | Watched folders, and the notices jobs put up |
+| `Place` | `PlaceBridge` | Where the person is, and the hemisphere the scenes turn their seasons by |
 
 Registered in `protege/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
@@ -311,6 +312,24 @@ Schedule.addJob({
 - Watches use the **global** grants, like scheduled jobs, never the open
   project's.
 
+## `Place` — where the person is, and the scenes' hemisphere
+
+| Member | Kind | Notes |
+|---|---|---|
+| `name` | Property, notifies `placeChanged` | The place the person set, e.g. "Bristol, UK", or `""` |
+| `hemisphere` | Property, notifies `placeChanged` | `north`, `south`, or `""` |
+| `southernHemisphere` | Property, notifies `placeChanged` | **Bind `SceneHost.southernHemisphere` to this.** It has been unbound until now |
+| `season` | Property, notifies `placeChanged` | Today's season in that hemisphere, by the scenes' own rule |
+| `setPlace(name, hemisphere)` | Slot → string | `""`, or why not |
+| `clearPlace()` | Slot | |
+
+- **Setting a place grants nothing.** Models are told the place and the time
+  zone only while `location.read` is granted. They are always told the date
+  and time, which say nothing about where anyone is.
+- The Python season rule is the one in `scenes/world.js`, so the scenery and
+  the assistant agree. Keep them the same if either changes.
+- Weather still needs the network (C1), so `SceneHost.weather` stays `clear`.
+
 ## `Chat` — what a turn drew on
 
 `Chat` is otherwise as it was (see `bridge/chat.py`). Two properties and a
@@ -323,9 +342,10 @@ stage are new:
 | `stage` | Existing property | Now also `Looking through your notes` before the model starts |
 
 - Before each turn, passages are gathered from the sources the person has
-  granted, and the open project's personality is added. Both go with that
-  turn only and are never saved with the conversation. A source that is not
-  granted is not searched.
+  granted, and the open project's personality and the date and time are
+  added. The place and time zone are added only with `location.read` (see
+  `Place`). All of it goes with that turn only and is never saved with the
+  conversation. A source that is not granted is not searched.
 - Show `lastSources` under the answer, as the citations the model was asked
   to give. A turn that used nothing shows nothing.
 - If gathering fails, the turn still answers without it, and
