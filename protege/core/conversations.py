@@ -86,6 +86,9 @@ class ConversationStore:
             "id": conversation.id,
             "title": conversation.title or conversation.derive_title(),
             "system_prompt": conversation.system_prompt,
+            # The project it was held in, so what is distilled from it is filed
+            # under that project. Empty outside any project.
+            "project": conversation.project,
             "messages": [
                 {
                     "id": m.id,
@@ -149,6 +152,7 @@ class ConversationStore:
         conversation = Conversation(
             id=str(data.get("id") or conversation_id),
             title=str(data.get("title") or ""),
+            project=str(data.get("project") or ""),
         )
         prompt = data.get("system_prompt")
         if isinstance(prompt, str) and prompt:

@@ -143,8 +143,9 @@ class ConversationArchive:
         if self.root.is_dir():
             yield from sorted(p for p in self.root.glob("*.json") if not p.name.startswith("."))
 
-    def load(self, path: Path) -> tuple[str, str, list[tuple[str, str]]]:
-        """(title, version, exchanges): each exchange a question and its answer."""
+    def load(self, path: Path) -> tuple[str, str, list[tuple[str, str]], str]:
+        """(title, version, exchanges, project): each exchange a question and its
+        answer; the project it was held in, or "" outside any."""
         try:
             raw = path.read_bytes()
         except OSError as exc:
@@ -176,10 +177,10 @@ class ConversationArchive:
                 question = None
         if question is not None:
             exchanges.append((question, ""))
-        return title, version_of(raw), exchanges
+        return title, version_of(raw), exchanges, str(data.get("project") or "")
 
     def read(self, path: Path) -> Item:
-        title, version, exchanges = self.load(path)
+        title, version, exchanges, _project = self.load(path)
         sections = [chunk for question, answer in exchanges
                     for chunk in _exchange(title, question, answer)]
         body = "\n\n".join(chunk.text for chunk in sections)

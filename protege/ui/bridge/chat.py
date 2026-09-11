@@ -131,6 +131,7 @@ class ChatBridge(QObject):
         parent: QObject | None = None,
         *,
         context: Callable[[str], TurnContext] | None = None,
+        project: Callable[[], str] | None = None,
     ) -> None:
         super().__init__(parent)
         self._router = router
@@ -138,6 +139,8 @@ class ChatBridge(QObject):
         self._responder = Responder(router, config)
         self._store = store if store is not None else ConversationStore()
         self._context = context
+        # The open project's id, stamped on a conversation when it begins.
+        self._project = project
 
         self._conversation = Conversation()
         self._model = MessageListModel(self)
@@ -257,6 +260,10 @@ class ChatBridge(QObject):
 
         if first:
             self._conversation.title = self._conversation.derive_title()
+            # Filed under the project open when it began, not whichever is open
+            # when it is next read.
+            if self._project is not None:
+                self._conversation.project = self._project() or ""
             self.titleChanged.emit()
 
         if not self._router.any_usable:

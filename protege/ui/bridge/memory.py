@@ -80,7 +80,9 @@ class MemoryBridge(QObject):
         vault = self._open()
         return [{"id": p.id, "title": p.title, "target": p.target, "addsTo": p.adds_to,
                  "preview": preview(p, vault) if vault is not None else p.body,
-                 "sources": [str(s.get("title", "")) for s in p.sources], "created": p.created}
+                 "sources": [str(s.get("title", "")) for s in p.sources],
+                 "project": next((str(s["project"]) for s in p.sources if s.get("project")), ""),
+                 "created": p.created}
                 for p in self._pending.all()]
 
     @Property(int, notify=pendingChanged)

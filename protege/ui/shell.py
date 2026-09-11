@@ -174,7 +174,7 @@ def build_context(*, persist: bool = True) -> AppContext:
                           confirm=confirm.ask)
     pending = PendingStore()
     memory = MemoryBridge(scheduler, policy=live_policy, audit=audit, pending=pending)
-    register_distil_action(actions, router=router, pending=pending,
+    register_distil_action(actions, router=router, pending=pending, projects=projects.store,
                            on_proposed=memory.on_proposed)
 
     # Each chat turn draws on what the person has granted, as agents do, and on
@@ -187,7 +187,7 @@ def build_context(*, persist: bool = True) -> AppContext:
         config=config,
         router=router,
         theme=theme,
-        chat=ChatBridge(router, config, context=assembler),
+        chat=ChatBridge(router, config, context=assembler, project=projects.store.current_id),
         settings=SettingsBridge(config, router),
         permissions=permissions,
         confirm=confirm,

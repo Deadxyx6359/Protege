@@ -193,7 +193,7 @@ Schedule.addJob({
 |---|---|---|
 | `vault` | Property, notifies `vaultChanged` | The vault memory is kept in. `""` until one is chosen |
 | `setVault(path)` | Slot → string | Choose the vault: `""`, or why not. Sets up the nightly job (03:30, run late if the machine was off) |
-| `pending` | Property, notifies `pendingChanged` | Proposals, oldest first. Maps: `id`, `title`, `target` (its path inside the vault), `addsTo` (adds to an existing note rather than making one), `preview` (the new note, or a unified diff of the addition), `sources` (conversation titles), `created` (epoch seconds) |
+| `pending` | Property, notifies `pendingChanged` | Proposals, oldest first. Maps: `id`, `title`, `target` (its path inside the vault), `addsTo` (adds to an existing note rather than making one), `preview` (the new note, or a unified diff of the addition), `sources` (conversation titles), `project` (the project those conversations were held in, or `""`), `created` (epoch seconds) |
 | `pendingCount` | Property, notifies `pendingChanged` | |
 | `accept(id)` | Slot → string | Write it into the vault: `""`, or why not, including **Not permitted** when `vault.write` does not cover that note |
 | `reject(id)` | Slot → string | Discard it. The conversation it came from is untouched |

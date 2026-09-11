@@ -80,7 +80,7 @@ measured benchmarks, not from optimism.
 | Obsidian second brain, fully automated, never opened by hand | **Vault, index and retrieval done**: read, link, write with history and conflict checks, daily notes; ranked search by section over notes, documents and past conversations, merged into cited passages; conversations distilled nightly into proposed notes a person accepts. Projects next | B2 |
 | Private RAG, local embeddings | Fine — no network involved | B3–B4 |
 | General memory that updates regularly | Partly exists (legacy `memory/`), needs rebuilding on the new spine | B5 |
-| Projects, easy to access and manage | **Projects, their own grants and the graph done**: create, open, rename, remove; a grant made in a project applies only while it is open; a tag map and a link graph of any folder of notes. Memory per project and the personality in conversation next | B6 |
+| Projects, easy to access and manage | **Projects, their own grants and the graph done**: create, open, rename, remove; a grant made in a project applies only while it is open; a tag map and a link graph of any folder of notes; its personality reaches the conversation, and what its conversations teach is proposed under its name | B6 |
 
 ### 2.3 Reach
 
@@ -371,7 +371,7 @@ ported because nothing is deleted: the conversation stays where it was.
 *Still to do:* the review screen (Codex, on `Memory`), and retention settings
 for conversations themselves.
 
-**B6 ▶ Projects reconciled** — `core/projects.py`, bridge `ui/bridge/projects.py`
+**B6 ✅ Projects reconciled** — `core/projects.py`, bridge `ui/bridge/projects.py`
 Fold legacy `projects.py` and `knowledge_graph.py` onto the new spine: a
 project owns notes, memory, skills, a personality override, **and its own
 policy**, so granting an agent a folder for one project does not grant it
@@ -389,7 +389,11 @@ vault: a tag map with nested tags as hubs, laid out the same way every time,
 and the links between notes. Bridge: `Graph`.
 *Done since:* the open project's personality reaches the conversation, for
 each turn, alongside what was retrieved.
-*Still to do:* memory distilled per project. Skills wait for their own item.
+*Done since:* memory per project. A conversation keeps the project it began
+in, whichever is open later, and a new note distilled from it is proposed
+under `Memory/<project>/`. Additions still go to whichever note already
+covers the subject. A removed project's conversations fall back to `Memory/`.
+*Still to do:* skills, which wait for their own item.
 
 ### Phase C — reach
 
@@ -496,13 +500,13 @@ and resumable.
 | B | B3 Vault index (lexical; embeddings deferred) | ✅ |
 | B | B4 Retrieval | ✅ |
 | B | B5 Memory distillation | ✅ |
-| B | B6 Projects reconciled | ▶ in progress: projects, grants, graph and personality done; per-project memory to do |
+| B | B6 Projects reconciled | ✅ |
 | C | C1 Network chokepoint | ⏸ design written above; waiting for your go-ahead |
 | C | C2–C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1556 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
+**Tests at last commit:** 1563 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

@@ -67,6 +67,9 @@ class Conversation:
     messages: list[Message] = field(default_factory=list)
     system_prompt: str = DEFAULT_SYSTEM_PROMPT
 
+    project: str = ""
+    """The id of the project it was held in, or "" outside any."""
+
     def add(self, role: str, text: str = "", *, error: bool = False) -> Message:
         message = Message(role=role, text=text, error=error)
         self.messages.append(message)

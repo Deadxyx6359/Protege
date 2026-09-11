@@ -24,6 +24,10 @@ proposing the same note before either is reviewed make one proposal. A
 conversation that grows is read again from where it was left, not from the
 start.
 
+**Filed by project.** A new note from a conversation held in a project is
+proposed under that project's name, `Memory/<project>/`. Additions still go to
+whichever note already covers the subject, wherever it is.
+
 **Accepting writes through the vault**, so the previous version is kept and can
 be restored. A note edited since the proposal was made is not overwritten: the
 proposal is re-based on the note as it is now and left for a second look.
@@ -50,6 +54,7 @@ from typing import Callable
 
 from protege.core.config import config_dir
 from protege.core.models import ModelRouter, Route
+from protege.core.projects import ProjectStore
 from protege.core.schedule import (ActionRegistry, ActionResult, Daily, Job, JobContext, JobGrant,
                                    Missed, Scheduler)
 from protege.models.base import ChatMessage, ModelError
@@ -165,7 +170,8 @@ class Proposal:
     """For an addition, the note's version when it was proposed."""
 
     sources: list[dict] = field(default_factory=list)
-    """The conversations it came from: `conversation` (an id) and `title`."""
+    """The conversations it came from: `conversation` (an id), `title`, and
+    `project` when it was held in one."""
 
     created: float = 0.0
 
@@ -313,7 +319,8 @@ class Distiller:
     def __init__(self, router: ModelRouter, vault: Vault, *,
                  archive: ConversationArchive | None = None, pending: PendingStore | None = None,
                  ledger: Ledger | None = None, folder: str = MEMORY_FOLDER,
-                 route: Route = Route.FAST, clock: Callable[[], float] = time.time) -> None:
+                 route: Route = Route.FAST, clock: Callable[[], float] = time.time,
+                 projects: ProjectStore | None = None) -> None:
         self._router = router
         self._vault = vault
         self._archive = archive if archive is not None else ConversationArchive()
@@ -322,7 +329,15 @@ class Distiller:
         self._folder = folder.strip("/")
         self._route = route
         self._clock = clock
+        self._projects = projects
         self._names: dict[str, Path] | None = None
+
+    def _project_name(self, project_id: str) -> str:
+        """The name of the project a conversation was held in, if it still exists."""
+        if not project_id or self._projects is None:
+            return ""
+        project = self._projects.get(project_id)
+        return clean_title(project.name) if project is not None else ""
 
     def run(self, is_cancelled: Callable[[], bool] | None = None) -> Report:
         report = Report()
@@ -332,7 +347,7 @@ class Distiller:
                 report.cancelled = True
                 break
             try:
-                title, version, exchanges = self._archive.load(path)
+                title, version, exchanges, project_id = self._archive.load(path)
             except VaultError as exc:
                 report.errors.append(str(exc))
                 continue
@@ -354,8 +369,9 @@ class Distiller:
                     report.errors.append(f"The model could not be used: {exc}")
                     break
                 report.read += 1
+                project = self._project_name(project_id)
                 for note_title, body in notes:
-                    if self._propose(note_title, body, path.stem, title):
+                    if self._propose(note_title, body, path.stem, title, project):
                         report.proposed += 1
                     else:
                         report.already_known += 1
@@ -399,11 +415,14 @@ class Distiller:
         except VaultError:
             return None
 
-    def _propose(self, note_title: str, body: str, conversation_id: str, conversation: str) -> bool:
+    def _propose(self, note_title: str, body: str, conversation_id: str, conversation: str,
+                 project: str = "") -> bool:
         """Queue one note. False when it says nothing the vault or the queue lacks."""
         stamp = time.strftime("%Y-%m-%d", time.localtime(self._clock()))
         credit = f"*From “{conversation}”, {stamp}.*"
         source = {"conversation": conversation_id, "title": conversation}
+        if project:
+            source["project"] = project
 
         existing = self._existing(note_title)
         if existing is not None:
@@ -412,7 +431,8 @@ class Distiller:
         else:
             fresh = body
             title = note_title
-            target = f"{self._folder}/{note_title}.md" if self._folder else f"{note_title}.md"
+            folder = "/".join(part for part in (self._folder, project) if part)
+            target = f"{folder}/{note_title}.md" if folder else f"{note_title}.md"
 
         waiting = self._pending.for_target(target)
         if waiting is not None:
@@ -518,6 +538,7 @@ def ensure_distil_job(scheduler: Scheduler, vault: str, *, hour: int = 3, minute
 def register_distil_action(actions: ActionRegistry, *, router: ModelRouter,
                            pending: PendingStore | None = None, ledger: Ledger | None = None,
                            archive: ConversationArchive | None = None,
+                           projects: ProjectStore | None = None,
                            on_proposed: Callable[[Report], None] | None = None) -> None:
     """Make distillation something a job can run."""
 
@@ -535,8 +556,8 @@ def register_distil_action(actions: ActionRegistry, *, router: ModelRouter,
         except VaultError as exc:
             return ActionResult(False, str(exc))
 
-        report = Distiller(router, vault, archive=archive, pending=pending,
-                           ledger=ledger).run(is_cancelled=context.cancelled)
+        report = Distiller(router, vault, archive=archive, pending=pending, ledger=ledger,
+                           projects=projects).run(is_cancelled=context.cancelled)
         # Conversations are read here rather than through a tool, so the read is
         # recorded here: the security review looks for where grants are used.
         context.tools.audit.tool_call(context.tools.actor, DISTIL_ACTION, {"vault": vault_path},
