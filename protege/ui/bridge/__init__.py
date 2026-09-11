@@ -9,6 +9,7 @@ from .agents import AgentsBridge
 from .chat import ChatBridge, MessageListModel
 from .memory import MemoryBridge
 from .permissions import ConfirmBridge, PermissionsBridge
+from .projects import ProjectsBridge
 from .schedule import ScheduleBridge
 from .settings import SettingsBridge
 from .trace import TraceBridge, TraceListModel
@@ -17,4 +18,5 @@ __all__ = [
     "ChatBridge", "MessageListModel", "SettingsBridge",
     "PermissionsBridge", "ConfirmBridge", "ScheduleBridge",
     "TraceBridge", "TraceListModel", "AgentsBridge", "MemoryBridge",
+    "ProjectsBridge",
 ]

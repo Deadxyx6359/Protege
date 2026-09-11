@@ -80,7 +80,7 @@ measured benchmarks, not from optimism.
 | Obsidian second brain, fully automated, never opened by hand | **Vault, index and retrieval done**: read, link, write with history and conflict checks, daily notes; ranked search by section over notes, documents and past conversations, merged into cited passages; conversations distilled nightly into proposed notes a person accepts. Projects next | B2 |
 | Private RAG, local embeddings | Fine — no network involved | B3–B4 |
 | General memory that updates regularly | Partly exists (legacy `memory/`), needs rebuilding on the new spine | B5 |
-| Projects, easy to access and manage | Legacy `projects.py` exists; needs reconciling | B6 |
+| Projects, easy to access and manage | **Projects and their own grants done**: create, open, rename, remove; a grant made in a project applies only while it is open. Graph view, memory per project and the personality in conversation next | B6 |
 
 ### 2.3 Reach
 
@@ -368,11 +368,22 @@ ported because nothing is deleted: the conversation stays where it was.
 *Still to do:* the review screen (Codex, on `Memory`), and retention settings
 for conversations themselves.
 
-**B6 ○ Projects reconciled** — `core/projects.py`
+**B6 ▶ Projects reconciled** — `core/projects.py`, bridge `ui/bridge/projects.py`
 Fold legacy `projects.py` and `knowledge_graph.py` onto the new spine: a
 project owns notes, memory, skills, a personality override, **and its own
 policy**, so granting an agent a folder for one project does not grant it
 everywhere.
+*Done:* projects are stored by id in the configuration folder (a name never
+becomes a path) with a folder, a personality and their own grants. While a
+project is open, work started from the interface runs under the global grants
+plus the project's; the combined view is read-only, and where both hold a
+capability the earlier expiry wins. Scheduled jobs keep the global grants
+only, so what is on screen never changes what a nightly job may do. Removing
+a project forgets it and its grants and leaves its notes. The security review
+checks every project's grants. Bridge: `Projects`.
+*Still to do:* the graph view from legacy `knowledge_graph.py` (links between
+notes, from the vault), memory distilled per project, and the personality
+override applied in the conversation. Skills wait for their own item.
 
 ### Phase C — reach
 
@@ -462,12 +473,12 @@ and resumable.
 | B | B3 Vault index (lexical; embeddings deferred) | ✅ |
 | B | B4 Retrieval | ✅ |
 | B | B5 Memory distillation | ✅ |
-| B | B6 Projects reconciled | ▶ next (B6) |
+| B | B6 Projects reconciled | ▶ in progress: projects and their grants done; graph, per-project memory and personality to do |
 | C | C1–C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1522 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
+**Tests at last commit:** 1537 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

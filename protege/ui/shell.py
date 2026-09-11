@@ -19,6 +19,7 @@ from protege.core.brain.distil import PendingStore, register_distil_action
 from protege.core.config import AppConfig, autoconfigure
 from protege.core.models import ModelRouter, Route
 from protege.core.permissions import AuditLog, Policy, SecretStore
+from protege.core.projects import ProjectStore
 from protege.core.review import ensure_review_job, register_review_action
 from protege.core.schedule import ActionRegistry, Scheduler, SchedulerService
 from protege.core.schedule.actions import register_agent_actions
@@ -30,6 +31,7 @@ from protege.ui.bridge import (
     ConfirmBridge,
     MemoryBridge,
     PermissionsBridge,
+    ProjectsBridge,
     ScheduleBridge,
     SettingsBridge,
     TraceBridge,
@@ -61,6 +63,7 @@ class AppContext:
     schedule: ScheduleBridge | None = None
     agents: AgentsBridge | None = None
     memory: MemoryBridge | None = None
+    projects: ProjectsBridge | None = None
     scheduler: Scheduler | None = None
     service: SchedulerService | None = None
 
@@ -69,7 +72,8 @@ class AppContext:
         exposed = {"Chat": self.chat, "Settings": self.settings}
         for name, obj in (("Permissions", self.permissions), ("Confirm", self.confirm),
                           ("AgentTrace", self.trace), ("Schedule", self.schedule),
-                          ("Agents", self.agents), ("Memory", self.memory)):
+                          ("Agents", self.agents), ("Memory", self.memory),
+                          ("Projects", self.projects)):
             if obj is not None:
                 exposed[name] = obj
         return exposed
@@ -140,11 +144,18 @@ def build_context(*, persist: bool = True) -> AppContext:
     trace = Trace()
     permissions = PermissionsBridge(Policy.load(), audit)
     confirm = ConfirmBridge()
+    projects = ProjectsBridge(ProjectStore(), audit)
 
     # The scheduler reads the very policy the permission screen edits, so a
-    # revocation in Settings reaches the next scheduled run.
+    # revocation in Settings reaches the next scheduled run. It is the global
+    # policy only: a nightly job must not gain or lose a permission because of
+    # which project happened to be open.
     def live_policy() -> Policy:
         return permissions.policy
+
+    # Work started from the interface also gets the open project's own grants.
+    def working_policy() -> Policy:
+        return projects.effective(permissions.policy)
 
     actions = ActionRegistry()
     scheduler = Scheduler(actions, policy=live_policy, audit=audit,
@@ -152,9 +163,10 @@ def build_context(*, persist: bool = True) -> AppContext:
                           confirm=confirm.ask)
     schedule = ScheduleBridge(scheduler)
     register_review_action(actions, policy=live_policy, audit=audit,
-                           secret_store=secret_store, on_review=schedule.on_review)
+                           secret_store=secret_store, on_review=schedule.on_review,
+                           projects=projects.store.policies)
     register_agent_actions(actions, router=router, registry=default_registry())
-    agents = AgentsBridge(router, default_registry(), policy=live_policy,
+    agents = AgentsBridge(router, default_registry(), policy=working_policy,
                           audit=audit, secret_store=secret_store, trace=trace,
                           confirm=confirm.ask)
     pending = PendingStore()
@@ -175,6 +187,7 @@ def build_context(*, persist: bool = True) -> AppContext:
         scheduler=scheduler,
         agents=agents,
         memory=memory,
+        projects=projects,
     )
 
 

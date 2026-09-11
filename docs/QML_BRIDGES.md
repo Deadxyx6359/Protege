@@ -38,6 +38,7 @@ before changing it.
 | `Schedule` | `ScheduleBridge` | Scheduled jobs and the security review |
 | `Agents` | `AgentsBridge` | Starting an agent or a team on a task |
 | `Memory` | `MemoryBridge` | Notes distilled from conversations, waiting for a person to accept |
+| `Projects` | `ProjectsBridge` | Projects, the open one, and the grants that belong to it |
 
 Registered in `protege/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
@@ -211,6 +212,34 @@ Schedule.addJob({
 - Accepting is recorded in the activity log as `accept_memory`, and an accepted
   note can be undone from its history like any vault write.
 - The job shows in `Schedule.jobs` as "Memory". Choosing another vault moves it.
+
+## `Projects` — projects, and grants that belong to one
+
+| Member | Kind | Notes |
+|---|---|---|
+| `projects` | Property, notifies `projectsChanged` | Each: `id`, `name`, `folder`, `personality`, `current` |
+| `currentId`, `currentName` | Properties, notify `currentChanged` | `""` when no project is open |
+| `create(name, folder)` | Slot → string | Make a project **and open it**. `folder` may be `""`. Returns `""`, or why not |
+| `openProject(id)` | Slot → string | Open one. `openProject("")` leaves projects |
+| `rename(id, name)`, `setFolder(id, folder)`, `setPersonality(id, text)` | Slots → string | `""`, or why not |
+| `remove(id)` | Slot → string | Forgets the project and its grants. **Its notes are not touched**; say so when confirming |
+| `grants` | Property, notifies `grantsChanged` | The open project's own grants: `id`, `scopes`, `expires` (0 = never) |
+| `grant(id, scopes)` | Slot → string | Grant **only in the open project**. Refused when none is open. Otherwise the same rules as `Permissions.grant` |
+| `revoke(id)` | Slot → string | |
+
+- **Two places a grant can live.** `Permissions` holds grants that apply
+  everywhere. `Projects.grant` holds grants that apply only while that project
+  is open. When the person grants something, make the choice explicit
+  ("Everywhere" or "Only in <project>"), and lead with the project when one is
+  open: it is the narrower answer.
+- **What uses which.** Agents and teams started from the interface run under
+  the global grants plus the open project's. Scheduled jobs run under the
+  global grants only, so a nightly job's permissions never depend on what was
+  on screen. A job that needs a folder needs it granted everywhere.
+- Project grants and revocations are in the activity log with the project's
+  name, and the security review checks them like any other grant.
+- `personality` is stored, but the conversation does not use it yet. `folder` is
+  where the project's notes live; it grants nothing.
 
 ## Not reachable yet
 

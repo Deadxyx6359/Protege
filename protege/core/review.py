@@ -189,14 +189,24 @@ def review(*, policy: Policy, audit: AuditLog,
            permissions_file: Path | None = None,
            protected: Path | None = None,
            now: float | None = None,
-           window_days: int = WINDOW_DAYS) -> Review:
-    """Look at the current state and return what is worth a person's attention."""
+           window_days: int = WINDOW_DAYS,
+           projects: dict[str, Policy] | None = None) -> Review:
+    """Look at the current state and return what is worth a person's attention.
+
+    \a projects are each project's own grants, by name. They are checked like
+    the global ones: a whole drive granted inside one project is still a whole
+    drive.
+    """
     now = time.time() if now is None else now
     since = now - window_days * 86400
     events = [e for e in audit.read(limit=100_000) if e.at >= since]
 
     findings: list[Finding] = []
     findings += _grant_findings(policy)
+    for name, own in sorted((projects or {}).items()):
+        findings += [Finding(f.severity, f.code, f"In the project {name}: {f.title}",
+                             f.detail, f.suggestion, f.capability)
+                     for f in _grant_findings(own)]
     findings += _usage_findings(policy, events, since, window_days)
     findings += _file_findings(permissions_file or Policy.path(), now)
     findings += _attempt_findings(events, protected or config_dir())
@@ -583,16 +593,19 @@ def register_review_action(actions: ActionRegistry, *,
                            policy: Callable[[], Policy], audit: AuditLog,
                            secret_store: SecretStore | None = None,
                            store: ReviewStore | None = None,
-                           on_review: Callable[[Review], None] | None = None) -> None:
+                           on_review: Callable[[Review], None] | None = None,
+                           projects: Callable[[], dict[str, Policy]] | None = None) -> None:
     """Make the review something a job can run.
 
     It reads the *live* policy directly rather than through the job's tools:
     it is system code inspecting Protégé's own state, not an agent acting.
+    \a projects returns each project's own grants, which are reviewed too.
     """
     reviews = store if store is not None else ReviewStore()
 
     def run(context: JobContext) -> ActionResult:
-        result = review(policy=policy(), audit=audit, secret_store=secret_store)
+        result = review(policy=policy(), audit=audit, secret_store=secret_store,
+                        projects=projects() if projects is not None else None)
         reviews.save(result)
         audit.record(AuditEvent(result.at, "audit", "security-review", "review",
                                 True, {"counts": result.counts}))
