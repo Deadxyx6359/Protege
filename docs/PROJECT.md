@@ -77,7 +77,7 @@ measured benchmarks, not from optimism.
 | Capability | Verdict | Item |
 |---|---|---|
 | Document management — .docx, .pptx, .xlsx, PDF | **Done**: read all four, create Word and Excel, edit Word and PowerPoint, set Excel cells. Creating decks from scratch still to come | B1 |
-| Obsidian second brain, fully automated, never opened by hand | **Vault layer done**: read, link, search, write with history and conflict checks, daily notes. Indexing and retrieval next | B2 |
+| Obsidian second brain, fully automated, never opened by hand | **Vault and index done**: read, link, write with history and conflict checks, daily notes; ranked search by section, kept current incrementally. Retrieval next | B2 |
 | Private RAG, local embeddings | Fine — no network involved | B3–B4 |
 | General memory that updates regularly | Partly exists (legacy `memory/`), needs rebuilding on the new spine | B5 |
 | Projects, easy to access and manage | Legacy `projects.py` exists; needs reconciling | B6 |
@@ -317,9 +317,20 @@ folder even when the vault root sits above it.
 *Still to do:* attachments, and a file watcher so changes made on another
 device reach the index (B3) without a rescan.
 
-**B3 ○ Local embeddings and index** — `core/brain/index.py`
+**B3 ✅ Local index** — `core/brain/index.py`
 Local embedding model, vector store, incremental reindexing on file change. No
 network.
+*Done:* a lexical index — BM25 over SQLite, both in the standard library.
+Notes are split at their headings, so a hit cites the section, and no one note
+fills the results. Refreshing re-reads only files whose size or time changed
+and re-indexes only those whose content did. The index holds only what the
+grant allows, drops what it stops allowing, and filters again at query time.
+A damaged database is deleted and rebuilt, never trusted.
+*Deferred:* embeddings. `requirements.txt` rules out stacks that fetch model
+weights; llama.cpp can serve an embedding model once one is configured, with
+nothing new to install. `search` keeps its shape when they arrive and B4 fuses
+both. A file watcher is also still to do: refresh is on demand, and cheap when
+nothing changed.
 
 **B4 ○ Retrieval / private RAG** — `core/brain/retrieve.py`
 Hybrid retrieval over vault, documents and conversations, with citations back
@@ -422,12 +433,13 @@ and resumable.
 | A | A8 Coding on the gate | ✅ |
 | B | B1 Document tools | ✅ |
 | B | B2 Obsidian vault | ✅ |
-| B | B3–B6 Second brain | ▶ next (B3) |
+| B | B3 Vault index (lexical; embeddings deferred) | ✅ |
+| B | B4–B6 Second brain | ▶ next (B4) |
 | C | C1–C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1468 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
+**Tests at last commit:** 1487 passed, 2 skipped, 2 failed (the two legacy Tk geometry tests, which fail at clean HEAD too on this 960-px-tall display); `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

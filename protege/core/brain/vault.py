@@ -168,6 +168,10 @@ class Vault:
     def rel(self, path: Path) -> str:
         return path.relative_to(self.root).as_posix()
 
+    def may_read(self, path: Path) -> bool:
+        """Whether the permission this vault was opened under reaches \a path."""
+        return self._may_read(path)
+
     def locate(self, path: str | Path) -> Path:
         """An absolute path inside the vault, or a refusal."""
         candidate = Path(path)
