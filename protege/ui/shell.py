@@ -245,8 +245,32 @@ def build_context(*, persist: bool = True) -> AppContext:
     )
 
 
+#: Windows groups taskbar buttons by this, and shows the window's own icon for
+#: it. Distinct from the old Tk app's, so the two are not stacked together.
+APP_ID = "Akira.Desktop"
+
+
+def _claim_taskbar() -> None:
+    """Put the window on the taskbar under its own icon rather than Python's.
+
+    Launched through pythonw, the process is Python as far as Windows can tell,
+    and without an explicit id the taskbar shows the interpreter's icon whatever
+    the window says. It has to happen before the first window exists.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
+    except (AttributeError, OSError):
+        # Cosmetic: the app works the same with Python's icon.
+        pass
+
+
 def run_shell(argv: list[str] | None = None) -> int:
     """Start the interface and run until the last window closes."""
+    _claim_taskbar()
     app = QGuiApplication(argv if argv is not None else sys.argv)
     configure_application(app)
 
