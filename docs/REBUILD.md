@@ -327,6 +327,32 @@ module — correctly, since `uuid.getnode()` and `uuid1()` read network
 interfaces, and a static scan cannot tell which function will be called.
 `secrets.token_hex` does the same job with no such path.
 
+**SQLite keeps deleted rows in the file.** A `DELETE` unlinks a row from its
+table but leaves the bytes in free pages until something overwrites them, so
+"dropped for privacy" is not dropped. The index sweep turns on
+`PRAGMA secure_delete` first, and its test checks the file's bytes, not the
+table. Anywhere text must really go, do the same, or `VACUUM`.
+
+**`with sqlite3.connect(...)` does not close the connection.** It commits, and
+the file stays open. On Windows an open file cannot be deleted, so a cleanup
+that then suppresses the delete error reports success it did not have. Use
+`contextlib.closing`, and count something as removed only once it is gone.
+
+**An event trigger nothing publishes to is a feature that does not exist.** The
+scheduler has had event triggers since A6, and nothing called `publish` until
+the folder watcher in C6. When adding a way to react to something, add the
+first thing that produces it in the same change, and a test that the two meet.
+
+**Background work runs under the global grants only.** Scheduled jobs, watched
+folders and memory must not gain or lose a permission because of which project
+happened to be open. Work started from the interface gets the open project's
+grants too. Mixing the two would make what runs at 3 a.m. depend on what was on
+screen at midnight.
+
+**The project's pytest config already adds `-q`.** Adding another makes it
+`-qq`, which drops the final "N passed" line, so a log looks cut off. For exact
+counts, run with `--junitxml` and read that.
+
 ## Phases
 
 Each phase ends with something runnable. No phase leaves the app in a state
