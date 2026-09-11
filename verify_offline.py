@@ -116,6 +116,11 @@ DYNAMIC_IMPORT_EXEMPT = frozenset({"protege.plugins"})
 # project unscanned while the report still said PASS.
 ENTRY_POINTS = (
     "run.py",
+    # The Qt interface's launcher. Until it was listed, nothing it imports --
+    # agents, tools, the scheduler, the document readers -- had its import
+    # graph walked at all: the scan proved the old Tk app offline and said
+    # nothing about the one people now run.
+    "shell.py",
     "protege/__init__.py",
     "protege/ui/app.py",
     "protege/models/llama_backend.py",
