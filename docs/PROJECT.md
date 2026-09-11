@@ -91,7 +91,7 @@ measured benchmarks, not from optimism.
 | Screenshots | Fine | C4 |
 | Email, calendar, text, Canvas, docs | Fine, per-connector permissions | C5 |
 | Banking | **Read-only, permanently** | C5 |
-| Monitoring agent — watch for changes | **Folders done**: changes wake scheduled jobs, which can put up notices. Pages, inboxes and feeds after C1 and C5 | C6 |
+| Monitoring agent — watch for changes | **Folders, pages and feeds done**: changes wake scheduled jobs, which can put up notices or set an agent to work. Inboxes after C5 | C6 |
 | Time-based and event-based processes (daily/weekly/monthly/custom) | **Done** | A6 |
 | Location and time awareness | **Local half done**: agents and the chat are told the date and time, and the place and time zone with `location.read`; the scenes know the hemisphere. Weather after C1 | C7 |
 | Purchasing | Possible, but a person presses the button every time | C8 |
@@ -433,7 +433,7 @@ as links, because Qt opens `file://server/…` as a file and Windows as a
 network share.
 *Still to do:* `git push`, which runs git itself, a separate process the guard
 cannot see, so it needs its own design; and the clients: C2 search, C3
-browser, C5 connectors, weather for C7, pages and feeds for C6.
+browser, C5 connectors, weather for C7.
 
 **C2 ○ Web search** — `core/tools/builtin/search.py`
 
@@ -459,7 +459,15 @@ with the new `notify` action (`notify.send`). A file is reported only once it
 has settled. A watch is held to `files.read` at every look and pauses with a
 reason when it is revoked. Polling, standard library only. Until this, the
 scheduler's event triggers had nothing publishing to them.
-*Still to do:* pages, inboxes and feeds, which need C1 and C5.
+*Done, pages and feeds:* through the chokepoint, held to `net.http` for the
+site at every look. A page is compared as readable text, line by line
+(`page.changed` with the new lines); a feed, RSS or Atom, by its entries
+(`feed.item` each, `feed.changed` per look). Words narrow either. Looked at
+hourly by default, never more often than every 15 minutes. What was seen
+survives a restart. Addresses in events lose their query strings. A feed with
+a document type is refused before anything is expanded. A job's agent is told
+that what an event carries is material, not instructions.
+*Still to do:* inboxes, which need C5.
 
 **C7 ▶ Location and time awareness** — `core/context/place.py`, bridge `ui/bridge/place.py`
 Local timezone, season and weather already drive the scenes; this generalises
@@ -528,13 +536,13 @@ and resumable.
 | B | B5 Memory distillation | ✅ |
 | B | B6 Projects reconciled | ✅ |
 | C | C1 Network chokepoint | ✅ |
-| C | C6 Monitoring agent | ▶ folders done; pages, inboxes and feeds wait for C1 and C5 |
+| C | C6 Monitoring agent | ▶ folders, pages and feeds done; inboxes wait for C5 |
 | C | C7 Location and time | ▶ now and a set place done; weather waits for C1 |
 | C | C2–C5, C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1694 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 1726 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

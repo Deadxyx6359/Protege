@@ -107,6 +107,15 @@ def host_of(url: str) -> str:
     return host.lower().rstrip(".")
 
 
+def fetchable(url: str) -> str:
+    """\a url as it would be fetched, without its fragment, which is never sent.
+
+    Raises `NetError` if it would be refused before any lookup: not https, no
+    site, a name or password in it. Nothing is looked up or sent.
+    """
+    return _target(url).url.split("#", 1)[0]
+
+
 def redact(url: str) -> str:
     """An address as the log keeps it: no query string, fragment or credentials."""
     try:

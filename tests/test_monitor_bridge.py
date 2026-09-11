@@ -58,7 +58,23 @@ def test_a_watch_needs_the_permission_and_is_recorded(setup, app):
     assert "watch_folder" in (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
 
     assert bridge.removeWatch(row["id"]) == "" and bridge.watches == []
-    assert bridge.removeWatch(row["id"]) == "That folder is not being watched."
+    assert bridge.removeWatch(row["id"]) == "That is not being watched."
+
+
+def test_a_page_watch_needs_its_site_allowed_and_is_recorded_without_its_query(setup, app):
+    bridge, live, _folder, tmp_path = setup
+    address = "https://example.com/news?key=secret"
+    assert bridge.addPageWatch(address, [], 0).startswith("Not permitted")
+    live.grant("net.http", ("example.com",))
+    assert bridge.addPageWatch(address, ["sale"], 30) == ""
+    [row] = bridge.watches
+    assert (row["kind"], row["url"], row["patterns"], row["every"]) == \
+        ("page", "https://example.com/news?…", ["sale"], 30)
+    assert (row["folder"], row["title"], row["lastLook"]) == ("", "", 0.0)
+    log = (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+    assert "watch_page" in log and "secret" not in log
+    assert bridge.addFeedWatch("https://example.com/feed.xml", [], 5).startswith(
+        "A page or a feed is looked at no more often")
 
 
 def test_a_notice_from_another_thread_arrives_on_this_one(setup, app):

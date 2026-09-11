@@ -1,12 +1,14 @@
-"""Watched folders, and the notices jobs put up — the `Monitor` bridge.
+"""Watched folders, pages and feeds, and the notices jobs put up — the `Monitor` bridge.
 
-A watch turns changes in a folder into events that scheduled jobs wait for (see
-`protege.core.agents.monitor`). Adding one is held to `files.read` for the
-folder and recorded in the activity log. The looking happens on its own thread;
-this bridge only hears about it, on a queued signal.
+A watch turns changes into events that scheduled jobs wait for (see
+`protege.core.agents.monitor`). Adding one is held to its permission,
+`files.read` for a folder and `net.http` for a page's or a feed's site, and
+recorded in the activity log. The looking happens on its own thread; this
+bridge only hears about it, on a queued signal.
 
 Notices come from the `notify` action, on the scheduler's thread, and cross to
-this one the same way. `noticed` is the moment to put something on screen.
+this one the same way. `noticed` is the moment to put something on screen. A
+notice can quote a web page or a feed, so its text is shown as plain text.
 """
 
 from __future__ import annotations
@@ -15,7 +17,7 @@ import time
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
-from protege.core.agents.monitor import Monitor, MonitorError
+from protege.core.agents.monitor import FEED, FOLDER, PAGE, WEB_EVERY_S, Monitor, MonitorError
 from protege.core.permissions import AuditLog
 
 #: Notices kept for the list; older ones fall off the end.
@@ -26,7 +28,7 @@ ACTOR = "person"
 
 
 class MonitorBridge(QObject):
-    """Folders being watched, and the notices jobs have shown."""
+    """What is being watched, and the notices jobs have shown."""
 
     watchesChanged = Signal()
     noticesChanged = Signal()
@@ -63,11 +65,22 @@ class MonitorBridge(QObject):
 
     @Property("QVariantList", notify=watchesChanged)
     def watches(self) -> list:
-        """Each watch: `id`, `folder`, `patterns`, `paused` (why it is not being
-        looked at, or ""), and `lastChange` (epoch seconds, 0 if never)."""
-        return [{"id": w.id, "folder": w.folder, "patterns": list(w.patterns),
-                 "paused": w.paused, "lastChange": self._monitor.last_change.get(w.id, 0.0)}
-                for w in self._monitor.watches()]
+        """Each watch: `id`, `kind` (`folder`, `page` or `feed`), `folder`, `url`
+        (without its query), `title` (a page's or feed's own, once looked at),
+        `patterns` (file patterns for a folder, words for a page or feed),
+        `every` (minutes between looks at a page or feed, 0 for a folder),
+        `paused` (why it is not reporting, or ""), `lastChange` and `lastLook`
+        (epoch seconds, 0 if never)."""
+        rows = []
+        for w in self._monitor.watches():
+            web = w.kind != FOLDER
+            rows.append({"id": w.id, "kind": w.kind, "folder": w.folder,
+                         "url": w.target if web else "",
+                         "title": self._monitor.title(w.id), "patterns": list(w.patterns),
+                         "every": w.every_s // 60 if web else 0, "paused": w.paused,
+                         "lastChange": self._monitor.last_change.get(w.id, 0.0),
+                         "lastLook": self._monitor.looked(w.id)})
+        return rows
 
     @Property("QVariantList", notify=watchesChanged)
     def warnings(self) -> list:
@@ -86,10 +99,34 @@ class MonitorBridge(QObject):
                               allowed=True, capability="files.read", scope=watch.folder)
         return ""
 
+    @Slot(str, "QVariantList", int, result=str)
+    def addPageWatch(self, url: str, words: list, minutes: int) -> str:
+        """Watch a web page for new lines, optionally only lines with one of
+        `words`, looked at every `minutes` (0 for hourly). Returns "" or why not."""
+        return self._add_web(PAGE, url, words, minutes)
+
+    @Slot(str, "QVariantList", int, result=str)
+    def addFeedWatch(self, url: str, words: list, minutes: int) -> str:
+        """Watch an RSS or Atom feed for new entries, as `addPageWatch` does a page."""
+        return self._add_web(FEED, url, words, minutes)
+
+    def _add_web(self, kind: str, url: str, words: list, minutes: int) -> str:
+        every = int(minutes) * 60 if minutes else WEB_EVERY_S
+        add = self._monitor.add_page if kind == PAGE else self._monitor.add_feed
+        try:
+            watch = add(url, words or (), every)
+        except MonitorError as exc:
+            return str(exc)
+        self._audit.tool_call(ACTOR, f"watch_{kind}", {"url": watch.target,
+                                                       "words": list(watch.patterns),
+                                                       "every": watch.every_s},
+                              allowed=True, capability="net.http", scope=watch.site)
+        return ""
+
     @Slot(str, result=str)
     def removeWatch(self, watch_id: str) -> str:
         if not self._monitor.remove(watch_id):
-            return "That folder is not being watched."
+            return "That is not being watched."
         return ""
 
     # -- notices ------------------------------------------------------------------------------

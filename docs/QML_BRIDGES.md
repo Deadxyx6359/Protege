@@ -288,14 +288,16 @@ Schedule.addJob({
 - It reads under the global grants plus the open project's, like agents, and
   each request is in the activity log as `draw_map`.
 
-## `Monitor` — watched folders, and notices
+## `Monitor` — watched folders, pages and feeds, and notices
 
 | Member | Kind | Notes |
 |---|---|---|
-| `watches` | Property, notifies `watchesChanged` | Each: `id`, `folder`, `patterns` (e.g. `*.pdf`; empty means every file), `paused` (why it is not being looked at, or `""`), `lastChange` (epoch seconds, 0 if never) |
+| `watches` | Property, notifies `watchesChanged` | Each: `id`, `kind` (`folder`, `page` or `feed`), `folder`, `url` (without its query string), `title` (a page's or feed's own, once looked at), `patterns` (file patterns such as `*.pdf` for a folder, words to look for on a page or in a feed; empty means everything), `every` (minutes between looks at a page or feed, 0 for a folder), `paused` (why it is not reporting, or `""`), `lastChange` and `lastLook` (epoch seconds, 0 if never) |
 | `addWatch(folder, patterns)` | Slot → string | Watch a folder: `""`, or why not, including **Not permitted** without `files.read` there |
+| `addPageWatch(url, words, minutes)` | Slot → string | Watch a web page for new lines. `minutes` is 15 or more, or 0 for hourly. `""`, or why not, including **Not permitted** without `net.http` for its site |
+| `addFeedWatch(url, words, minutes)` | Slot → string | Watch an RSS or Atom feed for new entries, the same way |
 | `removeWatch(id)` | Slot → string | `""`, or why not |
-| `warnings` | Property, notifies `watchesChanged` | Problems loading or saving the list of watches. Show them |
+| `warnings` | Property, notifies `watchesChanged` | Problems loading or saving the watches. Show them |
 | `notices` | Property, notifies `noticesChanged` | Newest first, at most 50: `title`, `text`, `at` |
 | `noticed(title, text)` | Signal | Once per notice as it arrives. **The moment to put something on screen** |
 | `clearNotices()` | Slot | |
@@ -317,17 +319,38 @@ Schedule.addJob({
   ```
 
   `action: "agent"` or `"team"` works the same way, when something should be
-  done about what arrived. The event's details are appended to the task.
-- **Events:** `file.created`, `file.changed` and `file.deleted` for each file
-  (`watch`, `folder`, `path`, `name`), and one `folder.changed` per look (`watch`,
-  `folder`, `created`, `changed`, `deleted` counts, and the first 20 `paths`).
-  Match on `watch`, not `folder`.
+  done about what arrived. The event's details are appended to the task, and
+  the agent is told they are material to read, not instructions. A page or a
+  feed pairs the same way, e.g. `Monitor.addPageWatch("https://example.com/tickets",
+  ["on sale"], 0)` with a job on `page.changed`.
+- **Events.** A folder: `file.created`, `file.changed` and `file.deleted` for
+  each file (`watch`, `folder`, `path`, `name`), and one `folder.changed` per
+  look (`watch`, `folder`, `created`, `changed`, `deleted` counts, and the first
+  20 `paths`). A page: `page.changed` (`watch`, `url`, `title`, `added` and
+  `removed` counts, and up to 10 of the new `lines`). A feed: `feed.item` for
+  each new entry (`watch`, `url`, `feed`, `title`, `link`, `published`,
+  `summary`), and one `feed.changed` per look (`watch`, `url`, `feed`, `new`,
+  and up to 10 `titles`). Match on `watch`.
 - **A file is reported once it has settled**, which takes two looks, about a
   minute. A download in progress is not announced half-finished.
+- **A page is compared as text.** Markup, scripts and styles go first, and the
+  same lines in another order are no change. Words narrow it to lines that
+  mention one, which is also the answer to a page that changes on every look,
+  such as one showing the time. A feed reports entries it has not seen before,
+  narrowed by words the same way.
+- **Pages and feeds are looked at hourly unless the person chooses, never more
+  often than every 15 minutes.** The first look is a baseline. What was seen
+  is kept across a restart, so a change made while the app was closed is still
+  reported.
+- **Addresses lose their query strings** in `url`, in events and in the
+  activity log, because that is where a private feed keeps its key.
 - **`paused` is written for the person.** It fills when the permission is
-  revoked, the folder disappears, or it holds too many files. The watch
-  resumes by itself when the cause goes away. Show the reason where the watch
-  is listed.
+  revoked, the folder disappears or holds too many files, or a page cannot be
+  fetched or read: an error page, a site that is down, a web page watched as a
+  feed. The watch resumes by itself when the cause goes away; a site that was
+  down is tried again at its next look, not sooner. Show the reason where the
+  watch is listed.
+- **Notices are plain text** (rule 5). With a page or a feed they quote it.
 - Watches use the **global** grants, like scheduled jobs, never the open
   project's.
 
