@@ -7,8 +7,8 @@ import QtQuick.Layouts
     Two things must not sit waiting in a list: a notice a watch's job puts up
     (\c Monitor.noticed), and a critical finding from the security review
     (\c Schedule.criticalFound). A notice leaves by itself after a while, and
-    stays in the Watching view; a critical finding stays until it is dismissed.
-    Hovering holds a notice where it is.
+    stays in the Watching view; a critical finding stays until it is dismissed,
+    and leads to the review's findings. Hovering holds a notice where it is.
 
     The text is plain (rule 5): a notice can quote a web page or a feed.
 */
@@ -122,7 +122,7 @@ Item {
                         }
                         ActionButton {
                             Layout.topMargin: Theme.space.xs
-                            text: banner.critical ? "Review permissions" : "See all notices"
+                            text: banner.critical ? "See what it found" : "See all notices"
                             onClicked: {
                                 if (banner.critical)
                                     root.reviewRequested();

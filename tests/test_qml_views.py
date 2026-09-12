@@ -163,6 +163,46 @@ pump(0.3)
 out["banners_after_critical"] = banner.property("count")
 out["critical_banners"] = banner.property("criticalCount")
 out["notices"] = [n["title"] for n in ctx.monitor.notices]
+
+# -- the schedule and the review ----------------------------------------------
+from akira.core.review import Finding, Review, ensure_review_job
+ensure_review_job(ctx.scheduler)
+root.setProperty("currentNav", "schedule")
+pump(0.3)
+schedule = root.findChild(QObject, "scheduleView")
+out["schedule_visible"] = bool(schedule.property("visible"))
+def job(job_id):
+    return next((j for j in ctx.schedule.jobs if j["id"] == job_id), None)
+review_id = next(j["id"] for j in ctx.schedule.jobs if j["action"] == "security_review")
+call(schedule, "removeJob", review_id)
+out["review_kept"] = job(review_id) is not None
+out["review_refusal"] = schedule.property("notice")
+call(schedule, "pauseJob", review_id)
+out["review_enabled"] = job(review_id)["enabled"]
+told = next(j["id"] for j in ctx.schedule.jobs if j["action"] == "notify")
+call(schedule, "pauseJob", told)
+out["paused"] = not job(told)["enabled"]
+call(schedule, "resumeJob", told)
+out["resumed"] = job(told)["enabled"]
+call(schedule, "removeJob", told)
+out["removed"] = job(told) is None
+ctx.schedule.on_review(Review(time.time(), 30, [Finding(
+    "critical", "wide-read", "Reading is allowed across the whole of C:/",
+    detail="files.read covers C:/", suggestion="Narrow it to the folders in use.",
+    capability="files.read")]))
+pump(0.3)
+def texts_under(item):
+    # The visual tree: what a ScrollView holds is not among its QObject children.
+    found = []
+    for child in item.childItems():
+        value = child.property("text")
+        if isinstance(value, str):
+            found.append(value)
+        found.extend(texts_under(child))
+    return found
+texts = texts_under(schedule)
+out["finding_shown"] = "Reading is allowed across the whole of C:/" in texts
+out["suggestion_shown"] = "Narrow it to the folders in use." in texts
 print(json.dumps(out))
 """
 
@@ -220,6 +260,13 @@ def test_the_views_work_in_the_window(run):
 
     assert out["banners"] == 1 and out["notices"] == ["Watching inbox"]
     assert out["banners_after_critical"] == 2 and out["critical_banners"] == 1
+
+    assert out["schedule_visible"]
+    assert out["review_kept"] and "cannot be removed" in out["review_refusal"], \
+        "the security review could be removed from the window"
+    assert out["review_enabled"], "the security review could be paused from the window"
+    assert out["paused"] and out["resumed"] and out["removed"]
+    assert out["finding_shown"] and out["suggestion_shown"]
 
     script_errors = [line for line in errors.splitlines()
                      if "TypeError" in line or "ReferenceError" in line]

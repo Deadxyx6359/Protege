@@ -157,6 +157,11 @@ The model keeps the newest 500 events; older ones fall off the front.
 - The daily security review job is created on first run of the application.
 - A run stopped because the application was closing is `cancelled`, and
   does not count towards pausing the job.
+- `ScheduleView.qml` shows every job with its last five runs, and the latest
+  findings, each with a way to the permission screen when it names a
+  capability. It runs the review on request but offers neither pause nor
+  remove for it: the review is what notices a grant that should not be there.
+  Removing any other job asks twice. A critical finding's banner leads here.
 
 ### Creating a job: `Schedule.addJob(spec)`
 

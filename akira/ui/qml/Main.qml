@@ -30,6 +30,7 @@ Window {
     property bool sidebarOpen: true
     // Views that fill the page themselves: no transcript, no composer.
     readonly property bool fullPage: currentNav === "agents" || currentNav === "watching"
+                                     || currentNav === "schedule"
 
     function selectWorkspace(id) {
         const views = { "chat-1": "chats", "code-1": "code", "research-1": "research" };
@@ -83,7 +84,7 @@ Window {
         anchors.topMargin: 52
         anchors.rightMargin: Theme.space.lg
         width: Math.min(360, parent.width - Theme.space.xxl * 2)
-        onReviewRequested: permissionsSheet.open()
+        onReviewRequested: win.currentNav = "schedule"
         onNoticesRequested: win.currentNav = "watching"
     }
 
@@ -135,6 +136,7 @@ Window {
                 { id: "research", icon: "search", label: "Research" },
                 { id: "agents", icon: "team", label: "Agents" },
                 { id: "watching", icon: "eye", label: "Watching" },
+                { id: "schedule", icon: "calendar", label: "Schedule" },
                 { id: "documents", icon: "document", label: "Documents" },
                 { id: "memory", icon: "clock", label: "Memory" }
             ]
@@ -243,6 +245,13 @@ Window {
                     objectName: "watchView"
                     anchors.fill: parent
                     visible: win.currentNav === "watching"
+                }
+
+                ScheduleView {
+                    objectName: "scheduleView"
+                    anchors.fill: parent
+                    visible: win.currentNav === "schedule"
+                    onPermissionsRequested: permissionsSheet.open()
                 }
 
                 ChatView {
