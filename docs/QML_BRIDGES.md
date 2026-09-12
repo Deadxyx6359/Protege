@@ -248,6 +248,11 @@ Schedule.addJob({
 - Accepting is recorded in the activity log as `accept_memory`, and an accepted
   note can be undone from its history like any vault write.
 - The job shows in `Schedule.jobs` as "Memory". Choosing another vault moves it.
+- `MemoryView.qml` offers `memory.read` and `vault.read` beside the vault
+  picker, and shows each `preview` in a plain-text code block. When `accept` is
+  refused it offers `vault.write` for **the folder that note goes in** (for
+  example `<vault>/Memory`), never the whole vault, then accepts. A path grant
+  may name a folder that does not exist yet; `real()` resolves it anyway.
 
 ## `Projects` — projects, and grants that belong to one
 

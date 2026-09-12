@@ -29,6 +29,7 @@ PlaceSheet 1.0 PlaceSheet.qml
 WatchView 1.0 WatchView.qml
 NoticeBanner 1.0 NoticeBanner.qml
 ScheduleView 1.0 ScheduleView.qml
+MemoryView 1.0 MemoryView.qml
 
 SceneHost 1.0 scenes/SceneHost.qml
 BotanicaScene 1.0 scenes/BotanicaScene.qml

@@ -203,6 +203,38 @@ def texts_under(item):
 texts = texts_under(schedule)
 out["finding_shown"] = "Reading is allowed across the whole of C:/" in texts
 out["suggestion_shown"] = "Narrow it to the folders in use." in texts
+
+# -- memory -------------------------------------------------------------------
+from akira.core.brain.distil import PendingStore, Proposal
+vault = os.path.join(os.getcwd(), "Vault").replace("\\", "/")
+os.makedirs(vault + "/.obsidian")
+root.setProperty("currentNav", "memory")
+pump(0.3)
+memory = root.findChild(QObject, "memoryView")
+out["memory_visible"] = bool(memory.property("visible"))
+call(memory, "chooseVault", vault)
+out["vault_notice"] = memory.property("notice")
+call(memory, "setReading", True)
+call(memory, "setRemembering", True)
+out["vault_read"] = [os.path.basename(s.rstrip("/\\")) for s in policy.granted("vault.read").scopes]
+out["remembers"] = policy.granted("memory.read") is not None
+pending = PendingStore()
+def propose(pid, title):
+    pending.save(Proposal(pid, title, "Memory/" + title + ".md", "# " + title + "\n\n- Plot 14.",
+                          False, "", [{"conversation": "a1b2c3d4", "title": title}], time.time()))
+    ctx.memory.on_proposed()
+    pump(0.2)
+propose("0123456789abcdef", "Allotment")
+call(memory, "accept", "0123456789abcdef")
+out["accept_needs"] = memory.property("needs")
+out["unwritten"] = not os.path.exists(vault + "/Memory/Allotment.md")
+call(memory, "allowWritingAndAccept")
+out["written"] = os.path.exists(vault + "/Memory/Allotment.md")
+out["write_scopes"] = [s.replace("\\", "/").rstrip("/").split("/")[-2:]
+                       for s in policy.granted("vault.write").scopes]
+propose("fedcba9876543210", "Beans")
+call(memory, "reject", "fedcba9876543210")
+out["rejected"] = ctx.memory.pendingCount == 0 and not os.path.exists(vault + "/Memory/Beans.md")
 print(json.dumps(out))
 """
 
@@ -267,6 +299,15 @@ def test_the_views_work_in_the_window(run):
     assert out["review_enabled"], "the security review could be paused from the window"
     assert out["paused"] and out["resumed"] and out["removed"]
     assert out["finding_shown"] and out["suggestion_shown"]
+
+    assert out["memory_visible"] and out["vault_notice"] == ""
+    assert out["vault_read"] == ["Vault"] and out["remembers"]
+    assert out["accept_needs"] == "write" and out["unwritten"], \
+        "a note was written before writing was allowed"
+    assert out["written"]
+    assert out["write_scopes"] == [["Vault", "Memory"]], \
+        "writing was allowed wider than the folder the note goes in"
+    assert out["rejected"]
 
     script_errors = [line for line in errors.splitlines()
                      if "TypeError" in line or "ReferenceError" in line]
