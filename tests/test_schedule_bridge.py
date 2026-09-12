@@ -28,6 +28,7 @@ from akira.core.schedule import (  # noqa: E402
     JobStore,
     Scheduler,
 )
+from akira.core.schedule.triggers import OnEvent  # noqa: E402
 from akira.ui.bridge.schedule import ScheduleBridge  # noqa: E402
 
 
@@ -79,6 +80,14 @@ def test_jobs_appear_in_the_view(parts):
     scheduler.add("Morning", "note", Daily(9, 0))
     assert [j["name"] for j in bridge.jobs] == ["Morning"]
     assert bridge.jobs[0]["when"] == "Every day at 09:00"
+
+
+def test_a_job_says_which_watch_it_waits_on(parts):
+    # So the Watching view can remove a watch's notice job along with the watch.
+    _, scheduler, bridge, _, _ = parts
+    scheduler.add("New PDFs", "note", OnEvent("folder.changed", {"watch": "w1"}))
+    scheduler.add("Morning", "note", Daily(9, 0))
+    assert {j["name"]: j["watch"] for j in bridge.jobs} == {"New PDFs": "w1", "Morning": ""}
 
 
 def test_a_change_on_the_schedulers_thread_arrives_through_the_event_loop(app, parts):

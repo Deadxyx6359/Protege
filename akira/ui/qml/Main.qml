@@ -28,6 +28,8 @@ Window {
     property string currentProject: "thesis"
     readonly property string currentTab: ({ chats: "chat-1", code: "code-1", research: "research-1" })[currentNav] || ""
     property bool sidebarOpen: true
+    // Views that fill the page themselves: no transcript, no composer.
+    readonly property bool fullPage: currentNav === "agents" || currentNav === "watching"
 
     function selectWorkspace(id) {
         const views = { "chat-1": "chats", "code-1": "code", "research-1": "research" };
@@ -70,6 +72,39 @@ Window {
         z: 100
     }
 
+    // What must reach the person rather than wait in a list: what a watch's
+    // job has to say, and a critical finding from the security review.
+    NoticeBanner {
+        id: banners
+        objectName: "noticeBanner"
+        z: 50
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: 52
+        anchors.rightMargin: Theme.space.lg
+        width: Math.min(360, parent.width - Theme.space.xxl * 2)
+        onReviewRequested: permissionsSheet.open()
+        onNoticesRequested: win.currentNav = "watching"
+    }
+
+    Connections {
+        target: Monitor
+        function onNoticed(title, text) { banners.show(title, text, false) }
+    }
+
+    Connections {
+        target: Schedule
+        function onCriticalFound(count) {
+            var titles = Schedule.findings
+                .filter(function (f) { return f.severity === "critical"; })
+                .slice(0, 3)
+                .map(function (f) { return f.title; });
+            banners.show(count === 1 ? "The security review found a critical problem"
+                                     : "The security review found " + count + " critical problems",
+                         titles.join("\n"), true);
+        }
+    }
+
     RowLayout {
         anchors.fill: parent
         spacing: 0
@@ -99,6 +134,7 @@ Window {
                 { id: "code", icon: "code", label: "Code" },
                 { id: "research", icon: "search", label: "Research" },
                 { id: "agents", icon: "team", label: "Agents" },
+                { id: "watching", icon: "eye", label: "Watching" },
                 { id: "documents", icon: "document", label: "Documents" },
                 { id: "memory", icon: "clock", label: "Memory" }
             ]
@@ -187,9 +223,9 @@ Window {
                 SceneHost {
                     objectName: "workspaceScene"
                     anchors.fill: parent
-                    // Agents work in the coding world; their cards keep it quiet.
-                    view: win.currentNav === "agents" ? "code" : win.currentNav
-                    quiet: win.currentNav === "agents" || Chat.messages.count > 0
+                    // A full page sits in the coding world, kept quiet behind its cards.
+                    view: win.fullPage ? "code" : win.currentNav
+                    quiet: win.fullPage || Chat.messages.count > 0
                     // The real weather where the person is, once it has been read,
                     // and the seasons turned the right way round for their hemisphere.
                     weather: Place.weather || "clear"
@@ -203,8 +239,14 @@ Window {
                     visible: win.currentNav === "agents"
                 }
 
+                WatchView {
+                    objectName: "watchView"
+                    anchors.fill: parent
+                    visible: win.currentNav === "watching"
+                }
+
                 ChatView {
-                    visible: win.currentNav !== "research" && win.currentNav !== "agents"
+                    visible: win.currentNav !== "research" && !win.fullPage
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
@@ -239,7 +281,7 @@ Window {
                 Composer {
                     id: composer
                     objectName: "workspaceComposer"
-                    visible: win.currentNav !== "agents"
+                    visible: !win.fullPage
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: Theme.space.lg

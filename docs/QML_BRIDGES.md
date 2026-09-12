@@ -137,7 +137,7 @@ The model keeps the newest 500 events; older ones fall off the front.
 
 | Member | Kind | Notes |
 |---|---|---|
-| `jobs` | Property, notifies `jobsChanged` | Maps: `id`, `name`, `action`, `when` (plain English, e.g. "Weekdays at 09:00"), `nextRun`, `lastRun` (epoch seconds, 0 if never), `lastStatus`, `enabled`, `done`, `pausedReason`, `missed` (`run_late`/`skip`), `running` |
+| `jobs` | Property, notifies `jobsChanged` | Maps: `id`, `name`, `action`, `when` (plain English, e.g. "Weekdays at 09:00"), `nextRun`, `lastRun` (epoch seconds, 0 if never), `lastStatus`, `enabled`, `done`, `pausedReason`, `missed` (`run_late`/`skip`), `running`, `watch` (the `Monitor` watch an event job waits on, from its trigger's `match`, or `""`) |
 | `warnings` | Property | Plain-language problems loading or saving the schedule. Show them |
 | `history(id)` | Slot → list | Runs, newest first: `status` (`ok`/`failed`/`skipped`/`overlap`/`cancelled`), `summary`, `late`, `trigger` (`time`/`event`/`manual`), `started`, `finished` |
 | `pause(id)`, `resume(id)`, `remove(id)` | Slots | Resuming counts forward from now. The runs inside a pause are not "missed" |
@@ -359,6 +359,15 @@ Schedule.addJob({
 - **Notices are plain text** (rule 5). With a page or a feed they quote it.
 - Watches use the **global** grants, like scheduled jobs, never the open
   project's.
+- **Keep a watch and its jobs together.** The Watching view (`WatchView.qml`)
+  pairs a watch with a `notify` job on its `*.changed` event, named "Watching
+  <name>", when the person asks to be told; removing the watch removes every
+  job whose `watch` (in `Schedule.jobs`) is that watch's id. A view that adds
+  or removes watches another way should do the same, or leave jobs waiting for
+  events that will never come.
+- `noticed` and `Schedule.criticalFound` are put on screen by `NoticeBanner`
+  in `Main.qml`: a notice for ten seconds (held while hovered), a critical
+  finding until it is dismissed.
 
 ## `Place` — where the person is, the scenes' hemisphere, and the weather there
 

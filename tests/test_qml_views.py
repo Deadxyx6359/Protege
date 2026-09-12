@@ -23,7 +23,7 @@ pytest.importorskip("PySide6.QtQuick")
 REPO = Path(__file__).resolve().parents[1]
 
 PROBE = r"""
-import json, sys, threading, time
+import json, os, sys, threading, time
 sys.path.insert(0, sys.argv[1])
 from PySide6.QtCore import QObject, QMetaObject, Q_ARG, Qt
 from PySide6.QtGui import QGuiApplication
@@ -119,6 +119,50 @@ call(place, "removeSite")
 out["site_removed"] = sorted(policy.granted("net.http").scopes)
 call(place, "setLocated", False)
 out["unlocated"] = policy.granted("location.read") is None
+
+# -- watching -----------------------------------------------------------------
+root.setProperty("currentNav", "watching")
+pump(0.3)
+watching = root.findChild(QObject, "watchView")
+out["watch_visible"] = bool(watching.property("visible"))
+inbox = os.path.join(os.getcwd(), "inbox").replace("\\", "/")
+os.makedirs(inbox)
+watching.setProperty("kind", "folder")
+watching.setProperty("folder", inbox)
+call(watching, "submit")
+out["folder_needs"] = watching.property("needs")
+out["folder_refusal"] = watching.property("notice")
+call(watching, "allowAndWatch")
+out["watched"] = [[w["kind"], w["folder"]] for w in ctx.monitor.watches]
+read = policy.granted("files.read")
+out["read_scopes"] = list(read.scopes) if read else []
+first = ctx.monitor.watches[0]["id"] if ctx.monitor.watches else ""
+out["paired"] = [j["action"] for j in ctx.schedule.jobs if j["watch"] == first]
+out["notices_needed"] = watching.property("needs")
+call(watching, "allowNotices")
+out["notices_allowed"] = policy.granted("notify.send") is not None
+# A feed on a site not allowed yet: that site is added, and every other kept.
+watching.setProperty("kind", "feed")
+watching.setProperty("address", "https://news.example.org/feed.xml?key=private")
+call(watching, "submit")
+out["feed_needs"] = watching.property("needs")
+call(watching, "allowAndWatch")
+out["sites_after_feed"] = sorted(policy.granted("net.http").scopes)
+out["feed_urls"] = [w["url"] for w in ctx.monitor.watches if w["kind"] == "feed"]
+call(watching, "forget", first)
+out["after_forget"] = [w["kind"] for w in ctx.monitor.watches]
+out["jobs_after_forget"] = [j["name"] for j in ctx.schedule.jobs if j["watch"] == first]
+
+# -- what must reach the person -----------------------------------------------
+banner = root.findChild(QObject, "noticeBanner")
+ctx.monitor.notify("Watching inbox", "In inbox: 1 new. <b>report.pdf</b>")
+pump(0.3)
+out["banners"] = banner.property("count")
+ctx.schedule.criticalFound.emit(2)
+pump(0.3)
+out["banners_after_critical"] = banner.property("count")
+out["critical_banners"] = banner.property("criticalCount")
+out["notices"] = [n["title"] for n in ctx.monitor.notices]
 print(json.dumps(out))
 """
 
@@ -157,6 +201,25 @@ def test_the_views_work_in_the_window(run):
         "allowing the weather's site dropped a site allowed elsewhere"
     assert out["located"] and out["unlocated"]
     assert out["site_removed"] == ["example.com"]
+
+    assert out["watch_visible"]
+    assert out["folder_needs"] == "folder" and "Not permitted" in out["folder_refusal"]
+    assert [kind for kind, _ in out["watched"]] == ["folder"]
+    assert [Path(folder).name for _, folder in out["watched"]] == ["inbox"]
+    assert [Path(scope).name for scope in out["read_scopes"]] == ["inbox"], \
+        "more than the watched folder was allowed"
+    assert out["paired"] == ["notify"], "asked to be told, and no notice job waits on the watch"
+    assert out["notices_needed"] == "notices" and out["notices_allowed"]
+    assert out["feed_needs"] == "site"
+    assert out["sites_after_feed"] == ["example.com", "news.example.org"], \
+        "allowing the feed's site dropped a site allowed elsewhere"
+    # The key a private feed keeps in its query is never shown, only that there was one.
+    assert out["feed_urls"] == ["https://news.example.org/feed.xml?…"]
+    assert out["after_forget"] == ["feed"] and out["jobs_after_forget"] == [], \
+        "a removed watch left its notice job waiting for events that will never come"
+
+    assert out["banners"] == 1 and out["notices"] == ["Watching inbox"]
+    assert out["banners_after_critical"] == 2 and out["critical_banners"] == 1
 
     script_errors = [line for line in errors.splitlines()
                      if "TypeError" in line or "ReferenceError" in line]

@@ -758,6 +758,8 @@ class Scheduler:
                 "enabled": job.enabled, "done": job.done,
                 "pausedReason": job.paused_reason, "missed": job.missed.value,
                 "running": job.id in self._running,
+                # The watch an event job waits on, so a view can keep the two together.
+                "watch": str(job.trigger.match.get("watch", "")) if job.trigger.is_event else "",
             } for job in self.jobs()]
 
     def history(self, job_id: str) -> list[dict]:
