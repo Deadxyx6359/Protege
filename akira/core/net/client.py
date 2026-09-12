@@ -38,7 +38,7 @@ import ssl
 import time
 import zlib
 from dataclasses import dataclass
-from urllib.parse import urlencode, urljoin, urlsplit
+from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
 
 from akira import __version__
 from akira.core.permissions import AuditLog
@@ -119,6 +119,19 @@ def fetchable(url: str) -> str:
 def with_query(url: str, params: dict[str, str]) -> str:
     """\a url with \a params as its query string, every name and value encoded."""
     return f"{url}?{urlencode(params)}"
+
+
+def query_value(url: str, name: str) -> str:
+    """The first value of \a name in \a url's query string, decoded, or "".
+
+    Here because this is the one module that may import `urllib`: a search
+    result's real address arrives wrapped in the search engine's own link.
+    """
+    try:
+        values = parse_qs(urlsplit(str(url)).query).get(name)
+    except ValueError:
+        return ""
+    return values[0] if values else ""
 
 
 def redact(url: str) -> str:
@@ -309,7 +322,8 @@ def _exchange(target: _Target, addresses: list[str], deadline: float, max_bytes:
 
 
 def _record(audit: AuditLog | None, actor: str, url: str, started: float, *,
-            response: Response | None = None, error: str = "") -> None:
+            capability: str = "net.http", response: Response | None = None,
+            error: str = "") -> None:
     if audit is None:
         return
     result = None
@@ -318,18 +332,28 @@ def _record(audit: AuditLog | None, actor: str, url: str, started: float, *,
                   "final": redact(response.url), "redirects": len(response.hops),
                   "truncated": response.truncated}
     audit.tool_call(actor, "net.fetch", {"url": redact(url)}, allowed=response is not None,
-                    capability="net.http", scope=host_of(url),
+                    capability=capability, scope=host_of(url),
                     duration_ms=int((time.monotonic() - started) * 1000),
                     error=error, result=result)
 
 
 def fetch(url: str, *, policy, audit: AuditLog | None = None, actor: str = ACTOR,
-          max_bytes: int = MAX_BYTES, timeout_s: float = TIMEOUT_S) -> Response:
-    """Fetch \a url for \a actor, held to \a policy's `net.http`.
+          max_bytes: int = MAX_BYTES, timeout_s: float = TIMEOUT_S,
+          capability: str = "net.http", hosts: tuple[str, ...] | None = None) -> Response:
+    """Fetch \a url for \a actor, held to \a policy.
+
+    Normally that is `net.http` for each site the request reaches. A request
+    made under another capability, such as `web.search`, names the only hosts
+    it may reach in \a hosts: every hop, redirects included, must be one of
+    them, whatever else `net.http` allows. So a grant to search sends a query
+    to the search engine and to nobody else.
 
     Raises `NetError` with a reason written for the person. Every outcome,
     refusals included, goes into \a audit.
     """
+    if capability != "net.http" and not hosts:
+        raise ValueError(f"a request under {capability} must name the hosts it may reach")
+    allowed_hosts = frozenset(host.lower() for host in hosts or ())
     started = time.monotonic()
     deadline = started + timeout_s
     hops: list[str] = []
@@ -337,9 +361,12 @@ def fetch(url: str, *, policy, audit: AuditLog | None = None, actor: str = ACTOR
     try:
         for _ in range(MAX_REDIRECTS + 1):
             target = _target(current)
-            decision = policy.allows("net.http", target.host)
+            via = f" It was redirected there from {hops[-1]}." if hops else ""
+            if allowed_hosts and target.host not in allowed_hosts:
+                raise NetError(f"{target.host} is not where {capability} sends anything, so "
+                               f"nothing was fetched.{via}")
+            decision = policy.allows(capability, target.host)
             if not decision:
-                via = f" It was redirected there from {hops[-1]}." if hops else ""
                 raise NetError(f"Not permitted: {decision.reason}.{via}")
             reply = _exchange(target, _checked(target), deadline, max_bytes, timeout_s)
             if reply.location:
@@ -348,9 +375,9 @@ def fetch(url: str, *, policy, audit: AuditLog | None = None, actor: str = ACTOR
                 continue
             response = Response(target.url, reply.status, reply.reason, reply.content_type,
                                 reply.body, reply.truncated, tuple(hops))
-            _record(audit, actor, url, started, response=response)
+            _record(audit, actor, url, started, capability=capability, response=response)
             return response
         raise NetError(f"The address redirected more than {MAX_REDIRECTS} times, so it was left.")
     except NetError as exc:
-        _record(audit, actor, url, started, error=str(exc))
+        _record(audit, actor, url, started, capability=capability, error=str(exc))
         raise

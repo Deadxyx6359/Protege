@@ -88,7 +88,7 @@ measured benchmarks, not from optimism.
 
 | Capability | Verdict | Item |
 |---|---|---|
-| Web search | Fine | C2 |
+| Web search | **Done**: DuckDuckGo, under its own permission that reaches DuckDuckGo and nothing else | C2 |
 | Full computer use — forms, posting, reservations, scraping without APIs, job applications, product testing | Fine — Playwright drives a real browser | C3 |
 | Screenshots | **Done**: agents read the words on screen; the person can save a capture where writing is allowed | C4 |
 | Email, calendar, text, Canvas, docs | Fine, per-connector permissions | C5 |
@@ -439,10 +439,21 @@ in C++, out of sight of both checks. Every engine now refuses the network
 and on QML that imports its own connection; and pictures in replies are served
 as links, because Qt opens `file://server/…` as a file and Windows as a
 network share.
-*Still to do:* the clients: C2 search, C3 browser, C5 connectors. `git push`
-is done under A8 with its own controls, since git is a process of its own.
+*Still to do:* the clients C3 browser and C5 connectors. Search (C2) uses it
+under its own permission; `git push` is done under A8 with its own controls,
+since git is a process of its own.
 
-**C2 ○ Web search** — `core/tools/builtin/search.py`
+**C2 ✅ Web search** — `core/net/search.py`, tool `web_search` in `core/tools/builtin/web.py`
+*Done:* DuckDuckGo, as the person chose: its plain HTML results page, no
+account and no key, one GET through the chokepoint. `web.search` is its own
+permission, and the chokepoint is told that under it the only host is
+DuckDuckGo's, so a query reaches DuckDuckGo and nobody else, redirects
+included, whatever `net.http` allows. The words searched for stay out of the
+activity log with the rest of the query string. Adverts are left out, the
+engine's wrapped links are unwrapped, and results reach agents framed as
+material; reading one is `fetch_page` under `net.http` for that site. When
+DuckDuckGo asks whether a person is searching, the answer is "try later".
+The gatherer may search.
 
 **C3 ○ Browser and computer use** — `core/tools/builtin/browser.py`
 Playwright driving a real browser: navigate, read, fill, click, scrape without
@@ -560,11 +571,12 @@ and resumable.
 | C | C6 Monitoring agent | ▶ folders, pages and feeds done; inboxes wait for C5 |
 | C | C7 Location and time | ✅ |
 | C | C4 Screen capture | ✅ |
-| C | C2, C3, C5, C8 Reach | ○ |
+| C | C2 Web search | ✅ |
+| C | C3, C5, C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1794 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 1802 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---
