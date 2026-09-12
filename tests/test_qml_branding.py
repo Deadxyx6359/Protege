@@ -111,6 +111,26 @@ out['summaryEndVisible'] = (out['summaryScrollY'] + scroll.property('availableHe
 QTest.keyClick(root, Qt.Key_Escape)
 worker.join(2)
 out['answers'] = answers
+
+# Search operates on visible names, responds to live model changes, and clears
+# with Escape. It must not turn this local filter into a filesystem/network scan.
+root.setProperty('sidebarOpen', True)
+sidebar.setProperty('projectModel', [{'id': 'fixture-a', 'name': 'Thesis', 'color': '#379062'},
+                                   {'id': 'fixture-b', 'name': 'Garden', 'color': '#379062'}])
+sidebar.setProperty('recentModel', [{'id': 'fixture-c', 'title': 'Thesis outline', 'when': 'Today'}])
+sidebar.setProperty('searchText', '  THESIS  ')
+out['foundProjects'] = sidebar.property('filteredProjects').toVariant()
+out['foundChats'] = sidebar.property('filteredRecents').toVariant()
+sidebar.setProperty('recentModel', [{'id': 'fixture-d', 'title': 'Shopping list', 'when': 'Today'}])
+out['refilteredChats'] = sidebar.property('filteredRecents').toVariant()
+sidebar.setProperty('searchText', 'nothing matches')
+out['emptySearch'] = root.findChild(QObject, 'sidebarSearchEmpty').property('visible')
+search = root.findChild(QObject, 'workspaceSearch')
+field = next(obj for obj in search.findChildren(QObject)
+             if obj.metaObject().className().startswith('TextField_QMLTYPE'))
+QMetaObject.invokeMethod(field, 'forceActiveFocus', Qt.DirectConnection)
+QTest.keyClick(root, Qt.Key_Escape)
+out['clearedSearch'] = sidebar.property('searchText')
 ctx.close()
 print(json.dumps(out))
 '''
@@ -172,3 +192,11 @@ def test_long_approval_stays_readable_and_keyboard_focus_stays_inside(rendered):
     assert rendered['tabOrder'] == ['confirmAllow', 'confirmSummaryScroll', 'confirmRefuse']
     assert rendered['summaryScrollY'] > 0 and rendered['summaryEndVisible']
     assert rendered['answers'] == [False]
+
+
+def test_sidebar_search_filters_names_and_tracks_updates(rendered):
+    assert [p['name'] for p in rendered['foundProjects']] == ['Thesis']
+    assert [c['title'] for c in rendered['foundChats']] == ['Thesis outline']
+    assert rendered['refilteredChats'] == []
+    assert rendered['emptySearch']
+    assert rendered['clearedSearch'] == ''

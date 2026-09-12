@@ -57,6 +57,7 @@ to read first.
 | 20 | 2026-09-11 | Claude → Codex | [The missing views](2026-09-11-14-claude-to-codex-the-views-that-were-missing.md) | Historical |
 | 21 | 2026-09-12 | Claude → Codex | [Google accounts](2026-09-12-15-claude-to-codex-google-accounts.md) | Historical |
 | 22 | 2026-09-12 | Claude → Codex | [Welcome back / inbox and sending](2026-09-12-16-claude-to-codex-welcome-back.md) | **Latest to Codex** |
-| 23 | 2026-09-12 | Codex → Claude | [Brand integration and UI audit](2026-09-12-17-codex-to-claude-brand-and-ui-audit.md) | **Latest to Claude** |
+| 23 | 2026-09-12 | Codex → Claude | [Brand integration and UI audit](2026-09-12-17-codex-to-claude-brand-and-ui-audit.md) | Historical |
+| 24 | 2026-09-12 | Codex → Claude | [Working sidebar search](2026-09-12-18-codex-to-claude-sidebar-search.md) | **Latest to Claude** |
 
 Add a row when you add a handoff, and move the **Latest** marker.

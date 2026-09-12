@@ -27,6 +27,23 @@ Item {
     property string currentNav: ""
     property string currentProject: ""
     property string currentRecent: ""
+    property alias searchText: search.text
+    readonly property string query: searchText.trim().toLowerCase()
+    readonly property bool searching: query.length > 0
+    readonly property var filteredProjects: searching ? projectModel.filter(function (p) {
+        return String(p.name || "").toLowerCase().indexOf(root.query) !== -1;
+    }) : projectModel
+    readonly property var filteredRecents: searching ? recentModel.filter(function (r) {
+        return String(r.title || "").toLowerCase().indexOf(root.query) !== -1;
+    }) : recentModel
+
+    function openFirstMatch() {
+        if (!searching) return;
+        if (filteredProjects.length > 0) projectSelected(filteredProjects[0].id);
+        else if (filteredRecents.length > 0) recentSelected(filteredRecents[0].id);
+        else return;
+        searchText = "";
+    }
 
     signal navSelected(string id)
     signal projectSelected(string id)
@@ -94,6 +111,10 @@ Item {
         // -- search ---------------------------------------------------------
 
         SearchField {
+            id: search
+            objectName: "workspaceSearch"
+            placeholder: "Find projects or chats"
+            onAccepted: root.openFirstMatch()
             Layout.fillWidth: true
             Layout.leftMargin: Theme.space.md
             Layout.rightMargin: Theme.space.md
@@ -130,10 +151,11 @@ Item {
                     Layout.leftMargin: Theme.space.md
                     Layout.bottomMargin: Theme.space.xs
                     text: "Workspace"
+                    visible: !root.searching
                 }
 
                 Repeater {
-                    model: root.navModel
+                    model: root.searching ? [] : root.navModel
 
                     NavRow {
                         required property var modelData
@@ -152,10 +174,11 @@ Item {
                     Layout.topMargin: Theme.space.lg
                     Layout.bottomMargin: Theme.space.xs
                     text: "Projects"
+                    visible: !root.searching || root.filteredProjects.length > 0
                 }
 
                 Repeater {
-                    model: root.projectModel
+                    model: root.filteredProjects
 
                     NavRow {
                         required property var modelData
@@ -165,7 +188,7 @@ Item {
                         label: modelData.name
                         dotColor: modelData.color
                         selected: root.currentProject === modelData.id
-                        onClicked: root.projectSelected(modelData.id)
+                        onClicked: { root.projectSelected(modelData.id); root.searchText = ""; }
                     }
                 }
 
@@ -175,6 +198,7 @@ Item {
                     Layout.rightMargin: Theme.space.sm
                     icon: "plus"
                     label: "New project"
+                    visible: !root.searching
                     onClicked: root.newProjectRequested()
                 }
 
@@ -183,11 +207,11 @@ Item {
                     Layout.topMargin: Theme.space.lg
                     Layout.bottomMargin: Theme.space.xs
                     text: "Recent"
-                    visible: root.recentModel.length > 0
+                    visible: root.filteredRecents.length > 0
                 }
 
                 Repeater {
-                    model: root.recentModel
+                    model: root.filteredRecents
 
                     NavRow {
                         required property var modelData
@@ -198,8 +222,22 @@ Item {
                         label: modelData.title
                         detail: modelData.when
                         selected: root.currentRecent === modelData.id
-                        onClicked: root.recentSelected(modelData.id)
+                        onClicked: { root.recentSelected(modelData.id); root.searchText = ""; }
                     }
+                }
+
+                Text {
+                    objectName: "sidebarSearchEmpty"
+                    Layout.fillWidth: true
+                    Layout.margins: Theme.space.lg
+                    visible: root.searching && root.filteredProjects.length === 0
+                             && root.filteredRecents.length === 0
+                    text: "No matching projects or chats.\nTry a different name."
+                    textFormat: Text.PlainText
+                    font: Theme.type.callout
+                    color: Theme.textSecondary
+                    wrapMode: Text.Wrap
+                    lineHeight: Theme.leading.normal
                 }
 
                 Item { Layout.preferredHeight: Theme.space.lg }

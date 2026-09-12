@@ -62,6 +62,7 @@ Item {
         padding: 0
 
         onAccepted: root.accepted(text)
+        Keys.onEscapePressed: { field.text = ""; field.forceActiveFocus(); }
     }
 
     IconButton {
@@ -71,6 +72,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         visible: field.text !== ""
         icon: "close"
+        label: "Clear search"
         size: 22
         iconSize: 13
         flat: true
