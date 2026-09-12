@@ -202,13 +202,43 @@ def test_a_post_moves_on_from_an_address_it_could_not_reach(wire):
     assert [sent["address"] for sent in cable.requests] == [SECOND]
 
 
-@pytest.mark.parametrize("method, hosts, form, reason", [
-    ("DELETE", MAIL, None, "GET or POST"),
-    ("GET", (), None, "must name the hosts"),
-    ("POST", MAIL, None, "carries a form"),
-    ("GET", MAIL, {"a": "b"}, "carries a form"),
+def test_a_document_is_posted_as_json_and_never_logged(wire, tmp_path):
+    cable = wire({("gmail.googleapis.com", "/gmail/v1/users/me/messages/send"):
+                  json_reply(b'{"id": "18a9"}')})
+    audit = AuditLog(tmp_path / "audit.jsonl")
+    policy = Policy()
+    policy.grant("mail.send", (ACCOUNT,))
+    reply = net.call("POST", "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+                     policy=policy, capability="mail.send", scope=ACCOUNT, hosts=MAIL,
+                     audit=audit, bearer=lambda: "ya29.x", payload={"raw": "a-private-message"})
+    assert reply.ok
+    [sent] = cable.requests
+    assert sent["headers"]["content-type"].startswith("application/json")
+    assert sent["body"] == b'{"raw": "a-private-message"}'
+    assert "a-private-message" not in (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+
+
+def test_a_delete_is_sent_once_however_the_line_behaves(wire):
+    path = "/calendar/v3/calendars/primary/events/abc"
+    cable = wire({("www.googleapis.com", path): json_reply(b"", 204)},
+                 found={"www.googleapis.com": [GOOGLE, SECOND]}, drop=True)
+    policy = Policy()
+    policy.grant("calendar.write", (ACCOUNT,))
+    with pytest.raises(NetError, match="not sent again"):
+        net.call("DELETE", f"https://www.googleapis.com{path}", policy=policy,
+                 capability="calendar.write", scope=ACCOUNT, hosts=("www.googleapis.com",))
+    assert len(cable.requests) == 1
+
+
+@pytest.mark.parametrize("method, hosts, form, payload, reason", [
+    ("PUT", MAIL, None, None, "GET, POST or DELETE"),
+    ("GET", (), None, None, "must name the hosts"),
+    ("POST", MAIL, None, None, "carries a form or a payload"),
+    ("GET", MAIL, {"a": "b"}, None, "carries a form or a payload"),
+    ("DELETE", MAIL, None, {"a": "b"}, "carries a form or a payload"),
+    ("POST", MAIL, {"a": "b"}, {"c": "d"}, "carries a form or a payload"),
 ])
-def test_what_a_signed_in_request_may_be(method, hosts, form, reason):
+def test_what_a_signed_in_request_may_be(method, hosts, form, payload, reason):
     with pytest.raises(ValueError, match=reason):
         net.call(method, f"https://gmail.googleapis.com{LIST}", policy=mailbox(ACCOUNT),
-                 capability="mail.read", scope=ACCOUNT, hosts=hosts, form=form)
+                 capability="mail.read", scope=ACCOUNT, hosts=hosts, form=form, payload=payload)

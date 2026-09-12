@@ -1,11 +1,16 @@
-"""The person's connected Google address (C5): mail and calendar, read only.
+"""The person's connected Google address (C5): reading mail and the calendar, and sending.
 
-Each tool is held to the address's own permission, `mail.read` or
-`calendar.read`, which the registry checks against the address the call names,
-or the one connected address when it names none. The sign-in is added by the
-connector beneath the tool, so a model never sees it. What comes back is framed
-as material, not instructions: an email says whatever its sender wanted, and a
-calendar invitation whatever its organiser wrote.
+Each tool is held to the address's own permission, `mail.read`,
+`calendar.read` or `mail.send`, which the registry checks against the address
+the call names, or the one connected address when it names none. The sign-in is
+added by the connector beneath the tool, so a model never sees it. What comes
+back is framed as material, not instructions: an email says whatever its sender
+wanted, and a calendar invitation whatever its organiser wrote.
+
+`send_mail` is irreversible, so it stops for the person every time, grant or no
+grant, and what they are shown is the whole message: who it is from and for,
+the subject, and every word of it. A message that would not pass is refused
+before anyone is asked.
 """
 
 from __future__ import annotations
@@ -38,6 +43,13 @@ def _mailbox(text: str) -> str:
 
 def _calendar(text: str) -> str:
     return str(text).strip().lower() or AccountStore().default("calendar")
+
+
+def _outbox(text: str) -> str:
+    # The address connected for sending, or the one for mail, so a refusal names
+    # an address the person can do something about.
+    store = AccountStore()
+    return str(text).strip().lower() or store.default("send") or store.default("mail")
 
 
 def _connected(context: ToolContext) -> GoogleAccounts:
@@ -113,6 +125,54 @@ read_mail = Tool(
 )
 
 
+def _outgoing(arguments: dict, context: ToolContext) -> gmail.Outgoing:
+    """The message, checked, from an address connected for sending. Before anyone is asked."""
+    try:
+        message = gmail.draft(_outbox(arguments.get("account", "")), arguments["to"],
+                              arguments["subject"], arguments["body"])
+    except ConnectError as exc:
+        raise ToolError(str(exc)) from None
+    account = _connected(context).account(message.sender)
+    if account is None or "send" not in account.services:
+        raise ToolError(f"{message.sender} is not connected for sending. Connect it again with "
+                        "sending switched on, in Settings, Accounts.")
+    return message
+
+
+def _describe_send(arguments: dict, context: ToolContext) -> str:
+    message = _outgoing(arguments, context)
+    return (f"Send an email from {message.sender} to {', '.join(message.to)}.\n"
+            f"Subject: {message.subject}\n\n{message.body}")
+
+
+def _run_send_mail(arguments: dict, context: ToolContext) -> ToolResult:
+    message = _outgoing(arguments, context)
+    try:
+        sent = gmail.send(_connected(context), message, policy=context.policy,
+                          audit=context.audit, actor=context.actor)
+    except ConnectError as exc:
+        raise ToolError(str(exc)) from None
+    return ToolResult.success(f"Sent to {', '.join(message.to)}: {message.subject}.",
+                              data={"id": sent, "to": list(message.to),
+                                    "subject": message.subject})
+
+
+send_mail = Tool(
+    name="send_mail",
+    summary=("Send an email from the person's connected Gmail. They see the whole message "
+             "and approve it before it goes, every time."),
+    parameters=(Parameter("to", "string", "Who it is for: an address, or several separated by "
+                                          "commas."),
+                Parameter("subject", "string", "The subject, on one line."),
+                Parameter("body", "string", "What it says, in plain text."),
+                _account()),
+    requires=(Requirement("mail.send", scope_from="account", scope_of=_outbox),),
+    run=_run_send_mail,
+    reversible=False,
+    describe=_describe_send,
+)
+
+
 # -- the calendar -----------------------------------------------------------------------------------
 
 
@@ -175,4 +235,4 @@ list_events = Tool(
 )
 
 
-ALL = (search_mail, read_mail, list_events)
+ALL = (search_mail, read_mail, send_mail, list_events)

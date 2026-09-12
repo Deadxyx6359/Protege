@@ -17,9 +17,11 @@ DPAPI (`google.client`) and never shown to a model. Connecting an address then:
 4. Checks the person signed in as the address they named. Signing in as
    someone else connects nothing: the sign-in is handed back and forgotten.
 
-Only reading is asked of Google for now, `gmail.readonly` and
-`calendar.readonly`, and Google's page says exactly that. Disconnecting hands
-the sign-in back to Google and forgets it here.
+Google is asked only for what the person chose: reading (`gmail.readonly`,
+`calendar.readonly`), and sending (`gmail.send`) only when they switch it on,
+each needing its own permission for the address first. Google's page says
+exactly what is asked. Connecting again for more keeps what was granted before.
+Disconnecting hands the sign-in back to Google and forgets it here.
 """
 
 from __future__ import annotations
@@ -88,7 +90,10 @@ MAIL = Service("mail", "Gmail", "mail.read",
                "https://www.googleapis.com/auth/gmail.readonly", ("gmail.googleapis.com",))
 CALENDAR = Service("calendar", "Google Calendar", "calendar.read",
                    "https://www.googleapis.com/auth/calendar.readonly", ("www.googleapis.com",))
-SERVICES = {service.name: service for service in (MAIL, CALENDAR)}
+#: Sending only: `gmail.send` cannot read, change or delete anything.
+SEND = Service("send", "Sending from Gmail", "mail.send",
+               "https://www.googleapis.com/auth/gmail.send", ("gmail.googleapis.com",))
+SERVICES = {service.name: service for service in (MAIL, CALENDAR, SEND)}
 
 
 def address_of(text: str) -> str:
@@ -354,13 +359,15 @@ class GoogleAccounts:
         lasting = str(data.get("refresh_token") or "")
         granted = set(str(data.get("scope") or "").split())
         who = _email_of(data.get("id_token"))
-        services = tuple(name for name in pending.services if SERVICES[name].scope in granted)
+        # Everything the address has granted, not only what this sign-in asked
+        # for: connecting again to add sending keeps reading.
+        services = tuple(name for name, spec in SERVICES.items() if spec.scope in granted)
         problem = ""
         if who != pending.address:
             problem = (f"You signed in as {who or 'an address Google did not name'}, not "
                        f"{pending.address}, so nothing was connected. Sign in as "
                        f"{pending.address}, or connect the other address instead.")
-        elif not services:
+        elif not set(pending.services) & set(services):
             problem = ("Google was not given permission to read anything, so nothing was "
                        "connected. Tick the boxes on Google's page to allow reading.")
         elif not lasting:
@@ -430,20 +437,44 @@ class GoogleAccounts:
     def get(self, address: str, service: str, url: str, *, policy, audit: AuditLog | None,
             actor: str) -> dict:
         """Read \a url from \a service as \a address. Raises `ConnectError` with a reason."""
+        return self._signed("GET", address, service, url, policy=policy, audit=audit,
+                            actor=actor)
+
+    def post(self, address: str, service: str, url: str, payload: dict, *, policy,
+             audit: AuditLog | None, actor: str) -> dict:
+        """Send \a payload to \a url as \a address, at most once. Raises `ConnectError`."""
+        return self._signed("POST", address, service, url, payload=payload, policy=policy,
+                            audit=audit, actor=actor)
+
+    def delete(self, address: str, service: str, url: str, *, policy, audit: AuditLog | None,
+               actor: str) -> dict:
+        """Remove what \a url names, as \a address, at most once. Raises `ConnectError`."""
+        return self._signed("DELETE", address, service, url, policy=policy, audit=audit,
+                            actor=actor)
+
+    def _signed(self, method: str, address: str, service: str, url: str, *,
+                payload: dict | None = None, policy, audit: AuditLog | None,
+                actor: str) -> dict:
         spec = SERVICES[service]
+        account = self._store.get(address)
+        if account is not None and service not in account.services:
+            # Google would refuse it anyway, but only after a sign-in went to it.
+            raise ConnectError(f"{address} is not connected for {spec.title}. Connect it again "
+                               "with that switched on, in Settings, Accounts.")
 
         def signed_in() -> str:
             return self.token(address, service, policy=policy, audit=audit, actor=actor)
 
         for attempt in (1, 2):
             try:
-                response = call("GET", url, policy=policy, capability=spec.capability,
+                response = call(method, url, policy=policy, capability=spec.capability,
                                 scope=address, hosts=spec.hosts, audit=audit, actor=actor,
-                                bearer=signed_in)
+                                bearer=signed_in, payload=payload)
             except NetError as exc:
                 raise ConnectError(str(exc)) from None
             if response.status == 401 and attempt == 1:
-                # The short-lived sign-in went stale early: renew it once.
+                # The short-lived sign-in went stale early: renew it once. A request
+                # refused for its sign-in did nothing, so asking again cannot do it twice.
                 _forget_access(address)
                 continue
             data = _json(response)

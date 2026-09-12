@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import http.client
 import ipaddress
+import json
 import socket
 import ssl
 import time
@@ -320,7 +321,7 @@ def _answer(connection, target: _Target, method: str, headers: dict[str, str],
 
 def _exchange(target: _Target, addresses: list[str], deadline: float, max_bytes: int,
               limit_s: float, *, method: str = "GET", headers: dict[str, str] | None = None,
-              body: bytes | None = None) -> _Reply:
+              body: bytes | None = None, once: bool = False) -> _Reply:
     sent = headers if headers is not None else _PLAIN_HEADERS
     problem: Exception | None = None
     for address in addresses:
@@ -329,10 +330,10 @@ def _exchange(target: _Target, addresses: list[str], deadline: float, max_bytes:
             break
         connection = _open(target.host, address, target.port, remaining)
         try:
-            if body is None:
-                return _answer(connection, target, method, sent, None, deadline, max_bytes,
+            if not once:
+                return _answer(connection, target, method, sent, body, deadline, max_bytes,
                                limit_s)
-            # A request that carries something is sent at most once. Failing to
+            # A request that does something is sent at most once. Failing to
             # reach an address is a reason to try the next; losing the site after
             # sending is not, because it may have been done already.
             try:
@@ -429,8 +430,9 @@ def fetch(url: str, *, policy, audit: AuditLog | None = None, actor: str = ACTOR
 
 # -- a signed-in request ----------------------------------------------------------------------
 
-#: What a signed-in request may be: reading, or sending a form such as a sign-in code.
-CALL_METHODS = frozenset({"GET", "POST"})
+#: What a signed-in request may be: reading, sending a form or a document, or
+#: removing something, such as a calendar event the person agreed to cancel.
+CALL_METHODS = frozenset({"GET", "POST", "DELETE"})
 
 #: What a connected account's servers usually answer in.
 JSON = "application/json"
@@ -455,7 +457,7 @@ def _record_call(audit: AuditLog | None, actor: str, method: str, url: str, star
 def call(method: str, url: str, *, policy, capability: str, scope: str, hosts: tuple[str, ...],
          audit: AuditLog | None = None, actor: str = ACTOR,
          bearer: Callable[[], str] | None = None, form: dict[str, str] | None = None,
-         accept: str = JSON, max_bytes: int = MAX_BYTES,
+         payload: dict | None = None, accept: str = JSON, max_bytes: int = MAX_BYTES,
          timeout_s: float = TIMEOUT_S) -> Response:
     """A request to a connected account's servers, carrying its sign-in.
 
@@ -463,20 +465,22 @@ def call(method: str, url: str, *, policy, capability: str, scope: str, hosts: t
     mailbox), and to \a hosts, the provider's own servers. \a bearer is asked
     for the sign-in only once every other check has passed, so a refused
     request never even fetches one, and it goes only in the Authorization
-    header. A POST carries \a form, such as a sign-in code being exchanged, and
-    is sent at most once. A redirect is refused, never followed.
+    header. A POST carries \a form, such as a sign-in code being exchanged, or
+    \a payload, a JSON document such as a message to send. Anything but a GET is
+    sent at most once. A redirect is refused, never followed.
 
     Raises `NetError` with a reason written for the person, and `ValueError`
     for a request that could never be right. Every outcome goes into \a audit,
-    without the sign-in, the form or the query string.
+    without the sign-in, the form, the payload or the query string.
     """
     method = str(method).upper()
     if method not in CALL_METHODS:
-        raise ValueError(f"a signed-in request is GET or POST, not {method}")
+        raise ValueError(f"a signed-in request is GET, POST or DELETE, not {method}")
     if not hosts:
         raise ValueError(f"a request under {capability} must name the hosts it may reach")
-    if (form is not None) != (method == "POST"):
-        raise ValueError("a POST carries a form, and only a POST does")
+    carried = (form is not None) + (payload is not None)
+    if carried != (method == "POST"):
+        raise ValueError("a POST carries a form or a payload, one of them, and only a POST does")
     allowed_hosts = frozenset(host.lower() for host in hosts)
     started = time.monotonic()
     try:
@@ -494,10 +498,13 @@ def call(method: str, url: str, *, policy, capability: str, scope: str, hosts: t
         if form is not None:
             body = urlencode(form).encode("ascii")
             headers["Content-Type"] = "application/x-www-form-urlencoded"
+        elif payload is not None:
+            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            headers["Content-Type"] = "application/json; charset=utf-8"
         if bearer is not None:
             headers["Authorization"] = f"Bearer {bearer()}"
         reply = _exchange(target, addresses, started + timeout_s, max_bytes, timeout_s,
-                          method=method, headers=headers, body=body)
+                          method=method, headers=headers, body=body, once=method != "GET")
         if reply.location:
             onward = redact(urljoin(target.url, reply.location))
             raise NetError(f"{target.host} sent the request on to {onward}. A signed-in "

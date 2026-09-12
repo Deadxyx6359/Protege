@@ -18,7 +18,7 @@ Sheet {
     id: root
 
     title: "Google accounts"
-    subtitle: "Gmail and Google Calendar, read only"
+    subtitle: "Gmail and Google Calendar"
     sheetWidth: 640
 
     property string address: ""
@@ -218,7 +218,9 @@ Sheet {
                     Text {
                         Layout.fillWidth: true
                         text: offer.modelData.id === "mail"
-                              ? "Search and read messages. Nothing is sent, deleted or marked read."
+                              ? "Search and read messages. Nothing is deleted or marked read."
+                              : offer.modelData.id === "send"
+                              ? "Send a message when you ask. Each one is shown to you whole, and goes only if you approve it."
                               : "See events. Nothing is added, moved or cancelled."
                         textFormat: Text.PlainText
                         font: Theme.type.caption
@@ -350,7 +352,7 @@ Sheet {
                     Text {
                         Layout.fillWidth: true
                         text: held.modelData.needsSignIn !== "" ? held.modelData.needsSignIn
-                              : "Reading " + held.modelData.titles.join(" and ") + " since "
+                              : held.modelData.titles.join(", ") + " · since "
                                 + Qt.formatDate(new Date(held.modelData.connected * 1000), "d MMM yyyy")
                         textFormat: Text.PlainText
                         font: Theme.type.caption

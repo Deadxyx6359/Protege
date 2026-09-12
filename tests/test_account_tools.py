@@ -47,6 +47,9 @@ def fake_google(monkeypatch):
     def install(answers):
         def open_(host, address, port, timeout):
             class Connection:
+                def connect(self):
+                    pass
+
                 def request(self, method, path, body=None, headers=None):
                     requests.append((host, path))
                     self._reply = Reply(answers[(host, path.split("?", 1)[0])])
@@ -70,10 +73,10 @@ def home(tmp_path, monkeypatch):
     monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
     vault = SecretStore(tmp_path / "secrets")
 
-    def connect(*addresses):
+    def connect(*addresses, services=("mail", "calendar", "send")):
         for address in addresses:
             vault.put(refresh_name(address), "1//lasting-sign-in")
-            AccountStore().save(google.Account(address, ("mail", "calendar"), 1.0))
+            AccountStore().save(google.Account(address, tuple(services), 1.0))
             google._ACCESS[address] = ("ya29.held", 10**12)
 
     yield vault, connect
@@ -158,8 +161,70 @@ def test_the_calendar_is_listed_under_its_own_permission(home, tmp_path, fake_go
     assert not refused.ok and len(sent) == 1
 
 
-def test_the_secretary_reads_and_can_change_nothing():
+def test_anything_the_secretary_can_change_stops_for_the_person():
     registry = default_registry()
     tools = [registry.get(name) for name in SECRETARY.tools]
     assert all(tools), "the secretary names a tool that does not exist"
-    assert all(tool.reversible for tool in tools), "the secretary was given a tool that changes something"
+    assert {t.name for t in tools if not t.reversible} == {"send_mail"}, \
+        "the secretary can change something without being asked each time"
+
+
+def send_args(**changes):
+    arguments = {"to": "sam@example.com", "subject": "Lunch", "body": "See you at one."}
+    arguments.update(changes)
+    return arguments
+
+
+def test_sending_needs_mail_send_for_the_address(home, tmp_path, fake_google):
+    vault, connect = home
+    connect(ADDRESS)
+    sent = fake_google({(MAIL, f"{LIST}/send"): {"id": "18a9"}})
+    result = default_registry().invoke("send_mail", send_args(),
+                                       context(vault, tmp_path, mail_read=[ADDRESS]))
+    assert not result.ok and "Not permitted" in result.content and sent == []
+
+
+def test_the_person_sees_the_whole_message_and_nothing_goes_without_a_yes(home, tmp_path,
+                                                                           fake_google):
+    vault, connect = home
+    connect(ADDRESS)
+    sent = fake_google({(MAIL, f"{LIST}/send"): {"id": "18a9"}})
+    asked = []
+    refusing = context(vault, tmp_path, mail_send=[ADDRESS])
+    refusing.confirm = lambda summary: asked.append(summary) or False
+    result = default_registry().invoke("send_mail", send_args(), refusing)
+    assert not result.ok and "did not approve" in result.content and sent == []
+    [summary] = asked
+    assert f"from {ADDRESS} to sam@example.com" in summary
+    assert "Subject: Lunch" in summary and "See you at one." in summary
+
+    approving = context(vault, tmp_path, mail_send=[ADDRESS])
+    approving.confirm = lambda summary: True
+    result = default_registry().invoke("send_mail", send_args(), approving)
+    assert result.ok and "Sent to sam@example.com" in result.content and len(sent) == 1
+
+
+def test_a_message_that_would_not_pass_is_refused_before_anyone_is_asked(home, tmp_path,
+                                                                        fake_google):
+    vault, connect = home
+    connect(ADDRESS)
+    sent = fake_google({(MAIL, f"{LIST}/send"): {"id": "18a9"}})
+    asked = []
+    allowed = context(vault, tmp_path, mail_send=[ADDRESS])
+    allowed.confirm = lambda summary: asked.append(summary) or True
+    result = default_registry().invoke("send_mail", send_args(to="not-an-address"), allowed)
+    assert not result.ok and "not an email address" in result.content
+    assert asked == [] and sent == []
+
+
+def test_an_address_connected_for_reading_only_is_not_asked_to_send(home, tmp_path, fake_google):
+    vault, connect = home
+    connect(ADDRESS, services=("mail",))
+    sent = fake_google({(MAIL, f"{LIST}/send"): {"id": "18a9"}})
+    asked = []
+    allowed = context(vault, tmp_path, mail_send=[ADDRESS])
+    allowed.confirm = lambda summary: asked.append(summary) or True
+    result = default_registry().invoke("send_mail", send_args(), allowed)
+    assert not result.ok and "not connected for sending" in result.content
+    assert ADDRESS in result.content, "the refusal did not say which address"
+    assert asked == [] and sent == []

@@ -91,7 +91,7 @@ measured benchmarks, not from optimism.
 | Web search | **Done**: DuckDuckGo, under its own permission that reaches DuckDuckGo and nothing else | C2 |
 | Full computer use — forms, posting, reservations, scraping without APIs, job applications, product testing | Fine — Playwright drives a real browser | C3 |
 | Screenshots | **Done**: agents read the words on screen; the person can save a capture where writing is allowed | C4 |
-| Email, calendar, text, Canvas, docs | **Gmail and Google Calendar reading done**, once the person connects an address: its own permission, a sealed sign-in, a secretary agent that reads and cannot send. Sending, other connectors to come | C5 |
+| Email, calendar, text, Canvas, docs | **Gmail and Google Calendar reading, and Gmail sending, done**, once the person connects an address: its own permission, a sealed sign-in, a secretary agent that reads and sends only what the person approves, each message shown whole. Calendar changes and other connectors to come | C5 |
 | Banking | **Read-only, permanently** | C5 |
 | Monitoring agent — watch for changes | **Folders, pages, feeds and Gmail inboxes done**: changes wake scheduled jobs, which can put up notices or set an agent to work | C6 |
 | Time-based and event-based processes (daily/weekly/monthly/custom) | **Done** | A6 |
@@ -526,7 +526,16 @@ week, which Google does for apps left in testing.
 *Done since, from the window:* Settings, Accounts (`AccountsSheet.qml`, bridge
 `Accounts`): the client file, the address, the permissions it needs offered
 beside it, the sign-in in the person's browser, and disconnecting.
-*Next:* inboxes for C6; sending mail and changing events, each confirmed.
+*Done since, sending:* an address can be connected for sending too; Google is
+asked for `gmail.send` alone, under `mail.send` for that address, and
+connecting again for it keeps reading. `send_mail` is irreversible, so every
+message stops for the person, who sees who it is from and for, the subject and
+every word of it; a message that would not pass (an address that is not one,
+more than ten people, a subject over a line, more than 5,000 characters) is
+refused before anyone is asked. The one door carries a JSON document or a
+DELETE now, and anything but a read is sent at most once. The secretary may
+send, and is told never to because an email asks it to.
+*Next:* changing calendar events, each confirmed.
 
 **C6 ✅ Monitoring agent** — `core/agents/monitor.py`, bridge `ui/bridge/monitor.py`
 Watch a page, folder, inbox or feed for change; run on the scheduler; notify or
@@ -641,7 +650,7 @@ and resumable.
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1902 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 1923 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

@@ -1,8 +1,10 @@
-"""Reading Gmail, as a connected address (C5).
+"""Gmail, as a connected address (C5): reading, and sending what the person approved.
 
-Only reading: Google was asked for `gmail.readonly`, and every request is held
-to `mail.read` for the address. An email says whatever its sender wanted, so
-the tools that show one to a model frame it as material, not instructions.
+Reading is held to `mail.read` for the address, and an email says whatever its
+sender wanted, so the tools that show one to a model frame it as material, not
+instructions. Sending is held to `mail.send`, and a message is checked by
+`draft` before anyone is asked about it: real addresses, a subject on one line,
+a body short enough to be read in full when the person approves it.
 """
 
 from __future__ import annotations
@@ -11,6 +13,8 @@ import base64
 import html
 import re
 from dataclasses import dataclass
+from email.message import EmailMessage
+from email.utils import parseaddr
 
 from akira.core.net import with_query
 from akira.core.net.page import readable
@@ -29,6 +33,16 @@ HEADERS = ("From", "To", "Subject", "Date")
 
 #: What a Gmail message id looks like. Anything else never reaches an address.
 _ID = re.compile(r"\A[A-Za-z0-9_-]{1,64}\Z")
+
+_ADDRESS = re.compile(r"\A[^@\s,;<>\"]+@[^@\s,;<>\"]+\.[^@\s,;<>\"]+\Z")
+
+#: People one message may go to at once.
+MAX_RECIPIENTS = 10
+
+#: The longest subject, and the longest message: short enough for the person to
+#: read in full when they approve it.
+MAX_SUBJECT_CHARS = 200
+MAX_SEND_CHARS = 5_000
 
 _CHARSET = re.compile(r"charset\s*=\s*\"?([\w.-]+)", re.I)
 
@@ -138,3 +152,69 @@ def read(accounts: GoogleAccounts, address: str, message_id: str, *, policy, aud
     mail = _mail(data)
     text = text.strip() or mail.snippet
     return Letter(mail, text[:MAX_TEXT_CHARS], len(text) > MAX_TEXT_CHARS, tuple(names))
+
+
+# -- sending --------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Outgoing:
+    """A message checked and ready to show the person, then to send."""
+
+    sender: str
+    to: tuple[str, ...]
+    subject: str
+    body: str
+
+
+def _recipients(to) -> tuple[str, ...]:
+    items = to if isinstance(to, (list, tuple)) else str(to).replace(";", ",").split(",")
+    found: list[str] = []
+    for item in items:
+        text = str(item).strip()
+        if not text:
+            continue
+        _, address = parseaddr(text)
+        address = address.strip().lower()
+        if not _ADDRESS.match(address):
+            raise ConnectError(f"{text!r} is not an email address.")
+        if address not in found:
+            found.append(address)
+    if not found:
+        raise ConnectError("Say who the message is for.")
+    if len(found) > MAX_RECIPIENTS:
+        raise ConnectError(f"A message goes to at most {MAX_RECIPIENTS} people at once.")
+    return tuple(found)
+
+
+def draft(sender: str, to, subject: str, body: str) -> Outgoing:
+    """Check a message before anyone is asked about it. Raises `ConnectError` with why not."""
+    if not _ADDRESS.match(str(sender).strip().lower()):
+        raise ConnectError("No Google address is connected for sending. Connect one, with "
+                           "sending switched on, in Settings, Accounts.")
+    # One line: a line break in a subject would begin a header of its own.
+    subject = " ".join(str(subject).split())
+    if not subject:
+        raise ConnectError("A message needs a subject.")
+    if len(subject) > MAX_SUBJECT_CHARS:
+        raise ConnectError(f"Keep the subject to {MAX_SUBJECT_CHARS} characters.")
+    text = str(body).replace("\r\n", "\n").strip()
+    if not text:
+        raise ConnectError("A message needs something to say.")
+    if len(text) > MAX_SEND_CHARS:
+        raise ConnectError(f"A message is at most {MAX_SEND_CHARS} characters, so the person "
+                           "can read all of it before it goes.")
+    return Outgoing(str(sender).strip().lower(), _recipients(to), subject, text)
+
+
+def send(accounts: GoogleAccounts, message: Outgoing, *, policy, audit, actor: str) -> str:
+    """Send \a message from its sender's Gmail, once. Returns Gmail's id for it."""
+    mime = EmailMessage()
+    mime["From"] = message.sender
+    mime["To"] = ", ".join(message.to)
+    mime["Subject"] = message.subject
+    mime.set_content(message.body)
+    raw = base64.urlsafe_b64encode(mime.as_bytes()).decode("ascii")
+    sent = accounts.post(message.sender, "send", f"{API}/messages/send", {"raw": raw},
+                         policy=policy, audit=audit, actor=actor)
+    return str(sent.get("id", ""))

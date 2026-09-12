@@ -128,7 +128,7 @@ Sheet {
                 }
                 Text {
                     Layout.fillWidth: true
-                    text: "Gmail and Google Calendar, read only, once you connect an address."
+                    text: "Gmail and Google Calendar, once you connect an address. Sending asks you every time."
                     font: Theme.type.caption
                     color: Theme.textTertiary
                     wrapMode: Text.Wrap
