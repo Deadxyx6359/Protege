@@ -28,6 +28,12 @@ MODELS_DIR = REPO_ROOT / "models"
 APP_DIR = "Akira"
 LEGACY_DIR = "Protege"
 
+#: What Qt keeps in the settings folder by itself. Its compiled QML and shader
+#: caches go in %LOCALAPPDATA%\<organisation>\<application>, and the window names
+#: both Akira, so any run of it, a test's included, makes the settings folder
+#: with this inside and nothing else. It is a cache, not settings.
+QT_FOLDER = "Akira"
+
 
 def _override() -> Path | None:
     # The old variable is still read, so a setup made before the rename works.
@@ -42,6 +48,17 @@ def _home(name: str) -> Path:
     return Path.home() / ".config" / name.lower()
 
 
+def _holds_settings(folder: Path) -> bool:
+    """Whether a folder holds anything but Qt's cache: settings, in other words."""
+    try:
+        return any(entry.name != QT_FOLDER for entry in folder.iterdir())
+    except FileNotFoundError:
+        return False
+    except OSError:
+        # Unreadable, or not a folder: never taken for empty, so never moved onto.
+        return True
+
+
 def config_dir() -> Path:
     """Per-user configuration directory.
 
@@ -51,13 +68,14 @@ def config_dir() -> Path:
 
     Until `migrate_config` has moved it, the folder from before the rename is
     used where it is. Starting with an empty one instead would look like every
-    permission, job and saved credential had been lost.
+    permission, job and saved credential had been lost. A new folder with only
+    Qt's cache in it is empty in that sense: the window makes it by itself.
     """
     override = _override()
     if override is not None:
         return override
     current, legacy = _home(APP_DIR), _home(LEGACY_DIR)
-    if not current.exists() and legacy.is_dir():
+    if legacy.is_dir() and not _holds_settings(current):
         return legacy
     return current
 
@@ -65,24 +83,46 @@ def config_dir() -> Path:
 def migrate_config() -> str:
     """Move the settings folder to its new name, once. Returns what happened, or "".
 
-    One rename on the same drive, so it happens entirely or not at all: never
-    half the permissions in one folder and half in the other. If something has
-    the old folder open, the old app still running for instance, it stays where
-    it is and is used from there, and the move is tried again at the next start.
-    Saved credentials move with it and still open: DPAPI binds them to the
-    Windows account, not to where the file is.
+    One rename on the same drive, so the settings move entirely or not at all:
+    never half the permissions in one folder and half in the other. If something
+    has the old folder open, the old app still running for instance, it stays
+    where it is and is used from there, and the move is tried again at the next
+    start. Saved credentials move with it and still open: DPAPI binds them to
+    the Windows account, not to where the file is.
+
+    Qt's cache may be in the new folder already (see `QT_FOLDER`). A folder
+    cannot be renamed onto one that exists, so the cache goes into the old
+    folder first and travels with it. If the move then fails the cache is put
+    back, so the next attempt starts from the same place as this one.
     """
     if _override() is not None:
         return ""
     current, legacy = _home(APP_DIR), _home(LEGACY_DIR)
-    if current.exists() or not legacy.is_dir():
+    if not legacy.is_dir() or _holds_settings(current):
         return ""
+    cache, carried = current / QT_FOLDER, legacy / QT_FOLDER
+    took_cache = False
     try:
+        if current.exists():
+            if cache.exists():
+                os.rename(cache, carried)
+                took_cache = True
+            os.rmdir(current)
         os.rename(legacy, current)
     except OSError as exc:
+        if took_cache:
+            _put_back(carried, cache)
         return (f"The settings folder could not be moved from {legacy} to {current} ({exc}). "
                 "It is used where it is, and the move will be tried again next time.")
     return f"Moved the settings folder from {legacy} to {current}."
+
+
+def _put_back(source: Path, target: Path) -> None:
+    try:
+        target.parent.mkdir(exist_ok=True)
+        os.rename(source, target)
+    except OSError:
+        pass  # only a cache, which Qt rebuilds; the settings are untouched either way
 
 
 @dataclass
