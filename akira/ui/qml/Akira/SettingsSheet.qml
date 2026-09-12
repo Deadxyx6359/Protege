@@ -12,8 +12,48 @@ Sheet {
     id: root
 
     title: "Settings"
-    subtitle: "Appearance and models"
+    subtitle: "Permissions, appearance and models"
     sheetWidth: 680
+
+    /*! The person wants to review what Akira may do. */
+    signal permissionsRequested()
+
+    // -- permissions --------------------------------------------------------
+
+    ColumnLayout {
+        width: parent.width
+        spacing: Theme.space.md
+
+        SectionLabel { text: "Permissions" }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.space.md
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 1
+                Text {
+                    text: "What Akira may do"
+                    font: Theme.type.body
+                    color: Theme.textPrimary
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: "Nothing is allowed until you allow it: folders, sites, accounts, and a record of what was done with them."
+                    font: Theme.type.caption
+                    color: Theme.textTertiary
+                    wrapMode: Text.Wrap
+                }
+            }
+
+            ActionButton {
+                objectName: "reviewPermissions"
+                text: "Review"
+                onClicked: root.permissionsRequested()
+            }
+        }
+    }
 
     // -- appearance ---------------------------------------------------------
 

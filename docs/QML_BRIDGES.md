@@ -111,7 +111,9 @@ answers `requested`, each waits five minutes and is refused, and a scheduled
 job holds up the scheduler while it waits.
 
 The dialog must be modal, show `summary` verbatim, and put focus on the safe
-button. Anything that is not an explicit approval is a refusal: timeout,
+button. It exists: `ConfirmDialog.qml`, in `Main.qml` above every sheet. It
+queues requests and shows one at a time, so an answer can only land on the
+question it was given for, and a click outside it answers nothing. Anything that is not an explicit approval is a refusal: timeout,
 shutdown, a dismissed window. Do not add "don't ask again". The grant says an
 agent *may try*; the confirmation is a separate promise the user asked for.
 

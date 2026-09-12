@@ -42,6 +42,22 @@ Window {
     SettingsSheet {
         id: settingsSheet
         z: 10
+        onPermissionsRequested: {
+            settingsSheet.close();
+            permissionsSheet.open();
+        }
+    }
+
+    PermissionsSheet {
+        id: permissionsSheet
+        objectName: "permissionsSheet"
+        z: 11
+    }
+
+    // Above everything, sheets included: an irreversible action waits on it.
+    ConfirmDialog {
+        objectName: "confirmDialog"
+        z: 100
     }
 
     RowLayout {
@@ -126,6 +142,13 @@ Window {
                         icon: "sidebar"
                         iconSize: 17
                         onClicked: win.sidebarOpen = true
+                    }
+
+                    IconButton {
+                        objectName: "openPermissions"
+                        icon: "shield"
+                        iconSize: 17
+                        onClicked: permissionsSheet.open()
                     }
 
                     IconButton {
