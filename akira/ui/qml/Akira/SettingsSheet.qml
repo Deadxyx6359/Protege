@@ -18,6 +18,9 @@ Sheet {
     /*! The person wants to review what Akira may do. */
     signal permissionsRequested()
 
+    /*! The person wants to say where they are. */
+    signal placeRequested()
+
     // -- permissions --------------------------------------------------------
 
     ColumnLayout {
@@ -51,6 +54,46 @@ Sheet {
                 objectName: "reviewPermissions"
                 text: "Review"
                 onClicked: root.permissionsRequested()
+            }
+        }
+    }
+
+    // -- where you are ------------------------------------------------------
+
+    ColumnLayout {
+        width: parent.width
+        spacing: Theme.space.md
+
+        SectionLabel { text: "Where you are" }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.space.md
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 1
+                Text {
+                    text: Place.name !== "" ? Place.name : "Not set"
+                    textFormat: Text.PlainText
+                    font: Theme.type.body
+                    color: Theme.textPrimary
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: Place.weatherSummary !== "" ? Place.weatherSummary
+                          : "For the seasons, the time zone and the weather."
+                    textFormat: Text.PlainText
+                    font: Theme.type.caption
+                    color: Theme.textTertiary
+                    wrapMode: Text.Wrap
+                }
+            }
+
+            ActionButton {
+                objectName: "setPlace"
+                text: Place.name !== "" ? "Change" : "Set"
+                onClicked: root.placeRequested()
             }
         }
     }

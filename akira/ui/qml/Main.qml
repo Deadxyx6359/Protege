@@ -46,11 +46,21 @@ Window {
             settingsSheet.close();
             permissionsSheet.open();
         }
+        onPlaceRequested: {
+            settingsSheet.close();
+            placeSheet.open();
+        }
     }
 
     PermissionsSheet {
         id: permissionsSheet
         objectName: "permissionsSheet"
+        z: 11
+    }
+
+    PlaceSheet {
+        id: placeSheet
+        objectName: "placeSheet"
         z: 11
     }
 
@@ -180,6 +190,10 @@ Window {
                     // Agents work in the coding world; their cards keep it quiet.
                     view: win.currentNav === "agents" ? "code" : win.currentNav
                     quiet: win.currentNav === "agents" || Chat.messages.count > 0
+                    // The real weather where the person is, once it has been read,
+                    // and the seasons turned the right way round for their hemisphere.
+                    weather: Place.weather || "clear"
+                    southernHemisphere: Place.southernHemisphere
                     motion: ThemeBridge.motionScale
                 }
 

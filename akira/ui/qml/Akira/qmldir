@@ -25,6 +25,7 @@ ActionButton 1.0 ActionButton.qml
 ConfirmDialog 1.0 ConfirmDialog.qml
 PermissionsSheet 1.0 PermissionsSheet.qml
 AgentsView 1.0 AgentsView.qml
+PlaceSheet 1.0 PlaceSheet.qml
 
 SceneHost 1.0 scenes/SceneHost.qml
 BotanicaScene 1.0 scenes/BotanicaScene.qml

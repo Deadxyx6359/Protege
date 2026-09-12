@@ -104,6 +104,21 @@ trace.emit(Kind.STARTED, "analyst", text="What changed?")
 pump(1, lambda: (plain(view.property("status")) or {}).get("analyst") == "working")
 out["status"] = plain(view.property("status"))
 out["passed"] = plain(view.property("passed"))
+
+# -- where you are ------------------------------------------------------------
+place = root.findChild(QObject, "placeSheet")
+out["place_sheet"] = place is not None
+# Granted outside the sheet, as another screen would, so the sheet's own copy
+# of the grants is stale: allowing the weather's site must not drop this one.
+policy.grant("net.http", ("example.com",))
+call(place, "allowSite")
+out["weather_site"] = sorted(policy.granted("net.http").scopes)
+call(place, "setLocated", True)
+out["located"] = policy.granted("location.read") is not None
+call(place, "removeSite")
+out["site_removed"] = sorted(policy.granted("net.http").scopes)
+call(place, "setLocated", False)
+out["unlocated"] = policy.granted("location.read") is None
 print(json.dumps(out))
 """
 
@@ -136,6 +151,12 @@ def test_the_views_work_in_the_window(run):
     assert out["agents_visible"] and out["pipeline"]
     assert out["status"]["gatherer"] == "done" and out["status"]["analyst"] == "working"
     assert out["passed"] == {"gatherer>analyst": True}
+
+    assert out["place_sheet"]
+    assert out["weather_site"] == ["example.com", "open-meteo.com"], \
+        "allowing the weather's site dropped a site allowed elsewhere"
+    assert out["located"] and out["unlocated"]
+    assert out["site_removed"] == ["example.com"]
 
     script_errors = [line for line in errors.splitlines()
                      if "TypeError" in line or "ReferenceError" in line]

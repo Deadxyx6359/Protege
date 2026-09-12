@@ -400,6 +400,11 @@ Schedule.addJob({
   reading at once and reads the new one.
 - `candidates` labels come from the lookup service, so show them as plain text
   (rule 5).
+- The view is `PlaceSheet.qml`, opened from Settings. `Main.qml` binds
+  `SceneHost.weather` and `southernHemisphere` to this bridge. A view that
+  changes the weather's site grant must read `Permissions.describe("net.http")`
+  fresh at that moment: `grant` replaces the whole list of sites, so adding
+  to a stale copy drops any site allowed since.
 - The Python season rule is the one in `scenes/world.js`, and the weather
   names are its `WEATHER` list, so the scenery and the assistant agree. A test
   checks the names. Keep them the same if either changes.
