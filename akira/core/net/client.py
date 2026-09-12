@@ -509,3 +509,73 @@ def call(method: str, url: str, *, policy, capability: str, scope: str, hosts: t
         raise
     _record_call(audit, actor, method, url, started, capability, scope, response=response)
     return response
+
+
+# -- a browser's connection -------------------------------------------------------------------
+
+#: The only port a browser's tunnel may reach: https, encrypted end to end.
+TUNNEL_PORT = 443
+
+
+def _dial(address: str, port: int, timeout: float) -> socket.socket:
+    """A plain connection to one checked address, let through the guard."""
+    family = socket.AF_INET6 if ":" in address else socket.AF_INET
+    sock = socket.socket(family, socket.SOCK_STREAM)
+    try:
+        sock.settimeout(timeout)
+        with netguard.admitting(addresses=((address, port),)):
+            sock.connect((address, port))
+        sock.settimeout(None)
+        return sock
+    except BaseException:
+        sock.close()
+        raise
+
+
+def _record_tunnel(audit: AuditLog | None, actor: str, host: str, port: int, started: float,
+                   capability: str, *, error: str = "") -> None:
+    if audit is None:
+        return
+    audit.tool_call(actor, "net.tunnel", {"host": host, "port": port}, allowed=not error,
+                    capability=capability, scope=host,
+                    duration_ms=int((time.monotonic() - started) * 1000), error=error)
+
+
+def tunnel(host: str, port: int, *, may: Callable[[str], str], capability: str = "web.browse",
+           audit: AuditLog | None = None, actor: str = ACTOR,
+           timeout_s: float = TIMEOUT_S) -> socket.socket:
+    """A connection to \a host for a browser's encrypted traffic (C3).
+
+    The browser Akira drives runs in its own process, out of the runtime
+    guard's sight, so everything it sends goes to Akira's proxy (`proxy.py`),
+    which asks here for each connection. Let through: port 443 only, where the
+    browser speaks TLS to the site end to end; a site whose every address is on
+    the open internet, connected to by the address checked; and only what \a may
+    allows, returning "" or why not. Nothing passes through here but the
+    connection itself, and each one is logged with its site.
+    """
+    started = time.monotonic()
+    host = str(host).strip().lower().rstrip(".")
+    try:
+        if port != TUNNEL_PORT:
+            raise NetError(f"Only https, on port {TUNNEL_PORT}, is let through, not port {port}.")
+        if not host or any(mark in host for mark in "/@\\ \t:"):
+            raise NetError(f"{host!r} is not a site.")
+        why = may(host)
+        if why:
+            raise NetError(why)
+        addresses = _checked(_Target(f"https://{host}/", host, port, "/"))
+        problem: Exception | None = None
+        for address in addresses:
+            try:
+                sock = _dial(address, port, timeout_s)
+                break
+            except OSError as exc:
+                problem = exc
+        else:
+            raise NetError(f"Could not reach {host}: {problem}")
+    except NetError as exc:
+        _record_tunnel(audit, actor, host, port, started, capability, error=str(exc))
+        raise
+    _record_tunnel(audit, actor, host, port, started, capability)
+    return sock

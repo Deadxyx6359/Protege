@@ -16,15 +16,17 @@ Four checks:
    module found here is a failure; a networking module that exists in an
    installed distribution but is *not reachable* is reported as informational.
 
-3. **One door.** Four modules are exempt, and each only for the modules named
+3. **One door.** Five modules are exempt, and each only for the modules named
    in `EXEMPT_IMPORTS`: the runtime guard, which imports `socket` to patch it;
    the Qt guard, which imports `PySide6.QtNetwork` to refuse it; the
    chokepoint `akira.core.net.client`, through which Akira fetches pages from
-   sites the person has allowed and reaches accounts they connected; and the
-   sign-in's return `akira.core.net.loopback`, which imports `socket` to listen
-   on this computer for one answer, and may bind nowhere else, never connect
-   and never look a name up. No other module may open the guard's door
-   (`netguard.admitting`), so the chokepoint's rules cannot be walked around.
+   sites the person has allowed, reaches accounts they connected, and connects
+   a browser's tunnels; and two listeners, the sign-in's return
+   `akira.core.net.loopback` and the browser's proxy `akira.core.net.proxy`,
+   which import `socket` to listen on this computer, and may bind nowhere else,
+   never connect and never look a name up. No other module may open the
+   guard's door (`netguard.admitting`), so the chokepoint's rules cannot be
+   walked around.
 
 4. **The interface's own door, shut.** Qt fetches in C++, over its own sockets,
    out of sight of both the runtime guard and the Python import scan. So the Qt
@@ -152,8 +154,12 @@ GUARD = "akira.security.netguard"
 CHOKEPOINT = "akira.core.net.client"
 QT_GUARD = "akira.security.qtguard"
 LOOPBACK = "akira.core.net.loopback"
+PROXY = "akira.core.net.proxy"
 
-#: Where the sign-in's return may listen: this computer, and nothing else.
+#: The modules that listen: for a sign-in's answer, and for a browser's requests.
+LISTENERS = frozenset({LOOPBACK, PROXY})
+
+#: Where a listener may listen: this computer, and nothing else.
 LOOPBACK_HOST = "127.0.0.1"
 
 #: What the listener must never do: reach out, or look a name up.
@@ -182,8 +188,10 @@ ADMISSION = "admitting"
 # access manager that refuses every request, which each QML engine is given.
 #
 # `akira.core.net.loopback` imports `socket` to listen for one sign-in's answer,
-# the browser being sent back to this computer by the provider (C5). It may bind
-# only to 127.0.0.1, and may never connect or look a name up; `_loopback_findings`
+# the browser being sent back to this computer by the provider (C5), and
+# `akira.core.net.proxy` to listen for the requests of the browser Akira drives
+# (C3), each of which it hands to the chokepoint's `tunnel`. Both may bind only
+# to 127.0.0.1, and may never connect or look a name up; `_loopback_findings`
 # checks both, and the runtime guard refuses any other bind.
 #
 # This is asserted by test. Every name added here is a hole in the guarantee,
@@ -193,6 +201,7 @@ EXEMPT_IMPORTS = {
     CHOKEPOINT: frozenset({"socket", "ssl", "http.client", "urllib.parse"}),
     QT_GUARD: frozenset({"PySide6.QtNetwork"}),
     LOOPBACK: frozenset({"socket"}),
+    PROXY: frozenset({"socket"}),
 }
 SOURCE_EXEMPT = frozenset(EXEMPT_IMPORTS)
 
@@ -444,13 +453,13 @@ def _exempt_findings(tree: ast.AST, module: str, path: Path) -> list[Finding]:
                             module, path, node.lineno,
                             f"exempt module calls {node.func.attr}() -- the netguard may "
                             "reference socket but must never connect"))
-    if module == LOOPBACK:
+    if module in LISTENERS:
         findings.extend(_loopback_findings(tree, module, path))
     return findings
 
 
 def _loopback_findings(tree: ast.AST, module: str, path: Path) -> list[Finding]:
-    """The sign-in's return listens on this computer only, and never reaches out."""
+    """A listener listens on this computer only, and never reaches out."""
     constants = {node.targets[0].id: node.value.value
                  for node in getattr(tree, "body", [])
                  if isinstance(node, ast.Assign) and len(node.targets) == 1
@@ -463,8 +472,7 @@ def _loopback_findings(tree: ast.AST, module: str, path: Path) -> list[Finding]:
         if name in OUTWARD:
             findings.append(Finding(
                 module, path, node.lineno,
-                f"calls {name}() -- the sign-in's return may only listen on this computer, "
-                "never reach out"))
+                f"calls {name}() -- a listener may only listen on this computer, never reach out"))
         elif name == "bind":
             where = node.args[0] if node.args else None
             host = where.elts[0] if isinstance(where, ast.Tuple) and where.elts else None
@@ -473,8 +481,8 @@ def _loopback_findings(tree: ast.AST, module: str, path: Path) -> list[Finding]:
             if value != LOOPBACK_HOST:
                 findings.append(Finding(
                     module, path, node.lineno,
-                    f"binds to something other than {LOOPBACK_HOST} -- the sign-in's return "
-                    "listens on this computer only"))
+                    f"binds to something other than {LOOPBACK_HOST} -- a listener listens on "
+                    "this computer only"))
     return findings
 
 
@@ -766,7 +774,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"\nPASS: nothing but {CHOKEPOINT} can reach the network, and it only where the "
           "person allowed: sites under net.http, accounts they connected.")
-    print(f"The one thing that listens ({LOOPBACK}) listens on this computer only.")
+    print(f"What listens ({', '.join(sorted(LISTENERS))}) listens on this computer only.")
     print(f"The interface's own access to the network is shut ({QT_GUARD}).")
     print("Reminder: this is a static check of Python imports. It cannot see native code "
           "calling the OS directly. An OS firewall rule denying this binary egress is stronger.")

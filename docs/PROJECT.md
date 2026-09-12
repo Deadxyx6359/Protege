@@ -468,10 +468,24 @@ material; reading one is `fetch_page` under `net.http` for that site. When
 DuckDuckGo asks whether a person is searching, the answer is "try later".
 The gatherer may search.
 
-**C3 ○ Browser and computer use** — `core/tools/builtin/browser.py`
+**C3 ▶ Browser and computer use** — `core/net/proxy.py`, `client.tunnel`; the session next
 Playwright driving a real browser: navigate, read, fill, click, scrape without
 APIs. **Every irreversible interaction confirms** — submit, post, purchase,
 apply. Job applications stage a draft and stop.
+*Started, the way out:* the browser runs in its own process, out of the
+runtime guard's sight, so it is started with every request sent to a proxy on
+127.0.0.1 inside Akira (`proxy.py`), which asks the chokepoint's `tunnel` for
+each connection: port 443 only, the open internet only, each site's addresses
+checked before connecting, only what the session allows, each logged. Plain
+http and other ports are refused with the reason. The proxy is a listener like
+the sign-in's return, and `verify_offline.py` holds it to the same rules.
+Playwright 1.62.0 and its Firefox build are installed, at the person's word.
+*Found:* that Firefox build does not start on Windows. Its `mozglue.dll` keeps
+the manifest for the component `firefox.exe` depends on in resource slot 2,
+and Windows looks for a private assembly's manifest in slot 1 only, so it
+refuses to activate the program before Firefox runs, sandbox or none. The
+session waits on the choice of browser; Microsoft Edge is installed, signed and
+current.
 
 **C4 ✅ Screen capture** — `core/screen.py`, tools in `core/tools/builtin/screen.py`
 *Done:* the whole screen captured with GDI and encoded as PNG with zlib, and
@@ -615,11 +629,12 @@ and resumable.
 | C | C4 Screen capture | ✅ |
 | C | C2 Web search | ✅ |
 | C | C5 Connectors | ▶ Google: signed-in door, sign-in, Gmail and Calendar reading, connecting from the window; sending next |
-| C | C3, C8 Reach | ○ |
+| C | C3 Browser | ▶ the browser's way out, a proxy through the one door; the session next |
+| C | C8 Purchasing | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1880 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 1892 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

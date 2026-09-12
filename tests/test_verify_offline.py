@@ -133,6 +133,7 @@ def test_the_exemptions_are_the_guards_and_the_chokepoint():
         "akira.core.net.client": frozenset({"socket", "ssl", "http.client", "urllib.parse"}),
         "akira.security.qtguard": frozenset({"PySide6.QtNetwork"}),
         "akira.core.net.loopback": frozenset({"socket"}),
+        "akira.core.net.proxy": frozenset({"socket"}),
     }
     assert vo.SOURCE_EXEMPT == frozenset(vo.EXEMPT_IMPORTS)
 
@@ -152,9 +153,18 @@ def test_the_sign_ins_return_listens_on_this_computer_only():
     assert vo._exempt_findings(a_client, vo.LOOPBACK, where), "the listener may import only socket"
 
 
-def test_the_real_listener_keeps_to_it():
-    path = vo.REPO_ROOT / "akira" / "core" / "net" / "loopback.py"
-    assert not vo._exempt_findings(_parse(path.read_text(encoding="utf-8")), vo.LOOPBACK, path)
+def test_the_real_listeners_keep_to_it():
+    for module, name in ((vo.LOOPBACK, "loopback.py"), (vo.PROXY, "proxy.py")):
+        path = vo.REPO_ROOT / "akira" / "core" / "net" / name
+        assert not vo._exempt_findings(_parse(path.read_text(encoding="utf-8")), module, path)
+
+
+def test_the_browsers_proxy_is_held_to_the_same_rules():
+    where = vo.REPO_ROOT / "proxy.py"
+    reaches = _parse('import socket\ns = socket.socket()\ns.connect(("8.8.8.8", 443))\n')
+    assert "never reach out" in vo._exempt_findings(reaches, vo.PROXY, where)[0].detail
+    anywhere = _parse('import socket\ns = socket.socket()\ns.bind(("", 8080))\n')
+    assert vo._exempt_findings(anywhere, vo.PROXY, where)
 
 
 def test_the_chokepoint_may_not_import_a_client_library():
