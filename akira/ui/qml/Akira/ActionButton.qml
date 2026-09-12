@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 
 /*!
     A button with words on it.
@@ -16,6 +17,7 @@ Item {
     id: root
 
     property string text: ""
+    property string icon: ""
     /*! \c primary, \c secondary or \c danger. */
     property string kind: "secondary"
     property bool enabled: true
@@ -25,13 +27,14 @@ Item {
 
     signal clicked()
 
-    implicitWidth: Math.max(88, label.implicitWidth + Theme.space.lg * 2)
+    implicitWidth: Math.max(88, caption.implicitWidth + Theme.space.lg * 2)
     implicitHeight: 34
     opacity: enabled ? 1.0 : 0.4
-    activeFocusOnTab: true
+    activeFocusOnTab: enabled
 
     Accessible.role: Accessible.Button
     Accessible.name: root.text
+    Accessible.onPressAction: root._press()
 
     function _press() { if (root.enabled) root.clicked() }
     Keys.onReturnPressed: root._press()
@@ -50,20 +53,41 @@ Item {
         anchors.fill: parent
         radius: Theme.radius.sm
         color: root._fill
-        border.width: root.activeFocus ? 2 : 1
-        border.color: root.activeFocus ? Theme.accent
-                    : (root.kind === "secondary" ? Theme.separatorStrong : "transparent")
+        border.width: 1
+        border.color: root.kind === "secondary" ? Theme.separatorStrong : "transparent"
 
         Behavior on color { ColorAnimation { duration: Theme.duration.fast } }
     }
 
-    Text {
-        id: label
+    Rectangle {
+        anchors.fill: parent
+        anchors.margins: -3
+        radius: Theme.radius.sm + 3
+        color: "transparent"
+        border.width: 2
+        border.color: Theme.accent
+        visible: root.activeFocus
+    }
+
+    readonly property color _ink: root.kind === "primary" ? Theme.textOnAccent
+                                 : root.kind === "danger" ? Theme.textOnDanger : Theme.textPrimary
+
+    RowLayout {
+        id: caption
         anchors.centerIn: parent
-        text: root.text
-        textFormat: Text.PlainText
-        font: Theme.type.bodyStrong
-        color: root.kind === "secondary" ? Theme.textPrimary : Theme.textOnAccent
+        spacing: Theme.space.xs + 2
+        Icon {
+            visible: root.icon !== ""
+            name: root.icon || "dot"
+            size: 16
+            color: root._ink
+        }
+        Text {
+            text: root.text
+            textFormat: Text.PlainText
+            font: Theme.type.bodyStrong
+            color: root._ink
+        }
     }
 
     HoverHandler { id: hover; enabled: root.enabled; cursorShape: Qt.PointingHandCursor }

@@ -47,7 +47,7 @@ Item {
         visible: root.showGreeting && root.onScene && root.count === 0
         // Translucent rather than opaque: the scene should still be visible
         // through it, the way a widget sits on a wallpaper.
-        fillColor: Qt.rgba(Theme.canvas.r, Theme.canvas.g, Theme.canvas.b, 0.72)
+        fillColor: Qt.rgba(Theme.canvas.r, Theme.canvas.g, Theme.canvas.b, 0.88)
         borderColor: Theme.separator
         opacity: root.count === 0 ? 1 : 0
 
@@ -70,18 +70,9 @@ Item {
             NumberAnimation { duration: Theme.duration.slow }
         }
 
-        Icon {
+        BrandMark {
             Layout.alignment: Qt.AlignHCenter
-            name: "sparkle"
-            size: 44
-            color: Theme.accent
-
-            SequentialAnimation on opacity {
-                running: root.showGreeting && root.visible && root.count === 0 && Theme.motionScale > 0
-                loops: Animation.Infinite
-                NumberAnimation { to: 0.55; duration: 2400; easing.type: Easing.InOutSine }
-                NumberAnimation { to: 1.00; duration: 2400; easing.type: Easing.InOutSine }
-            }
+            size: 64
         }
 
         Text {
@@ -95,7 +86,7 @@ Item {
             Layout.alignment: Qt.AlignHCenter
             text: "Your conversations stay on this machine."
             font: Theme.type.callout
-            color: Theme.textTertiary
+            color: Theme.textSecondary
         }
     }
 
@@ -185,14 +176,19 @@ Item {
                     width: parent.width
                     spacing: Theme.space.md
 
-                    Icon {
+                    Item {
                         Layout.alignment: Qt.AlignTop
                         Layout.topMargin: 2
-                        name: row.isError ? "close" : "sparkle"
-                        size: 16
-                        // An error dressed as an answer is worse than no
-                        // answer, so it is coloured as what it is.
-                        color: row.isError ? Theme.danger : Theme.accent
+                        Layout.preferredWidth: 32
+                        Layout.preferredHeight: 32
+                        BrandMark { visible: !row.isError; size: 32 }
+                        Icon {
+                            anchors.centerIn: parent
+                            visible: row.isError
+                            name: "close"
+                            size: 18
+                            color: Theme.danger
+                        }
                     }
 
                     MessageBody {

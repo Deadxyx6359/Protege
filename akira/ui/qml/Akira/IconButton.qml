@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls as C
 
 /*!
     A square, icon-only control.
@@ -17,6 +18,10 @@ Item {
 
     /*! Icon name from icons.js. */
     required property string icon
+    /*! Override for actions whose meaning depends on context. */
+    property string label: ({ settings: "Settings", shield: "Permissions", sun: "Use light appearance",
+        moon: "Use dark appearance", sidebar: "Show sidebar", close: "Close", plus: "Add",
+        refresh: "Refresh", attach: "Attach a file", copy: "Copy", check: "Copied" })[icon] || icon
 
     /*! Hit area. Keep at or above 32 for anything a person aims at. */
     property real size: 32
@@ -38,6 +43,14 @@ Item {
     implicitWidth: size
     implicitHeight: size
     opacity: enabled ? 1.0 : 0.35
+    activeFocusOnTab: enabled
+    Accessible.role: Accessible.Button
+    Accessible.name: root.label
+    Accessible.onPressAction: root.activate()
+    function activate() { if (root.enabled) root.clicked() }
+    Keys.onReturnPressed: root.activate()
+    Keys.onEnterPressed: root.activate()
+    Keys.onSpacePressed: root.activate()
 
     Behavior on opacity {
         NumberAnimation { duration: Theme.duration.fast }
@@ -84,6 +97,31 @@ Item {
     TapHandler {
         id: tap
         enabled: root.enabled
-        onTapped: root.clicked()
+        onTapped: { root.forceActiveFocus(); root.activate() }
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        radius: Theme.radius.sm
+        color: "transparent"
+        border.width: 2
+        border.color: Theme.accent
+        visible: root.activeFocus
+    }
+
+    C.ToolTip {
+        visible: root.hovered && root.label !== ""
+        delay: 600
+        contentItem: Text {
+            text: root.label
+            textFormat: Text.PlainText
+            font: Theme.type.callout
+            color: Theme.textPrimary
+        }
+        background: Rectangle {
+            color: Theme.overlay
+            radius: Theme.radius.xs
+            border.color: Theme.separatorStrong
+        }
     }
 }

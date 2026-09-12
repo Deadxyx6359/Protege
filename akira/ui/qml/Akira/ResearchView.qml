@@ -42,7 +42,7 @@ Item {
         Text { text: "Research"; font: Theme.type.bodyStrong; color: Theme.textPrimary }
         Text {
             Layout.fillWidth: true
-            text: "Local · Web search not connected"
+            text: "Local conversation · Web research is in Agents"
             font: Theme.type.caption
             color: Theme.textTertiary
             elide: Text.ElideRight
@@ -92,7 +92,9 @@ Item {
         height: content.implicitHeight + 32
         radius: Theme.radius.lg
         visible: root.count === 0
-        fillColor: Qt.rgba(Theme.canvas.r, Theme.canvas.g, Theme.canvas.b, 0.68)
+        // Light text surfaces need more opacity over the near-black abyss;
+        // otherwise the small supporting copy becomes grey on grey.
+        fillColor: Qt.rgba(Theme.canvas.r, Theme.canvas.g, Theme.canvas.b, Theme.isDark ? 0.88 : 0.94)
         borderColor: Theme.separatorStrong
 
         ColumnLayout {
@@ -164,7 +166,7 @@ Item {
             Text {
                 Layout.fillWidth: true
                 Layout.topMargin: 2
-                text: "Your current conversation, using your local model.\nWeb search is not connected yet."
+                text: "Your current conversation, using your local model.\nFor web research, choose the Research team in Agents."
                 font: Theme.type.caption
                 color: Theme.textTertiary
                 horizontalAlignment: Text.AlignHCenter

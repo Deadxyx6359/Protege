@@ -66,15 +66,14 @@ Item {
 
         RowLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: 52
+            Layout.preferredHeight: 64
             Layout.leftMargin: Theme.space.md
             Layout.rightMargin: Theme.space.sm
             spacing: Theme.space.sm
 
-            Icon {
-                name: "sparkle"
-                size: 19
-                color: Theme.accent
+            BrandMark {
+                size: 36
+                Accessible.ignored: true // The adjacent wordmark supplies the name.
             }
 
             Text {
@@ -86,6 +85,7 @@ Item {
 
             IconButton {
                 icon: "sidebar"
+                label: "Hide sidebar"
                 iconSize: 17
                 onClicked: root.collapseRequested()
             }
@@ -102,42 +102,15 @@ Item {
 
         // -- new chat -------------------------------------------------------
 
-        Item {
+        ActionButton {
             Layout.fillWidth: true
             Layout.leftMargin: Theme.space.sm
             Layout.rightMargin: Theme.space.sm
             Layout.preferredHeight: 36
-
-            Rectangle {
-                anchors.fill: parent
-                radius: Theme.radius.sm
-                color: newChatTap.pressed ? Theme.accentPressed
-                     : (newChatHover.hovered ? Theme.accentHover : Theme.accent)
-
-                Behavior on color {
-                    ColorAnimation { duration: Theme.duration.fast }
-                }
-            }
-
-            RowLayout {
-                anchors.centerIn: parent
-                spacing: Theme.space.xs + 2
-
-                Icon {
-                    name: "plus"
-                    size: 16
-                    color: Theme.textOnAccent
-                    weight: 2.0
-                }
-                Text {
-                    text: "New chat"
-                    font: Theme.type.bodyStrong
-                    color: Theme.textOnAccent
-                }
-            }
-
-            HoverHandler { id: newChatHover; cursorShape: Qt.PointingHandCursor }
-            TapHandler { id: newChatTap; onTapped: root.newChatRequested() }
+            text: "New chat"
+            icon: "plus"
+            kind: "primary"
+            onClicked: root.newChatRequested()
         }
 
         // -- scrolling body -------------------------------------------------

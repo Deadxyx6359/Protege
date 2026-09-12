@@ -21,6 +21,8 @@ Item {
 
     /*! Shown under the field. Keep it to a few words. */
     property string footnote: ""
+    // The host must supply an attachment flow before advertising this action.
+    property bool attachmentsAvailable: false
 
     readonly property bool hasText: input.text.trim().length > 0
 
@@ -62,6 +64,7 @@ Item {
                 spacing: Theme.space.xs
 
                 IconButton {
+                    visible: root.attachmentsAvailable
                     Layout.alignment: Qt.AlignBottom
                     icon: "attach"
                     size: 34
@@ -139,8 +142,8 @@ Item {
                         name: root.busy ? "stop" : "send"
                         size: 17
                         weight: 2.0
-                        color: root.busy || root.hasText ? Theme.textOnAccent
-                                                         : Theme.textTertiary
+                        color: root.busy ? Theme.textOnDanger
+                             : root.hasText ? Theme.textOnAccent : Theme.textTertiary
                     }
 
                     HoverHandler {

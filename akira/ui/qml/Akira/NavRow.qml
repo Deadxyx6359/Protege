@@ -37,6 +37,14 @@ Item {
 
     implicitWidth: 200
     implicitHeight: 34
+    activeFocusOnTab: true
+    Accessible.role: Accessible.Button
+    Accessible.name: root.label
+    Accessible.selected: root.selected
+    Accessible.onPressAction: root.clicked()
+    Keys.onReturnPressed: root.clicked()
+    Keys.onEnterPressed: root.clicked()
+    Keys.onSpacePressed: root.clicked()
 
     Rectangle {
         id: plate
@@ -44,6 +52,8 @@ Item {
         radius: Theme.radius.sm
         color: root.selected ? Theme.accentSubtle
                              : (root.hovered ? Theme.surfaceHover : "transparent")
+        border.width: root.activeFocus ? 2 : 0
+        border.color: Theme.accent
 
         Behavior on color {
             ColorAnimation { duration: Theme.duration.fast }
@@ -116,6 +126,6 @@ Item {
     }
 
     TapHandler {
-        onTapped: root.clicked()
+        onTapped: { root.forceActiveFocus(); root.clicked() }
     }
 }

@@ -11,8 +11,8 @@ import QtQuick
     setting is a platform call — and pushes that decision in through
     \c ThemeLink.
 
-    Colours are declared as top-level properties rather than grouped, so each
-    can carry its own \c Behavior and cross-fade when the palette swaps.
+    Colours are declared as top-level properties rather than grouped. Their
+    consumers own the cross-fades; singletons cannot host animation Behaviors.
     Geometry, type and motion are grouped, because they never change at runtime
     and grouping keeps call sites readable: \c Theme.space.lg beats
     \c Theme.spaceLg.
@@ -33,10 +33,10 @@ QtObject {
 
     // -- palettes ----------------------------------------------------------
 
-    /*  Deliberately close to Apple's system colours rather than invented.
-        #F5F5F7 and #1D1D1F in particular are Apple's own primary text values,
-        and matching them is most of why an interface reads as "Apple-like"
-        before a single animation runs.
+    /*  Neutral surfaces let the pixel worlds and the approved portrait lead.
+        Emerald comes from the logo; its interactive shades vary by appearance
+        so labels, focus rings and selected rows remain legible. Vermilion is
+        reserved for danger, never an ornamental second accent.
 
         Alpha is leading — #AARRGGBB, Qt's convention, not CSS's. Writing it
         the other way round yields a colour rather than an error.  */
@@ -54,18 +54,19 @@ QtObject {
         separatorStrong: "#26FFFFFF",
 
         textPrimary: "#F5F5F7",
-        textSecondary: "#98989F",
-        textTertiary: "#68686F",
-        textOnAccent: "#FFFFFF",
+        textSecondary: "#B0B4B2",
+        textTertiary: "#959A97",
+        textOnAccent: "#08150E",
+        textOnDanger: "#08150E",
 
-        accent: "#7C5CFF",
-        accentHover: "#8E72FF",
-        accentPressed: "#6A48F0",
-        accentSubtle: "#247C5CFF",
+        accent: "#49AE80",
+        accentHover: "#60BD92",
+        accentPressed: "#3C9A6E",
+        accentSubtle: "#2449AE80",
 
-        success: "#30D158",
+        success: "#65B88C",
         warning: "#FF9F0A",
-        danger: "#FF453A",
+        danger: "#F06456",
         info: "#0A84FF",
 
         shadow: "#000000",
@@ -84,20 +85,21 @@ QtObject {
         separatorStrong: "#24000000",
 
         textPrimary: "#1D1D1F",
-        textSecondary: "#6E6E73",
-        textTertiary: "#98989F",
+        textSecondary: "#545C58",
+        textTertiary: "#626865",
         textOnAccent: "#FFFFFF",
+        textOnDanger: "#FFFFFF",
 
-        // Darker than the dark-mode accent: the same violet on white is too
-        // light to carry text at 4.5:1.
-        accent: "#6644EE",
-        accentHover: "#7659F2",
-        accentPressed: "#5636DC",
-        accentSubtle: "#1A6644EE",
+        // A deeper emerald supports small text on white as well as white
+        // labels on filled controls, including their hover/pressed states.
+        accent: "#236F4C",
+        accentHover: "#2B805A",
+        accentPressed: "#1E6042",
+        accentSubtle: "#18236F4C",
 
-        success: "#248A3D",
+        success: "#28764F",
         warning: "#B25000",
-        danger: "#D70015",
+        danger: "#BF3025",
         info: "#0071E3",
 
         shadow: "#000000",
@@ -130,9 +132,10 @@ QtObject {
     property color textPrimary: _p.textPrimary
     /*! Supporting text: timestamps, captions, inactive tabs. */
     property color textSecondary: _p.textSecondary
-    /*! Placeholders and disabled text. Still clears 3:1 against `surface`. */
+    /*! Quiet supporting copy and placeholders; readable on opaque surfaces. */
     property color textTertiary: _p.textTertiary
     property color textOnAccent: _p.textOnAccent
+    property color textOnDanger: _p.textOnDanger
 
     // -- accent ------------------------------------------------------------
 
@@ -174,9 +177,11 @@ QtObject {
             return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
         };
         var l = 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
-        // 0.36 rather than the midpoint: white-on-colour stays readable further
-        // down the scale than black-on-colour does.
-        return l > 0.36 ? "#1D1D1F" : "#FFFFFF";
+        var ink = Qt.color("#08150E");
+        var inkL = 0.2126 * lin(ink.r) + 0.7152 * lin(ink.g) + 0.0722 * lin(ink.b);
+        var darkContrast = (Math.max(l, inkL) + 0.05) / (Math.min(l, inkL) + 0.05);
+        var lightContrast = 1.05 / (l + 0.05);
+        return darkContrast >= lightContrast ? "#08150E" : "#FFFFFF";
     }
 
     // -- type --------------------------------------------------------------

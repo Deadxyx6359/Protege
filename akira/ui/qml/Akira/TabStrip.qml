@@ -15,6 +15,7 @@ Item {
     /*! [{ id, title, icon, closable }] */
     property var model: []
     property string currentId: ""
+    property bool allowNewTab: true
 
     signal selected(string id)
     signal closed(string id)
@@ -55,6 +56,14 @@ Item {
 
                 readonly property bool active: root.currentId === modelData.id
                 readonly property bool hovered: tabHover.hovered
+                activeFocusOnTab: true
+                Accessible.role: Accessible.PageTab
+                Accessible.name: tab.modelData.title
+                Accessible.selected: tab.active
+                Accessible.onPressAction: root.selected(tab.modelData.id)
+                Keys.onReturnPressed: root.selected(tab.modelData.id)
+                Keys.onEnterPressed: root.selected(tab.modelData.id)
+                Keys.onSpacePressed: root.selected(tab.modelData.id)
 
                 Layout.preferredWidth: Math.min(196, Math.max(120, label.implicitWidth + 74))
                 Layout.fillHeight: true
@@ -68,6 +77,8 @@ Item {
                     radius: Theme.radius.sm
                     color: tab.active ? Theme.canvas
                                       : (tab.hovered ? Theme.surfaceHover : "transparent")
+                    border.width: tab.activeFocus ? 2 : 0
+                    border.color: Theme.accent
 
                     Behavior on color {
                         ColorAnimation { duration: Theme.duration.fast }
@@ -131,8 +142,10 @@ Item {
         }
 
         IconButton {
+            visible: root.allowNewTab
             Layout.alignment: Qt.AlignVCenter
             icon: "plus"
+            label: "New tab"
             size: 28
             iconSize: 15
             onClicked: root.newTabRequested()

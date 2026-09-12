@@ -5,6 +5,7 @@ singleton Theme 1.0 Theme.qml
 ThemeLink 1.0 ThemeLink.qml
 Squircle 1.0 Squircle.qml
 Icon 1.0 Icon.qml
+BrandMark 1.0 BrandMark.qml
 IconButton 1.0 IconButton.qml
 NavRow 1.0 NavRow.qml
 SectionLabel 1.0 SectionLabel.qml

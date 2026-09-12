@@ -155,7 +155,7 @@ Window {
             currentRecent: Chat.conversationId
 
             navModel: [
-                { id: "chats", icon: "chat", label: "Chats" },
+                { id: "chats", icon: "chat", label: "Everyday" },
                 { id: "code", icon: "code", label: "Code" },
                 { id: "research", icon: "search", label: "Research" },
                 { id: "agents", icon: "team", label: "Agents" },
@@ -172,7 +172,11 @@ Window {
             recentModel: Chat.recents
 
             onNavSelected: function (id) { win.selectWorkspace(id) }
-            onRecentSelected: function (id) { Chat.openConversation(id) }
+            onRecentSelected: function (id) {
+                if (win.fullPage || win.currentNav === "documents")
+                    win.selectWorkspace("chats");
+                Chat.openConversation(id);
+            }
             // Another project opens; the open one shows itself.
             onProjectSelected: function (id) {
                 if (id === Projects.currentId)
@@ -182,7 +186,12 @@ Window {
             }
             onNewProjectRequested: projectSheet.openNew()
             onCollapseRequested: win.sidebarOpen = false
-            onNewChatRequested: Chat.newChat()
+            onNewChatRequested: {
+                if (win.fullPage || win.currentNav === "documents")
+                    win.selectWorkspace("chats");
+                Chat.newChat();
+                composer.focusInput();
+            }
             onSettingsRequested: settingsSheet.open()
         }
 
@@ -199,6 +208,7 @@ Window {
 
                 TabStrip {
                     objectName: "workspaceTabs"
+                    allowNewTab: false // Fixed modes; no tab-creation flow exists yet.
                     anchors.fill: parent
                     currentId: win.currentTab
                     model: [
