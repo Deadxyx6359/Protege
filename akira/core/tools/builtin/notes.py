@@ -27,7 +27,7 @@ from akira.core.brain import ConflictError, Index, Vault, VaultError, find_root
 from akira.security.paths import real
 
 from ..schema import Parameter, Requirement, Tool, ToolContext, ToolError, ToolResult
-from .knowledge import cite_file, present
+from .knowledge import cite_file, indexed, present, search_index
 
 MAX_BODY_CHARS = 40_000
 MAX_HITS = 12
@@ -50,12 +50,7 @@ def _run_search(arguments: dict, context: ToolContext) -> ToolResult:
         raise ToolError(f"not a folder: {folder}")
     vault = _vault(folder, context)
     query = str(arguments["query"])
-    try:
-        index = Index(vault)
-        index.refresh()
-        results = index.search(query, limit=MAX_HITS)
-    except VaultError as exc:
-        raise ToolError(str(exc)) from None
+    results = search_index(indexed(vault), query, limit=MAX_HITS)
     return present(results, query, noun="note", cite=cite_file)
 
 

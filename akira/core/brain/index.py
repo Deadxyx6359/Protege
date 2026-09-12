@@ -18,8 +18,15 @@ ones; at most two sections of any note reach the results.
 more often a section uses it and the fewer sections use it at all. Sections
 holding every word of the query come first. Pure Python over SQLite, both in
 the standard library — `requirements.txt` rules out embedding stacks that fetch
-model weights over the network. Embeddings can join later through llama.cpp,
-which is already here, once an embedding model is configured.
+model weights over the network.
+
+**And meaning**, when the application has an embedding model (`embed.py`, run
+locally through llama.cpp). Each section is also stored as a vector, a little
+at a time so no search waits for a whole vault, and a question is ranked by
+words and by meaning, the two lists merged by reciprocal rank. A vector is kept
+with the model that made it and never compared with another model's, and goes
+with its section. Below `MIN_SIMILARITY` a section is not about the question,
+so a search that finds nothing still says so.
 
 **Forgiving about word forms, timidly.** A query word of four letters or more
 matches any indexed word it begins, so "garden" finds "gardening"; a plural in
@@ -50,12 +57,19 @@ import math
 import re
 import sqlite3
 import threading
+import time
+from array import array
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Iterable, Protocol
+from typing import TYPE_CHECKING, Callable, Iterable, Protocol
+
+import numpy
 
 from akira.core.config import config_dir
+
+if TYPE_CHECKING:
+    from .embed import Embedder
 
 from .vault import VaultError
 
@@ -66,6 +80,20 @@ MAX_CHUNKS_PER_NOTE = 400
 MAX_SECTIONS_PER_NOTE = 2
 PREFIX_MIN = 4
 K1, B = 1.2, 0.75
+
+#: Reciprocal rank fusion's constant, as in `retrieve.py`.
+RRF_K = 60
+
+#: Below this a section is not about the question, however it ranks. Measured
+#: with nomic-embed-text: 0.68 for a related passage, 0.40 for an unrelated one.
+MIN_SIMILARITY = 0.5
+
+#: How many of the closest sections join the fusion.
+VECTOR_CANDIDATES = 50
+
+#: Sections turned into vectors at a time, and how long one search may spend on it.
+EMBED_BATCH = 16
+EMBED_BUDGET_S = 2.0
 
 #: Plain files in a documents folder. They are opened under `files.read`, as
 #: `search_documents` opens them, and everything else there under `docs.read`.
@@ -215,7 +243,7 @@ def _snippet(text: str, words: list[str], width: int = 160) -> str:
 
 def _schema(db: sqlite3.Connection) -> None:
     if db.execute("PRAGMA user_version").fetchone()[0] not in (0, SCHEMA_VERSION):
-        for table in ("postings", "chunks", "notes", "meta"):
+        for table in ("vectors", "postings", "chunks", "notes", "meta"):
             db.execute(f"DROP TABLE IF EXISTS {table}")
     db.executescript("""
         CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
@@ -226,11 +254,17 @@ def _schema(db: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS postings (term TEXT, chunk INTEGER, tf INTEGER);
         CREATE INDEX IF NOT EXISTS postings_term ON postings(term);
         CREATE INDEX IF NOT EXISTS postings_chunk ON postings(chunk);
+        CREATE TABLE IF NOT EXISTS vectors (chunk INTEGER PRIMARY KEY, model TEXT, data BLOB);
     """)
     db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
 
 def _drop(db: sqlite3.Connection, rel: str) -> None:
+    # An index made before vectors were kept has no table for them, and a sweep
+    # opens it as it is: that is no reason to throw the whole index away.
+    with contextlib.suppress(sqlite3.OperationalError):
+        db.execute("DELETE FROM vectors WHERE chunk IN (SELECT id FROM chunks WHERE rel = ?)",
+                   (rel,))
     db.execute("DELETE FROM postings WHERE chunk IN (SELECT id FROM chunks WHERE rel = ?)", (rel,))
     db.execute("DELETE FROM chunks WHERE rel = ?", (rel,))
     db.execute("DELETE FROM notes WHERE rel = ?", (rel,))
@@ -239,8 +273,10 @@ def _drop(db: sqlite3.Connection, rel: str) -> None:
 class Index:
     """The search index for one corpus."""
 
-    def __init__(self, corpus: Corpus, *, path: Path | None = None) -> None:
+    def __init__(self, corpus: Corpus, *, path: Path | None = None,
+                 embedder: Embedder | None = None) -> None:
         self.corpus = corpus
+        self.embedder = embedder
         self.kind = getattr(corpus, "kind", "vault")
         key = hashlib.sha256(f"{self.kind}:{corpus.root}".lower().encode("utf-8")).hexdigest()[:16]
         self.path = path if path is not None else config_dir() / "index" / f"{self.kind}-{key}.sqlite"
@@ -320,6 +356,52 @@ class Index:
                 stats["removed"] += 1
         return stats
 
+    def embed_pending(self, budget_s: float = EMBED_BUDGET_S) -> int:
+        """Store vectors for sections that have none from this model, for up to \a budget_s.
+
+        A little at a time, so a search never waits for a whole vault: at about
+        25 ms a section, two seconds is some eighty, and the rest come with the
+        searches after. Returns how many were stored.
+        """
+        if self.embedder is None:
+            return 0
+        model = self.embedder.model
+        made = 0
+        deadline = time.monotonic() + budget_s
+        with _refresh_lock(self.path), contextlib.closing(self._connect()) as db:
+            while time.monotonic() < deadline:
+                rows = db.execute(
+                    "SELECT c.id, c.heading, c.text FROM chunks c LEFT JOIN vectors v "
+                    "ON v.chunk = c.id AND v.model = ? WHERE v.chunk IS NULL LIMIT ?",
+                    (model, EMBED_BATCH)).fetchall()
+                if not rows:
+                    break
+                vectors = self.embedder.embed([f"{heading}\n{text}" for _, heading, text in rows])
+                with db:
+                    db.executemany(
+                        "INSERT OR REPLACE INTO vectors (chunk, model, data) VALUES (?, ?, ?)",
+                        [(chunk, model, array("f", vector).tobytes())
+                         for (chunk, _, _), vector in zip(rows, vectors)])
+                made += len(rows)
+        return made
+
+    def _closest(self, db: sqlite3.Connection, query: str) -> list[int]:
+        """The sections nearest \a query in meaning, closest first; [] without vectors."""
+        if self.embedder is None:
+            return []
+        rows = db.execute("SELECT chunk, data FROM vectors WHERE model = ?",
+                          (self.embedder.model,)).fetchall()
+        if not rows:
+            return []
+        try:
+            [asked] = self.embedder.embed([query], query=True)
+            vectors = numpy.frombuffer(b"".join(data for _, data in rows), dtype=numpy.float32)
+            similarity = vectors.reshape(len(rows), -1) @ numpy.asarray(asked, dtype=numpy.float32)
+        except Exception:  # noqa: BLE001 - meaning helps a search; it never stops one
+            return []
+        order = numpy.argsort(-similarity)[:VECTOR_CANDIDATES]
+        return [rows[i][0] for i in order if similarity[i] >= MIN_SIMILARITY]
+
     # -- searching ---------------------------------------------------------------------------
 
     def search(self, query: str, limit: int = 10) -> list[Result]:
@@ -351,7 +433,13 @@ class Index:
                     scores[chunk_id] = scores.get(chunk_id, 0.0) + idf * weight
                     matched.setdefault(chunk_id, set()).add(word)
 
-            ranked = sorted(scores, key=lambda c: (-len(matched[c]), -scores[c], c))
+            by_words = sorted(scores, key=lambda c: (-len(matched[c]), -scores[c], c))
+            by_meaning = self._closest(db, query)
+            if by_meaning:
+                ranked, weight = _fused(by_words, by_meaning)
+                score = {chunk: round(weight[chunk], 4) for chunk in ranked}
+            else:
+                ranked, score = by_words, {chunk: round(scores[chunk], 3) for chunk in by_words}
             results: list[Result] = []
             per_note: dict[str, int] = {}
             for chunk_id in ranked:
@@ -363,11 +451,22 @@ class Index:
                 if per_note.get(rel, 0) >= MAX_SECTIONS_PER_NOTE:
                     continue
                 per_note[rel] = per_note.get(rel, 0) + 1
-                results.append(Result(rel, heading, _snippet(text, wanted), round(scores[chunk_id], 3),
-                                      len(matched[chunk_id]) == len(wanted), text))
+                results.append(Result(rel, heading, _snippet(text, wanted), score[chunk_id],
+                                      len(matched.get(chunk_id, ())) == len(wanted), text))
                 if len(results) >= limit:
                     break
         return results
+
+
+def _fused(*orders: list[int]) -> tuple[list[int], dict[int, float]]:
+    """Rankings merged by reciprocal rank; ties to the better rank, then the earlier list."""
+    weight: dict[int, float] = {}
+    first: dict[int, tuple[int, int]] = {}
+    for position, order in enumerate(orders):
+        for rank, chunk in enumerate(order):
+            weight[chunk] = weight.get(chunk, 0.0) + 1.0 / (RRF_K + rank + 1)
+            first.setdefault(chunk, (rank, position))
+    return sorted(weight, key=lambda c: (-weight[c], first[c])), weight
 
 
 # -- keeping the copies honest ---------------------------------------------------------------

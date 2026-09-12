@@ -23,6 +23,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 #: Where GGUF files are looked for when no explicit path is configured.
 MODELS_DIR = REPO_ROOT / "models"
 
+#: Where an embedding model is looked for (B4). Apart from `MODELS_DIR`, whose
+#: files are all taken for chat models: an embedding model routed to chat would
+#: answer nothing at all.
+EMBED_DIR = MODELS_DIR / "embed"
+
 
 #: The settings folder's name, and the name it had before the rename to Akira.
 APP_DIR = "Akira"
@@ -248,7 +253,9 @@ def discover_models(directory: Path | None = None) -> list[Path]:
     target = directory if directory is not None else MODELS_DIR
     if not target.is_dir():
         return []
-    found = [p for p in target.glob("*.gguf") if p.is_file() and _looks_like_gguf(p)]
+    # An embedding model dropped here by mistake is still not a chat model.
+    found = [p for p in target.glob("*.gguf")
+             if p.is_file() and "embed" not in p.name.lower() and _looks_like_gguf(p)]
     return sorted(found, key=lambda p: p.stat().st_size)
 
 
@@ -263,6 +270,11 @@ _GGUF_MAGIC = b"GGUF"
 #: a small model. The fix for that is on the writing side: fetch to a .part name
 #: and rename on completion, which `tools/fetch_model.py` does.
 _MIN_MODEL_BYTES = 100 * 1024 * 1024
+
+
+def looks_like_gguf(path: Path) -> bool:
+    """Whether \a path is plausibly a model file. See `_looks_like_gguf`."""
+    return _looks_like_gguf(path)
 
 
 def _looks_like_gguf(path: Path) -> bool:

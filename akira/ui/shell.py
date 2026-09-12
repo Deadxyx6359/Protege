@@ -17,6 +17,7 @@ from PySide6.QtGui import QGuiApplication, QIcon
 
 from akira.core.agents import Trace
 from akira.core.agents.monitor import Monitor, MonitorService, WatchStore, register_notify_action
+from akira.core.brain import embed
 from akira.core.brain.distil import PendingStore, register_distil_action, vault_of
 from akira.core.brain.index import anywhere, sweep
 from akira.core.brain.recall import ContextAssembler
@@ -296,6 +297,10 @@ def run_shell(argv: list[str] | None = None) -> int:
     if moved:
         print(moved, file=sys.stderr)
     _claim_taskbar()
+    # Search ranks by meaning as well as words when an embedding model is in
+    # models/embed/. Loaded on first use, on the processor.
+    embed.use(embed.local())
+
     app = QGuiApplication(argv if argv is not None else sys.argv)
     configure_application(app)
 

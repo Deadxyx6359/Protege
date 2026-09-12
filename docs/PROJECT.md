@@ -80,7 +80,7 @@ measured benchmarks, not from optimism.
 |---|---|---|
 | Document management — .docx, .pptx, .xlsx, PDF | **Done**: read all four, create Word and Excel, edit Word and PowerPoint, set Excel cells. Creating decks from scratch still to come | B1 |
 | Obsidian second brain, fully automated, never opened by hand | **Vault, index and retrieval done**: read, link, write with history and conflict checks, daily notes; ranked search by section over notes, documents and past conversations, merged into cited passages; conversations distilled nightly into proposed notes a person accepts. Projects next | B2 |
-| Private RAG, local embeddings | Fine — no network involved | B3–B4 |
+| Private RAG, local embeddings | **Done**: ranked by words and by meaning, the embedding model local and on the processor | B3–B4 |
 | General memory that updates regularly | Partly exists (legacy `memory/`), needs rebuilding on the new spine | B5 |
 | Projects, easy to access and manage | **Projects, their own grants and the graph done**: create, open, rename, remove; a grant made in a project applies only while it is open; a tag map and a link graph of any folder of notes; its personality reaches the conversation, and what its conversations teach is proposed under its name | B6 |
 
@@ -364,7 +364,15 @@ covering as soon as they change, and once at each start for grants that
 expired meanwhile. Covered means allowed globally or in any project. The
 sweep reads only the index databases, and deletes one that cannot say what it
 holds.
-*Still to do:* embeddings as a second ranked list for the same fusion.
+*Done since:* embeddings, as a second ranked list for the same fusion.
+nomic-embed-text-v1.5 at Q8_0 (146 MB, its SHA-256 checked against the one
+Hugging Face publishes) lives in `models/embed/`, apart from the chat models,
+and runs through llama.cpp on the processor: a quarter of a second to load and
+about 25 ms a section, measured. Sections are given vectors a little at a time
+as searches run, so none waits for a whole vault; a vector carries the model
+that made it and goes with its section, sweeps included; below a similarity of
+0.5 a section is not about the question. Without the model, search is words
+only, as before.
 
 **B5 ✅ Memory distillation** — `core/brain/distil.py`, bridge `ui/bridge/memory.py`
 Scheduled consolidation of conversations into durable notes, deduplicated
@@ -611,7 +619,7 @@ and resumable.
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1868 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 1880 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

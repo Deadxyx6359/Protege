@@ -18,7 +18,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-from akira.core.brain import Index, Result, VaultError
+from akira.core.brain import Index, Result, VaultError, embed
 from akira.core.brain.corpora import TEXT_SUFFIXES, ConversationArchive, DocumentFolder
 from akira.security.paths import real
 
@@ -55,10 +55,23 @@ def present(results: list[Result], query: str, *, noun: str,
     return ToolResult.success("\n".join(lines), data={"count": len(results), "passages": passages})
 
 
-def _search(index: Index, query: str) -> list[Result]:
+def indexed(corpus) -> Index:
+    """The index for \a corpus, ranking by meaning too when the application has a model."""
+    return Index(corpus, embedder=embed.current())
+
+
+def search_index(index: Index, query: str, limit: int = MAX_PASSAGES) -> list[Result]:
+    """Bring \a index up to date, store a few more vectors, and search it."""
     try:
         index.refresh()
-        return index.search(query, limit=MAX_PASSAGES)
+    except VaultError as exc:
+        raise ToolError(str(exc)) from None
+    try:
+        index.embed_pending()
+    except Exception:  # noqa: BLE001 - meaning helps a search; it never stops one
+        pass
+    try:
+        return index.search(query, limit=limit)
     except VaultError as exc:
         raise ToolError(str(exc)) from None
 
@@ -82,7 +95,7 @@ def _run_documents(arguments: dict, context: ToolContext) -> ToolResult:
     except VaultError as exc:
         raise ToolError(str(exc)) from None
     query = str(arguments["query"])
-    return present(_search(Index(corpus), query), query, noun="document", cite=cite_file)
+    return present(search_index(indexed(corpus), query), query, noun="document", cite=cite_file)
 
 
 search_documents = Tool(
@@ -104,8 +117,8 @@ search_documents = Tool(
 
 def _run_conversations(arguments: dict, context: ToolContext) -> ToolResult:
     query = str(arguments["query"])
-    return present(_search(Index(ConversationArchive()), query), query, noun="conversation",
-                   cite=cite_conversation)
+    return present(search_index(indexed(ConversationArchive()), query), query,
+                   noun="conversation", cite=cite_conversation)
 
 
 search_conversations = Tool(

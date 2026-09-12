@@ -224,6 +224,9 @@ ENTRY_POINTS = (
     "akira/__init__.py",
     "akira/ui/app.py",
     "akira/models/llama_backend.py",
+    # The embedding model imports llama_cpp too, and is loaded from inside a
+    # function, which the walk would not otherwise follow.
+    "akira/models/embedding.py",
 )
 
 
