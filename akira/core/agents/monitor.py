@@ -1,21 +1,24 @@
 """Watching for change: the monitoring agent (C6).
 
-A watch is a folder, a web page or a feed the person chose. Every so often each
-one is looked at, and what changed since becomes scheduler events that jobs can
-wait for:
+A watch is a folder, a web page, a feed or an inbox the person chose. Every so
+often each one is looked at, and what changed since becomes scheduler events
+that jobs can wait for:
 
 - a folder: `file.created`, `file.changed` and `file.deleted` for each file,
   and one `folder.changed` for the lot;
 - a page: one `page.changed`, with the lines that appeared and how many went;
-- a feed: `feed.item` for each new entry, and one `feed.changed` for the lot.
+- a feed: `feed.item` for each new entry, and one `feed.changed` for the lot;
+- an inbox: `mail.item` for each new message, and one `mail.changed` for the lot.
 
 A job waiting for one of these can run an agent over what arrived, or put up a
 notice with the `notify` action here.
 
 **Held to the permission on every look.** Listing a folder is `files.read`
 there, as it is for `list_directory`. Fetching a page or a feed is `net.http`
-for its site, through the network chokepoint, as it is for `fetch_page`. Both
-are checked against the global grants at each look, not once when the watch is
+for its site, through the network chokepoint, as it is for `fetch_page`.
+Reading an inbox is `mail.read` for its address, through that account's
+sign-in, as it is for `search_mail`. Each is
+checked against the global grants at each look, not once when the watch is
 made, so revoking one stops the watch at the next look, and the watch says why
 instead of failing silently. Watches run in the background like scheduled
 jobs, so like them they use the global grants, never the open project's.
@@ -52,7 +55,11 @@ says so, rather than letting one enormous folder turn the walk into a load.
 Pages and feeds are looked at hourly unless the person chooses otherwise, and
 never more often than every `MIN_WEB_EVERY_S`: a site is someone else's.
 
-Inboxes are watched the same way once the connectors (C5) exist.
+**An inbox is known by its messages**, as a feed is by its entries: the last
+week of the inbox is read, as often as a page or a feed may be, up to ten
+messages a look, and only messages not seen before are reported, narrowed by
+words the same way. Looking is reading: nothing is sent, deleted or marked
+read. What a message says is material, not instructions, like a page's.
 """
 
 from __future__ import annotations
@@ -68,7 +75,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Protocol
 
 from akira.core.config import config_dir
 from akira.core.net import NetError, fetchable, host_of, redact
@@ -89,8 +96,11 @@ MAX_WORD_CHARS = 40
 MAX_TITLE_CHARS = 80
 MAX_NOTICE_CHARS = 600
 
-FOLDER, PAGE, FEED = "folder", "page", "feed"
-KINDS = (FOLDER, PAGE, FEED)
+FOLDER, PAGE, FEED, INBOX = "folder", "page", "feed", "inbox"
+KINDS = (FOLDER, PAGE, FEED, INBOX)
+
+_ADDRESS = re.compile(r"\A[^@\s]+@[^@\s]+\.[^@\s]+\Z")
+MAX_ADDRESS_CHARS = 254
 
 #: How often a page or a feed is looked at, unless the person says otherwise.
 WEB_EVERY_S = 3600
@@ -145,17 +155,22 @@ class Watch:
     """The address, for a page or a feed."""
 
     every_s: int = 0
-    """How often a page or a feed is looked at."""
+    """How often a page, a feed or an inbox is looked at."""
+
+    address: str = ""
+    """The mail address, for an inbox."""
 
     @property
     def target(self) -> str:
         """What is watched, as it is shown and logged: a web address loses its query."""
-        return self.folder if self.kind == FOLDER else redact(self.url)
+        if self.kind == FOLDER:
+            return self.folder
+        return self.address if self.kind == INBOX else redact(self.url)
 
     @property
     def site(self) -> str:
         """The site a page or a feed is on, which `net.http` is checked against."""
-        return "" if self.kind == FOLDER else host_of(self.url)
+        return host_of(self.url) if self.kind in (PAGE, FEED) else ""
 
     def wants(self, name: str) -> bool:
         lowered = name.lower()
@@ -172,6 +187,8 @@ class Watch:
                 "created": self.created}
         if self.kind == FOLDER:
             data["folder"] = self.folder
+        elif self.kind == INBOX:
+            data.update(address=self.address, every=self.every_s)
         else:
             data.update(url=self.url, every=self.every_s)
         return data
@@ -189,6 +206,10 @@ class Watch:
             if not str(data.get("folder", "")).strip():
                 raise ValueError("not a watch")
             return cls(str(data["id"]), str(data["folder"]), _clean_patterns(patterns), created)
+        if kind == INBOX:
+            return cls(str(data["id"]), "", _clean_patterns(patterns, words=True), created,
+                       kind=kind, every_s=_check_every(data.get("every") or WEB_EVERY_S),
+                       address=_check_address(str(data.get("address", ""))))
         return cls(str(data["id"]), "", _clean_patterns(patterns, words=True), created,
                    kind=kind, url=_check_url(str(data.get("url", "")), kind),
                    every_s=_check_every(data.get("every") or WEB_EVERY_S))
@@ -232,9 +253,35 @@ def _check_every(seconds) -> int:
     except (TypeError, ValueError):
         raise MonitorError("How often to look must be a number of seconds.") from None
     if not MIN_WEB_EVERY_S <= every <= MAX_WEB_EVERY_S:
-        raise MonitorError(f"A page or a feed is looked at no more often than every "
+        raise MonitorError(f"A page, a feed or an inbox is looked at no more often than every "
                            f"{MIN_WEB_EVERY_S // 60} minutes, and at least once a week.")
     return every
+
+
+def _same_words(these: tuple[str, ...], those: tuple[str, ...]) -> bool:
+    """Whether two lists of words look for the same thing. Words match whatever their
+    case, so "Invoice" and "invoice" are one watch, not two reporting everything twice."""
+    return tuple(w.lower() for w in these) == tuple(w.lower() for w in those)
+
+
+def _check_address(text: str) -> str:
+    address = (text or "").strip().lower()
+    if len(address) > MAX_ADDRESS_CHARS or not _ADDRESS.match(address):
+        raise MonitorError(f"{text!r} is not a mail address.")
+    return address
+
+
+class Inbox(Protocol):
+    """A connected mailbox, as the monitor sees one (`akira.core.connect.inbox`)."""
+
+    def connected(self, address: str) -> bool:
+        """Whether \a address is connected for mail."""
+        ...
+
+    def recent(self, address: str) -> list:
+        """The latest messages in its inbox, newest first, each with `id`, `sender`,
+        `subject`, `date` and `snippet`. Raises, with a reason for the person."""
+        ...
 
 
 def _write_json(path: Path, data) -> None:
@@ -374,12 +421,14 @@ class Monitor:
 
     def __init__(self, store: WatchStore, *, policy: Callable[[], Policy],
                  publish: Callable[[str, dict], None], audit: AuditLog | None = None,
-                 fetch: Callable | None = None,
+                 fetch: Callable | None = None, inbox: Inbox | None = None,
                  clock: Callable[[], float] | None = None) -> None:
         self._store = store
         self._policy = policy
         self._publish = publish
         self._audit = audit
+        # Connected mailboxes, when there is a way to read them.
+        self._inbox = inbox
         # The chokepoint, unless a test stands in for it.
         self._fetch = fetch if fetch is not None else net_fetch
         self._clock = clock if clock is not None else time.time
@@ -481,12 +530,41 @@ class Monitor:
         every = _check_every(every_s)
         with self._lock:
             for watch in self._watches.values():
-                if (watch.kind, watch.url, watch.patterns) == (kind, address, cleaned):
+                if (watch.kind, watch.url) == (kind, address) and _same_words(watch.patterns, cleaned):
                     return watch
             if len(self._watches) >= MAX_WATCHES:
                 raise MonitorError(f"There are already {MAX_WATCHES} watches. Remove one first.")
             watch = Watch(secrets.token_hex(8), "", cleaned, time.time(), kind=kind,
                           url=address, every_s=every)
+            self._watches[watch.id] = watch
+            self._web[watch.id] = _Seen()
+            self._save()
+        self._changed()
+        return watch
+
+    def add_inbox(self, address: str, words=(), every_s: int = WEB_EVERY_S) -> Watch:
+        """Watch a connected inbox for new mail, only mail mentioning one of \a words
+        if any are given. Raises `MonitorError` with the reason when it cannot be."""
+        mailbox = _check_address(address)
+        if self._inbox is None:
+            raise MonitorError("Inboxes cannot be watched here.")
+        if not self._inbox.connected(mailbox):
+            raise MonitorError(f"{mailbox} is not connected for mail. Connect it in Settings, "
+                               "Accounts, first.")
+        decision = self._policy().allows("mail.read", mailbox)
+        if not decision:
+            raise MonitorError(f"Not permitted: {decision.reason}. Watching an inbox reads its "
+                               f"mail, so allow reading {mailbox}'s mail first.")
+        cleaned = _clean_patterns(words, words=True)
+        every = _check_every(every_s)
+        with self._lock:
+            for watch in self._watches.values():
+                if (watch.kind, watch.address) == (INBOX, mailbox) and _same_words(watch.patterns, cleaned):
+                    return watch
+            if len(self._watches) >= MAX_WATCHES:
+                raise MonitorError(f"There are already {MAX_WATCHES} watches. Remove one first.")
+            watch = Watch(secrets.token_hex(8), "", cleaned, time.time(), kind=INBOX,
+                          every_s=every, address=mailbox)
             self._watches[watch.id] = watch
             self._web[watch.id] = _Seen()
             self._save()
@@ -513,7 +591,9 @@ class Monitor:
         count = 0
         for watch in self.watches():
             try:
-                count += self._look(watch) if watch.kind == FOLDER else self._look_web(watch)
+                count += (self._look(watch) if watch.kind == FOLDER
+                          else self._look_inbox(watch) if watch.kind == INBOX
+                          else self._look_web(watch))
             except OSError as exc:
                 self._pause(watch, f"{watch.target} could not be read: {exc}",
                             keep=watch.kind != FOLDER)
@@ -543,6 +623,10 @@ class Monitor:
             if watch.kind == FOLDER:
                 self._audit.tool_call(ACTOR, "watch_folder", {"folder": watch.folder},
                                       allowed=False, capability="files.read", scope=watch.folder,
+                                      error=reason)
+            elif watch.kind == INBOX:
+                self._audit.tool_call(ACTOR, "watch_inbox", {"address": watch.address},
+                                      allowed=False, capability="mail.read", scope=watch.address,
                                       error=reason)
             else:
                 self._audit.tool_call(ACTOR, f"watch_{watch.kind}", {"url": watch.target},
@@ -713,6 +797,62 @@ class Monitor:
         self._fired(watch)
         return min(len(new), MAX_ITEM_EVENTS) + 1
 
+    # -- inboxes ------------------------------------------------------------------------------
+
+    def _look_inbox(self, watch: Watch) -> int:
+        with self._lock:
+            seen = self._web.setdefault(watch.id, _Seen())
+        now = self._clock()
+        if seen.looked and 0 <= now - seen.looked < watch.every_s:
+            return 0
+        decision = self._policy().allows("mail.read", watch.address)
+        if not decision:
+            self._pause(watch, f"Not permitted: {decision.reason}.")
+            return 0
+        if self._inbox is None:
+            self._pause(watch, "Inboxes cannot be looked at here.", keep=True)
+            return 0
+        # A failed look waits its turn like any other.
+        seen.looked = now
+        try:
+            mail = list(self._inbox.recent(watch.address))
+        except Exception as exc:  # noqa: BLE001 - a look must not end the watching; its reason is shown
+            self._keep(watch, seen)
+            self._pause(watch, str(exc) or type(exc).__name__, keep=True)
+            return 0
+        with self._lock:
+            if self._watches.get(watch.id) is not watch:
+                return 0  # removed while the mail was on its way
+            resumed, watch.paused = bool(watch.paused), ""
+        published = self._compare_inbox(watch, seen, mail)
+        self._keep(watch, seen)
+        if resumed and not published:
+            self._changed()
+        return published
+
+    def _compare_inbox(self, watch: Watch, seen: _Seen, mail: list) -> int:
+        before = seen.ids
+        seen.ids = list(dict.fromkeys([str(m.id) for m in mail] + (before or [])))[:MAX_SEEN]
+        if before is None:
+            # The first look is the baseline: what is already there is not news.
+            return 0
+        known = set(before)
+        new = list({str(m.id): m for m in mail
+                    if str(m.id) not in known
+                    and watch.mentions(f"{m.sender}\n{m.subject}\n{m.snippet}")}.values())
+        if not new:
+            return 0
+        for message in new[:MAX_ITEM_EVENTS]:
+            self._publish("mail.item", {
+                "watch": watch.id, "address": watch.address, "from": message.sender,
+                "subject": message.subject, "date": message.date, "snippet": message.snippet,
+                "id": str(message.id)})
+        self._publish("mail.changed", {
+            "watch": watch.id, "address": watch.address, "new": len(new),
+            "subjects": [message.subject for message in new[:MAX_EVENT_LINES]]})
+        self._fired(watch)
+        return min(len(new), MAX_ITEM_EVENTS) + 1
+
 
 class MonitorService:
     """The thread that looks at the watches."""
@@ -774,6 +914,13 @@ def describe_event(name: str, payload: dict) -> str:
     if name == "feed.item":
         what = str(payload.get("feed") or payload.get("url") or "a watched feed")
         return f"New in {what}: {payload.get('title') or 'an entry with no title'}."
+    if name == "mail.changed":
+        where = str(payload.get("address") or "a watched inbox")
+        subjects = "; ".join(str(s) for s in (payload.get("subjects") or [])[:5] if s)
+        return f"{payload.get('new') or 'Some'} new in {where}." + (f" {subjects}" if subjects else "")
+    if name == "mail.item":
+        return (f"From {payload.get('from') or 'someone'}: "
+                f"{payload.get('subject') or '(no subject)'}.")
     return f"Because of “{name}”."
 
 

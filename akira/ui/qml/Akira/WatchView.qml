@@ -4,8 +4,8 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 
 /*!
-    Watching: the folders, web pages and feeds Akira keeps an eye on, and the
-    notices they have put up.
+    Watching: the folders, web pages, feeds and inboxes Akira keeps an eye on,
+    and the notices they have put up.
 
     A watch on its own only turns changes into events; something visible
     happens when a job waits for them. So "Tell me when it changes" pairs a
@@ -21,7 +21,7 @@ import QtQuick.Layouts
 Item {
     id: root
 
-    /*! What the form watches: "folder", "page" or "feed". */
+    /*! What the form watches: "folder", "page", "feed" or "inbox". */
     property string kind: "folder"
     property string folder: ""
     property string address: ""
@@ -32,10 +32,16 @@ Item {
     property bool tell: true
 
     property string notice: ""
-    /*! What the last refusal needs: "folder", "site", "notices", or "". */
+    /*! What the last refusal needs: "folder", "site", "mailbox", "notices", or "". */
     property string needs: ""
 
-    readonly property var events: ({ folder: "folder.changed", page: "page.changed", feed: "feed.changed" })
+    readonly property var events: ({ folder: "folder.changed", page: "page.changed",
+                                     feed: "feed.changed", inbox: "mail.changed" })
+
+    /*! The addresses connected for mail, which an inbox watch chooses from. */
+    readonly property var mailboxes: Accounts.accounts
+        .filter(function (a) { return a.services.indexOf("mail") >= 0; })
+        .map(function (a) { return a.address; })
 
     /*! The site an address is on, or "". */
     function site(url) {
@@ -55,6 +61,8 @@ Item {
             var parts = w.folder.replace(/[\\\/]+$/, "").split(/[\\\/]/);
             return parts[parts.length - 1] || w.folder;
         }
+        if (w.kind === "inbox")
+            return "Inbox of " + w.address;
         return root.site(w.url) || w.url;
     }
 
@@ -71,9 +79,10 @@ Item {
     function detail(w) {
         var only = w.patterns.length > 0
             ? (w.kind === "folder" ? "files like " : "mentioning ") + w.patterns.join(", ")
-            : (w.kind === "folder" ? "every file" : w.kind === "page" ? "every line" : "every entry");
-        return (w.kind === "folder" ? w.folder : w.url) + " · " + only
-               + (w.kind === "folder" ? "" : " · " + root.often(w.every));
+            : ({ folder: "every file", page: "every line", feed: "every entry",
+                 inbox: "every message" })[w.kind];
+        var what = w.kind === "folder" ? w.folder : w.kind === "inbox" ? w.address : w.url;
+        return what + " · " + only + (w.kind === "folder" ? "" : " · " + root.often(w.every));
     }
 
     function when(at) {
@@ -118,9 +127,11 @@ Item {
         Monitor.watches.forEach(function (w) { before[w.id] = true; });
         var why = kind === "folder" ? Monitor.addWatch(target, words)
                 : kind === "page" ? Monitor.addPageWatch(target, words, minutes)
+                : kind === "inbox" ? Monitor.addInboxWatch(target, words, minutes)
                 : Monitor.addFeedWatch(target, words, minutes);
         if (why !== "") {
-            root.needs = why.indexOf("Not permitted") >= 0 ? (kind === "folder" ? "folder" : "site") : "";
+            root.needs = why.indexOf("Not permitted") < 0 ? ""
+                       : ({ folder: "folder", inbox: "mailbox" })[kind] || "site";
             root.notice = why;
             return why;
         }
@@ -140,7 +151,8 @@ Item {
             action: "notify",
             trigger: { kind: "event", name: root.events[w.kind], match: { watch: w.id }, cooldown: 60 },
             arguments: { text: w.kind === "folder" ? "Something changed in the folder."
-                             : w.kind === "page" ? "The page changed." : "The feed has something new." },
+                             : w.kind === "page" ? "The page changed."
+                             : w.kind === "inbox" ? "New mail arrived." : "The feed has something new." },
             grants: [{ capability: "notify.send", scopes: [] }],
             missed: "skip"
         });
@@ -160,6 +172,7 @@ Item {
     function allowAndWatch() {
         var why = root.needs === "folder" ? root.addScope("files.read", root.folder)
                 : root.needs === "site" ? root.addScope("net.http", root.site(root.address))
+                : root.needs === "mailbox" ? root.addScope("mail.read", root.address.trim().toLowerCase())
                 : "";
         if (why !== "") {
             root.notice = why;
@@ -276,7 +289,7 @@ Item {
                 }
                 Text {
                     Layout.fillWidth: true
-                    text: "Akira can keep an eye on a folder, a web page or a feed, and tell you when something changes. It looks only at what you name here, with the permissions you give it."
+                    text: "Akira can keep an eye on a folder, a web page, a feed or an inbox, and tell you when something changes. It looks only at what you name here, with the permissions you give it."
                     font: Theme.type.caption
                     color: Theme.textSecondary
                     wrapMode: Text.Wrap
@@ -379,7 +392,8 @@ Item {
                         spacing: Theme.space.md
                         Icon {
                             Layout.alignment: Qt.AlignTop
-                            name: row.w.kind === "folder" ? "folder" : row.w.kind === "page" ? "globe" : "feed"
+                            name: row.w.kind === "folder" ? "folder" : row.w.kind === "page" ? "globe"
+                                : row.w.kind === "inbox" ? "mail" : "feed"
                             size: 18
                             color: row.w.paused !== "" ? Theme.danger : Theme.accent
                         }
@@ -440,13 +454,42 @@ Item {
                     options: [
                         { id: "folder", label: "A folder" },
                         { id: "page", label: "A web page" },
-                        { id: "feed", label: "A feed" }
+                        { id: "feed", label: "A feed" },
+                        { id: "inbox", label: "An inbox" }
                     ]
                     current: root.kind
                     onSelected: function (id) {
+                        // An address chosen for one kind means nothing to another.
+                        var wasMailbox = root.mailboxes.indexOf(root.address) >= 0;
+                        if (id === "inbox" && !wasMailbox)
+                            root.address = root.mailboxes.length > 0 ? root.mailboxes[0] : "";
+                        else if (id !== "inbox" && wasMailbox)
+                            root.address = "";
                         root.kind = id;
                         root.needs = "";
                         root.notice = "";
+                    }
+                }
+
+                RowLayout {
+                    visible: root.kind === "inbox"
+                    Layout.fillWidth: true
+                    spacing: Theme.space.md
+                    Text {
+                        Layout.fillWidth: true
+                        text: root.mailboxes.length > 0 ? "Which inbox"
+                              : "No Google address is connected for mail. Connect one in Settings, Accounts."
+                        textFormat: Text.PlainText
+                        font: root.mailboxes.length > 0 ? Theme.type.body : Theme.type.callout
+                        color: root.mailboxes.length > 0 ? Theme.textPrimary : Theme.textSecondary
+                        wrapMode: Text.Wrap
+                    }
+                    Select {
+                        visible: root.mailboxes.length > 0
+                        Layout.preferredWidth: 280
+                        options: root.mailboxes.map(function (a) { return { value: a, label: a }; })
+                        current: root.address
+                        onPicked: function (value) { root.address = value }
                     }
                 }
 
@@ -469,7 +512,7 @@ Item {
                 }
 
                 Field {
-                    visible: root.kind !== "folder"
+                    visible: root.kind === "page" || root.kind === "feed"
                     Layout.fillWidth: true
                     text: root.address
                     placeholder: root.kind === "page" ? "The page's address, such as https://example.com/tickets"
@@ -486,6 +529,7 @@ Item {
                     text: root.words
                     placeholder: root.kind === "folder" ? "Only some files? Patterns such as *.pdf, *.docx"
                                : root.kind === "page" ? "Only lines that mention… (words, separated by commas)"
+                               : root.kind === "inbox" ? "Only mail that mentions… (words, separated by commas)"
                                : "Only entries that mention… (words, separated by commas)"
                     onEdited: function (value) { root.words = value }
                 }
@@ -542,6 +586,10 @@ Item {
                     Layout.fillWidth: true
                     text: root.kind === "folder"
                           ? "Only the names, sizes and times of files are compared. Nothing leaves this computer."
+                          : root.kind === "inbox"
+                          ? "Akira reads the last week of this inbox " + root.often(root.minutes)
+                            + ", up to ten messages a look, and notices what is new. Nothing is sent, "
+                            + "deleted or marked read."
                           : "Akira asks " + (root.site(root.address) || "the site") + " for this address "
                             + root.often(root.minutes) + " and sends nothing else. Addresses are shown and "
                             + "logged without the part after a ?, where private feeds keep their keys."
@@ -563,6 +611,7 @@ Item {
                             Layout.fillWidth: true
                             text: root.needs === "folder" ? "Allow reading " + root.folder
                                 : root.needs === "site" ? "Allow fetching from " + root.site(root.address)
+                                : root.needs === "mailbox" ? "Allow reading mail in " + root.address
                                 : "Allow notices"
                             textFormat: Text.PlainText
                             font: Theme.type.body
@@ -575,6 +624,8 @@ Item {
                                   ? "Agents may read it too, like any folder you allow. The permission screen can take it away."
                                   : root.needs === "site"
                                   ? "Agents may fetch from it too, like any site you allow. The permission screen can take it away."
+                                  : root.needs === "mailbox"
+                                  ? "Agents may read it too, like any mailbox you allow. The permission screen can take it away."
                                   : "Lets jobs put a notice on screen. Nothing leaves this computer."
                             textFormat: Text.PlainText
                             font: Theme.type.caption

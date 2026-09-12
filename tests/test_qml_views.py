@@ -149,6 +149,9 @@ out["feed_needs"] = watching.property("needs")
 call(watching, "allowAndWatch")
 out["sites_after_feed"] = sorted(policy.granted("net.http").scopes)
 out["feed_urls"] = [w["url"] for w in ctx.monitor.watches if w["kind"] == "feed"]
+# An inbox is chosen from connected addresses; one that is not connected is refused.
+call(watching, "watchNow", "inbox", "someone@gmail.com", [], 0, True)
+out["inbox_refusal"] = watching.property("notice")
 call(watching, "forget", first)
 out["after_forget"] = [w["kind"] for w in ctx.monitor.watches]
 out["jobs_after_forget"] = [j["name"] for j in ctx.schedule.jobs if j["watch"] == first]
@@ -341,6 +344,7 @@ def test_the_views_work_in_the_window(run):
         "allowing the feed's site dropped a site allowed elsewhere"
     # The key a private feed keeps in its query is never shown, only that there was one.
     assert out["feed_urls"] == ["https://news.example.org/feed.xml?…"]
+    assert "not connected for mail" in out["inbox_refusal"]
     assert out["after_forget"] == ["feed"] and out["jobs_after_forget"] == [], \
         "a removed watch left its notice job waiting for events that will never come"
 

@@ -319,6 +319,7 @@ Schedule.addJob({
 | `addWatch(folder, patterns)` | Slot → string | Watch a folder: `""`, or why not, including **Not permitted** without `files.read` there |
 | `addPageWatch(url, words, minutes)` | Slot → string | Watch a web page for new lines. `minutes` is 15 or more, or 0 for hourly. `""`, or why not, including **Not permitted** without `net.http` for its site |
 | `addFeedWatch(url, words, minutes)` | Slot → string | Watch an RSS or Atom feed for new entries, the same way |
+| `addInboxWatch(address, words, minutes)` | Slot → string | Watch a connected inbox for new mail, the same way. `""`, or why not: an address not connected for mail, or **Not permitted** without `mail.read` for it. Watches carry `address`, and `kind` `inbox` |
 | `removeWatch(id)` | Slot → string | `""`, or why not |
 | `warnings` | Property, notifies `watchesChanged` | Problems loading or saving the watches. Show them |
 | `notices` | Property, notifies `noticesChanged` | Newest first, at most 50: `title`, `text`, `at` |
@@ -353,7 +354,10 @@ Schedule.addJob({
   `removed` counts, and up to 10 of the new `lines`). A feed: `feed.item` for
   each new entry (`watch`, `url`, `feed`, `title`, `link`, `published`,
   `summary`), and one `feed.changed` per look (`watch`, `url`, `feed`, `new`,
-  and up to 10 `titles`). Match on `watch`.
+  and up to 10 `titles`). An inbox: `mail.item` for each new message (`watch`,
+  `address`, `from`, `subject`, `date`, `snippet`, `id`), and one `mail.changed`
+  per look (`watch`, `address`, `new`, and up to 10 `subjects`); up to ten
+  messages a look, from the inbox's last week. Match on `watch`.
 - **A file is reported once it has settled**, which takes two looks, about a
   minute. A download in progress is not announced half-finished.
 - **A page is compared as text.** Markup, scripts and styles go first, and the

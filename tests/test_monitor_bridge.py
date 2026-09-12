@@ -74,7 +74,7 @@ def test_a_page_watch_needs_its_site_allowed_and_is_recorded_without_its_query(s
     log = (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
     assert "watch_page" in log and "secret" not in log
     assert bridge.addFeedWatch("https://example.com/feed.xml", [], 5).startswith(
-        "A page or a feed is looked at no more often")
+        "A page, a feed or an inbox is looked at no more often")
 
 
 def test_a_notice_from_another_thread_arrives_on_this_one(setup, app):

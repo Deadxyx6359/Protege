@@ -22,6 +22,7 @@ from akira.core.brain.distil import PendingStore, register_distil_action, vault_
 from akira.core.brain.index import anywhere, sweep
 from akira.core.brain.recall import ContextAssembler
 from akira.core.config import AppConfig, autoconfigure, migrate_config
+from akira.core.connect.inbox import GmailInbox
 from akira.core.context.place import PlaceStore
 from akira.core.context.weather import Weather, WeatherService
 from akira.core.models import ModelRouter, Route
@@ -228,16 +229,20 @@ def build_context(*, persist: bool = True) -> AppContext:
     register_distil_action(actions, router=router, pending=pending, projects=projects.store,
                            on_proposed=memory.on_proposed)
 
-    # Watched folders publish what changed as scheduler events. Like scheduled
-    # jobs they run in the background, so they use the global grants.
-    monitor = MonitorBridge(Monitor(WatchStore(), policy=live_policy,
-                                    publish=scheduler.publish, audit=audit), audit=audit)
-    monitor.monitor.set_on_change(monitor.changed)
-    register_notify_action(actions, notify=monitor.notify)
-
     # Connecting a Google address is the person's own act, under the global
     # grants: an account belongs to the person, not to whichever project is open.
     accounts = AccountsBridge(vault=secret_store, policy=live_policy, audit=audit)
+
+    # Watches publish what changed as scheduler events. Like scheduled jobs they
+    # run in the background, so they use the global grants; an inbox is read
+    # through its connected account.
+    monitor = MonitorBridge(Monitor(WatchStore(), policy=live_policy,
+                                    publish=scheduler.publish, audit=audit,
+                                    inbox=GmailInbox(accounts.google, policy=live_policy,
+                                                     audit=audit)),
+                            audit=audit)
+    monitor.monitor.set_on_change(monitor.changed)
+    register_notify_action(actions, notify=monitor.notify)
 
     # Each chat turn draws on what the person has granted, as agents do, and on
     # the open project. The notes searched are the vault memory is kept in.

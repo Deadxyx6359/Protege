@@ -93,7 +93,7 @@ measured benchmarks, not from optimism.
 | Screenshots | **Done**: agents read the words on screen; the person can save a capture where writing is allowed | C4 |
 | Email, calendar, text, Canvas, docs | **Gmail and Google Calendar reading done**, once the person connects an address: its own permission, a sealed sign-in, a secretary agent that reads and cannot send. Sending, other connectors to come | C5 |
 | Banking | **Read-only, permanently** | C5 |
-| Monitoring agent — watch for changes | **Folders, pages and feeds done**: changes wake scheduled jobs, which can put up notices or set an agent to work. Inboxes after C5 | C6 |
+| Monitoring agent — watch for changes | **Folders, pages, feeds and Gmail inboxes done**: changes wake scheduled jobs, which can put up notices or set an agent to work | C6 |
 | Time-based and event-based processes (daily/weekly/monthly/custom) | **Done** | A6 |
 | Location and time awareness | **Done**: agents and the chat are told the date and time, and the place, time zone and weather with `location.read`; the scenes know the hemisphere and the weather | C7 |
 | Purchasing | Possible, but a person presses the button every time | C8 |
@@ -528,7 +528,7 @@ week, which Google does for apps left in testing.
 beside it, the sign-in in the person's browser, and disconnecting.
 *Next:* inboxes for C6; sending mail and changing events, each confirmed.
 
-**C6 ▶ Monitoring agent** — `core/agents/monitor.py`, bridge `ui/bridge/monitor.py`
+**C6 ✅ Monitoring agent** — `core/agents/monitor.py`, bridge `ui/bridge/monitor.py`
 Watch a page, folder, inbox or feed for change; run on the scheduler; notify or
 trigger a follow-up agent.
 *Done, the local half:* watched folders. Each look turns what changed into
@@ -546,7 +546,14 @@ hourly by default, never more often than every 15 minutes. What was seen
 survives a restart. Addresses in events lose their query strings. A feed with
 a document type is refused before anything is expanded. A job's agent is told
 that what an event carries is material, not instructions.
-*Still to do:* inboxes, which need C5.
+*Done since, inboxes:* a connected Gmail address can be watched like a feed.
+Each look reads the inbox's last week, up to ten messages, under `mail.read`
+for that address through its sign-in, and reports only messages not seen
+before (`mail.item` each, `mail.changed` for the lot), narrowed by words.
+Nothing is sent, deleted or marked read. A sign-in Google stopped accepting
+pauses the watch with that reason and keeps what was seen; revoking `mail.read`
+pauses it and forgets. The Watching view offers "An inbox" from the connected
+addresses (`Monitor.addInboxWatch`).
 
 **C7 ✅ Location and time awareness** — `core/context/place.py`, `core/context/weather.py`, bridge `ui/bridge/place.py`
 Local timezone, season and weather already drive the scenes; this generalises
@@ -624,7 +631,7 @@ and resumable.
 | B | B5 Memory distillation | ✅ |
 | B | B6 Projects reconciled | ✅ |
 | C | C1 Network chokepoint | ✅ |
-| C | C6 Monitoring agent | ▶ folders, pages and feeds done; inboxes wait for C5 |
+| C | C6 Monitoring agent | ✅ folders, pages, feeds and Gmail inboxes |
 | C | C7 Location and time | ✅ |
 | C | C4 Screen capture | ✅ |
 | C | C2 Web search | ✅ |
@@ -634,7 +641,7 @@ and resumable.
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1892 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 1902 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

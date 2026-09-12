@@ -1,9 +1,9 @@
-"""Watched folders, pages and feeds, and the notices jobs put up — the `Monitor` bridge.
+"""Watched folders, pages, feeds and inboxes, and the notices jobs put up — the `Monitor` bridge.
 
 A watch turns changes into events that scheduled jobs wait for (see
 `akira.core.agents.monitor`). Adding one is held to its permission,
-`files.read` for a folder and `net.http` for a page's or a feed's site, and
-recorded in the activity log. The looking happens on its own thread; this
+`files.read` for a folder, `net.http` for a page's or a feed's site and
+`mail.read` for an inbox's address, and recorded in the activity log. The looking happens on its own thread; this
 bridge only hears about it, on a queued signal.
 
 Notices come from the `notify` action, on the scheduler's thread, and cross to
@@ -17,7 +17,8 @@ import time
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
-from akira.core.agents.monitor import FEED, FOLDER, PAGE, WEB_EVERY_S, Monitor, MonitorError
+from akira.core.agents.monitor import (FEED, FOLDER, INBOX, PAGE, WEB_EVERY_S, Monitor,
+                                       MonitorError)
 from akira.core.permissions import AuditLog
 
 #: Notices kept for the list; older ones fall off the end.
@@ -65,19 +66,19 @@ class MonitorBridge(QObject):
 
     @Property("QVariantList", notify=watchesChanged)
     def watches(self) -> list:
-        """Each watch: `id`, `kind` (`folder`, `page` or `feed`), `folder`, `url`
-        (without its query), `title` (a page's or feed's own, once looked at),
-        `patterns` (file patterns for a folder, words for a page or feed),
-        `every` (minutes between looks at a page or feed, 0 for a folder),
-        `paused` (why it is not reporting, or ""), `lastChange` and `lastLook`
-        (epoch seconds, 0 if never)."""
+        """Each watch: `id`, `kind` (`folder`, `page`, `feed` or `inbox`), `folder`,
+        `url` (without its query), `address` (an inbox's), `title` (a page's or
+        feed's own, once looked at), `patterns` (file patterns for a folder, words
+        otherwise), `every` (minutes between looks, 0 for a folder), `paused`
+        (why it is not reporting, or ""), `lastChange` and `lastLook` (epoch
+        seconds, 0 if never)."""
         rows = []
         for w in self._monitor.watches():
-            web = w.kind != FOLDER
+            web = w.kind in (PAGE, FEED)
             rows.append({"id": w.id, "kind": w.kind, "folder": w.folder,
-                         "url": w.target if web else "",
+                         "url": w.target if web else "", "address": w.address,
                          "title": self._monitor.title(w.id), "patterns": list(w.patterns),
-                         "every": w.every_s // 60 if web else 0, "paused": w.paused,
+                         "every": w.every_s // 60 if w.kind != FOLDER else 0, "paused": w.paused,
                          "lastChange": self._monitor.last_change.get(w.id, 0.0),
                          "lastLook": self._monitor.looked(w.id)})
         return rows
@@ -121,6 +122,21 @@ class MonitorBridge(QObject):
                                                        "words": list(watch.patterns),
                                                        "every": watch.every_s},
                               allowed=True, capability="net.http", scope=watch.site)
+        return ""
+
+    @Slot(str, "QVariantList", int, result=str)
+    def addInboxWatch(self, address: str, words: list, minutes: int) -> str:
+        """Watch a connected inbox for new mail, optionally only mail mentioning one of
+        `words`, looked at every `minutes` (0 for hourly). Returns "" or why not."""
+        every = int(minutes) * 60 if minutes else WEB_EVERY_S
+        try:
+            watch = self._monitor.add_inbox(address, words or (), every)
+        except MonitorError as exc:
+            return str(exc)
+        self._audit.tool_call(ACTOR, f"watch_{INBOX}", {"address": watch.address,
+                                                       "words": list(watch.patterns),
+                                                       "every": watch.every_s},
+                              allowed=True, capability="mail.read", scope=watch.address)
         return ""
 
     @Slot(str, result=str)
