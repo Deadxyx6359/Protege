@@ -32,6 +32,7 @@ from akira.core.schedule.actions import register_agent_actions
 from akira.core.tools import default_registry
 from akira.design import ThemeController
 from akira.ui.bridge import (
+    AccountsBridge,
     AgentsBridge,
     ChatBridge,
     ConfirmBridge,
@@ -76,6 +77,7 @@ class AppContext:
     graph: GraphBridge | None = None
     monitor: MonitorBridge | None = None
     place: PlaceBridge | None = None
+    accounts: AccountsBridge | None = None
     scheduler: Scheduler | None = None
     service: SchedulerService | None = None
     monitor_service: MonitorService | None = None
@@ -92,7 +94,8 @@ class AppContext:
                           ("AgentTrace", self.trace), ("Schedule", self.schedule),
                           ("Agents", self.agents), ("Memory", self.memory),
                           ("Projects", self.projects), ("Graph", self.graph),
-                          ("Monitor", self.monitor), ("Place", self.place)):
+                          ("Monitor", self.monitor), ("Place", self.place),
+                          ("Accounts", self.accounts)):
             if obj is not None:
                 exposed[name] = obj
         return exposed
@@ -231,6 +234,10 @@ def build_context(*, persist: bool = True) -> AppContext:
     monitor.monitor.set_on_change(monitor.changed)
     register_notify_action(actions, notify=monitor.notify)
 
+    # Connecting a Google address is the person's own act, under the global
+    # grants: an account belongs to the person, not to whichever project is open.
+    accounts = AccountsBridge(vault=secret_store, policy=live_policy, audit=audit)
+
     # Each chat turn draws on what the person has granted, as agents do, and on
     # the open project. The notes searched are the vault memory is kept in.
     assembler = ContextAssembler(registry=default_registry(), policy=working_policy,
@@ -254,6 +261,7 @@ def build_context(*, persist: bool = True) -> AppContext:
         graph=GraphBridge(policy=working_policy, audit=audit),
         monitor=monitor,
         place=place,
+        accounts=accounts,
         housekeeping=sweep_indexes,
     )
 

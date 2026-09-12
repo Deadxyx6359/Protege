@@ -21,6 +21,9 @@ Sheet {
     /*! The person wants to say where they are. */
     signal placeRequested()
 
+    /*! The person wants to connect or manage a Google address. */
+    signal accountsRequested()
+
     // -- permissions --------------------------------------------------------
 
     ColumnLayout {
@@ -94,6 +97,48 @@ Sheet {
                 objectName: "setPlace"
                 text: Place.name !== "" ? "Change" : "Set"
                 onClicked: root.placeRequested()
+            }
+        }
+    }
+
+    // -- accounts -------------------------------------------------------------
+
+    ColumnLayout {
+        width: parent.width
+        spacing: Theme.space.md
+
+        SectionLabel { text: "Accounts" }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.space.md
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 1
+                Text {
+                    Layout.fillWidth: true
+                    text: Accounts.accounts.length > 0
+                          ? Accounts.accounts.map(function (a) { return a.address; }).join(", ")
+                          : "Google"
+                    textFormat: Text.PlainText
+                    font: Theme.type.body
+                    color: Theme.textPrimary
+                    elide: Text.ElideRight
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: "Gmail and Google Calendar, read only, once you connect an address."
+                    font: Theme.type.caption
+                    color: Theme.textTertiary
+                    wrapMode: Text.Wrap
+                }
+            }
+
+            ActionButton {
+                objectName: "openAccounts"
+                text: Accounts.accounts.length > 0 ? "Manage" : "Connect"
+                onClicked: root.accountsRequested()
             }
         }
     }

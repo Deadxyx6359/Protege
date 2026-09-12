@@ -260,6 +260,35 @@ call(projects_sheet, "forget")
 out["armed_kept"] = any(p["id"] == pid for p in ctx.projects.projects)
 call(projects_sheet, "forget")
 out["forgotten"] = ctx.projects.projects == []
+
+# -- google accounts ------------------------------------------------------------
+accounts_sheet = root.findChild(QObject, "accountsSheet")
+client = os.path.join(os.getcwd(), "client_secret.json")
+with open(client, "w", encoding="utf-8") as stream:
+    json.dump({"installed": {"client_id": "1-a.apps.googleusercontent.com",
+                             "client_secret": "GOCSPX-x",
+                             "token_uri": "https://oauth2.googleapis.com/token"}}, stream)
+out["client_before"] = ctx.accounts.clientReady
+call(accounts_sheet, "chooseClient", client)
+out["client_after"] = ctx.accounts.clientReady
+accounts_sheet.setProperty("address", "Akira.Helper@gmail.com")
+accounts_sheet.setProperty("chosen", ["mail"])
+# Allowed elsewhere first, so the sheet's own copy is stale: it must be kept.
+policy.grant("mail.read", ("someone.else@gmail.com",))
+call(accounts_sheet, "connectNow")
+out["refused"] = accounts_sheet.property("notice")
+call(accounts_sheet, "allow", "mail.read")
+out["mailboxes"] = sorted(policy.granted("mail.read").scopes)
+# Never the person's real browser in a test.
+opened = []
+ctx.accounts._open = opened.append
+call(accounts_sheet, "connectNow")
+pump(5, lambda: bool(opened))
+out["signing_in"] = ctx.accounts.busy and ctx.accounts.connecting == "akira.helper@gmail.com"
+out["page"] = opened[0].split("?", 1)[0] if opened else ""
+ctx.accounts.cancel()
+pump(5, lambda: not ctx.accounts.busy)
+out["stopped"] = accounts_sheet.property("notice")
 print(json.dumps(out))
 """
 
@@ -341,6 +370,13 @@ def test_the_views_work_in_the_window(run):
     assert out["left"]
     assert out["armed_kept"], "a project was forgotten on the first press"
     assert out["forgotten"]
+
+    assert not out["client_before"] and out["client_after"]
+    assert "Not permitted" in out["refused"], "a sign-in started for an address nobody allowed"
+    assert out["mailboxes"] == ["akira.helper@gmail.com", "someone.else@gmail.com"], \
+        "allowing the address dropped a mailbox allowed elsewhere"
+    assert out["signing_in"] and out["page"] == "https://accounts.google.com/o/oauth2/v2/auth"
+    assert "stopped" in out["stopped"]
 
     script_errors = [line for line in errors.splitlines()
                      if "TypeError" in line or "ReferenceError" in line]

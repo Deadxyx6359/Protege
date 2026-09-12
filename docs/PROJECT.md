@@ -501,8 +501,10 @@ show a model the sign-in, and frame what they return as material. The
 anything. Google's page will call the app unverified: it is the person's own
 client, and they can publish it to stop the lasting sign-in expiring after a
 week, which Google does for apps left in testing.
-*Next:* connecting from the window (the client file, the address, the two
-permissions, the browser), then inboxes for C6.
+*Done since, from the window:* Settings, Accounts (`AccountsSheet.qml`, bridge
+`Accounts`): the client file, the address, the permissions it needs offered
+beside it, the sign-in in the person's browser, and disconnecting.
+*Next:* inboxes for C6; sending mail and changing events, each confirmed.
 
 **C6 ▶ Monitoring agent** — `core/agents/monitor.py`, bridge `ui/bridge/monitor.py`
 Watch a page, folder, inbox or feed for change; run on the scheduler; notify or
@@ -604,12 +606,12 @@ and resumable.
 | C | C7 Location and time | ✅ |
 | C | C4 Screen capture | ✅ |
 | C | C2 Web search | ✅ |
-| C | C5 Connectors | ▶ the signed-in door, Google sign-in, Gmail and Calendar reading; connecting from the window next |
+| C | C5 Connectors | ▶ Google: signed-in door, sign-in, Gmail and Calendar reading, connecting from the window; sending next |
 | C | C3, C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1862 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 1868 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

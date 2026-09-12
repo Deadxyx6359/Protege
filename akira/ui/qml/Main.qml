@@ -61,6 +61,10 @@ Window {
             settingsSheet.close();
             placeSheet.open();
         }
+        onAccountsRequested: {
+            settingsSheet.close();
+            accountsSheet.open();
+        }
     }
 
     PermissionsSheet {
@@ -78,6 +82,12 @@ Window {
     ProjectSheet {
         id: projectSheet
         objectName: "projectSheet"
+        z: 11
+    }
+
+    AccountsSheet {
+        id: accountsSheet
+        objectName: "accountsSheet"
         z: 11
     }
 

@@ -56,6 +56,7 @@ before changing it.
 | `Graph` | `GraphBridge` | A tag map and a link graph of a folder of notes |
 | `Monitor` | `MonitorBridge` | Watched folders, and the notices jobs put up |
 | `Place` | `PlaceBridge` | Where the person is, and the hemisphere the scenes turn their seasons by |
+| `Accounts` | `AccountsBridge` | Connected Google addresses: the client file, signing in, disconnecting |
 
 Registered in `akira/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
@@ -433,6 +434,34 @@ Schedule.addJob({
 - The Python season rule is the one in `scenes/world.js`, and the weather
   names are its `WEATHER` list, so the scenery and the assistant agree. A test
   checks the names. Keep them the same if either changes.
+
+## `Accounts` — connected Google addresses
+
+| Member | Kind | Notes |
+|---|---|---|
+| `clientReady` | Property, notifies `clientChanged` | Whether the Google client file has been chosen and sealed |
+| `chooseClientFile(path)` | Slot → string | Seal the client in a file downloaded from Google Cloud: `""`, or why not (a web client, not a client file, sign-ins sent somewhere other than Google) |
+| `services` | Property | What an address can be connected for: `id` (`mail`, `calendar`), `title`, `capability` |
+| `accounts` | Property, notifies `accountsChanged` | Each: `address`, `services` (ids), `titles`, `connected` (epoch seconds), `needsSignIn` (why it must be connected again, or `""`) |
+| `missing(address, services)` | Slot → list | What must be allowed first: `capability` and `title` for each service not granted for that address |
+| `connectAccount(address, services)` | Slot → string | Start signing in: `""` once started, or why not, including **Not permitted** while `missing` is not empty |
+| `busy`, `connecting` | Properties, notify `busyChanged` | `connecting` is the address being signed in, or `""` |
+| `cancel()` | Slot | Stop waiting for the browser. The sign-in ends through `finished` |
+| `finished(ok, message)` | Signal | Once per sign-in, however it ended. **Show `message`**: it says what was connected, or why nothing was |
+| `disconnectAccount(address)` | Slot → string | Hand the sign-in back to Google and forget it: `""`, or a note when Google could not be told. It is forgotten here either way |
+
+- **Nothing secret crosses this bridge**: not the client's secret, not a
+  sign-in. There is nothing to type but the address.
+- **The address is allowed first.** `mail.read` and `calendar.read` are scoped
+  to the address. Offer them beside it, from `missing`, and read the grant
+  fresh when adding one (`AccountsSheet.qml` does both), since
+  `Permissions.grant` replaces the whole list of addresses.
+- **Signing in happens in the person's browser**, which Windows opens at
+  Google's page; it waits up to five minutes. Google calls the app unverified,
+  because it is the person's own client, and says so; the view should too.
+- Connecting uses the global grants, never a project's.
+- The slots are `connectAccount` and `disconnectAccount` because every QObject
+  already has `connect` and `disconnect`.
 
 ## `Chat` — what a turn drew on
 

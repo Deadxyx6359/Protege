@@ -5,6 +5,7 @@ No decisions live at this layer — if a rule is being applied, it belongs in
 ``akira.core`` where it can be tested without a running Qt application.
 """
 
+from .accounts import AccountsBridge
 from .agents import AgentsBridge
 from .chat import ChatBridge, MessageListModel
 from .graph import GraphBridge
@@ -21,5 +22,5 @@ __all__ = [
     "ChatBridge", "MessageListModel", "SettingsBridge",
     "PermissionsBridge", "ConfirmBridge", "ScheduleBridge",
     "TraceBridge", "TraceListModel", "AgentsBridge", "MemoryBridge",
-    "ProjectsBridge", "GraphBridge", "MonitorBridge", "PlaceBridge",
+    "ProjectsBridge", "GraphBridge", "MonitorBridge", "PlaceBridge", "AccountsBridge",
 ]
