@@ -6,8 +6,8 @@ import Akira
     The application window.
 
     The conversation is live: \c Chat is the Python bridge, and the transcript,
-    busy state, model label and saved conversations all come from it. Projects
-    are still a sample array — they are the next thing to be wired.
+    busy state, model label and saved conversations all come from it, and the
+    sidebar's projects come from \c Projects.
 */
 Window {
     id: win
@@ -25,7 +25,6 @@ Window {
     // -- sample state -------------------------------------------------------
 
     property string currentNav: "chats"
-    property string currentProject: "thesis"
     readonly property string currentTab: ({ chats: "chat-1", code: "code-1", research: "research-1" })[currentNav] || ""
     property bool sidebarOpen: true
     // Views that fill the page themselves: no transcript, no composer.
@@ -35,6 +34,15 @@ Window {
     function selectWorkspace(id) {
         const views = { "chat-1": "chats", "code-1": "code", "research-1": "research" };
         currentNav = views[id] || id;
+    }
+
+    // A project keeps its colour when another is removed: it comes from the id.
+    function projectColor(id) {
+        const palette = [Theme.accent, Theme.success, Theme.warning];
+        let sum = 0;
+        for (let i = 0; i < id.length; i++)
+            sum = (sum * 31 + id.charCodeAt(i)) % 9973;
+        return palette[sum % palette.length];
     }
 
     // -- layout -------------------------------------------------------------
@@ -64,6 +72,12 @@ Window {
     PlaceSheet {
         id: placeSheet
         objectName: "placeSheet"
+        z: 11
+    }
+
+    ProjectSheet {
+        id: projectSheet
+        objectName: "projectSheet"
         z: 11
     }
 
@@ -127,7 +141,7 @@ Window {
             }
 
             currentNav: win.currentNav
-            currentProject: win.currentProject
+            currentProject: Projects.currentId
             currentRecent: Chat.conversationId
 
             navModel: [
@@ -141,17 +155,22 @@ Window {
                 { id: "memory", icon: "clock", label: "Memory" }
             ]
 
-            projectModel: [
-                { id: "thesis", name: "Thesis", color: Theme.accent },
-                { id: "akira", name: "Akira", color: Theme.success },
-                { id: "coursework", name: "Coursework", color: Theme.warning }
-            ]
+            projectModel: Projects.projects.map(function (p) {
+                return { id: p.id, name: p.name, color: win.projectColor(p.id) };
+            })
 
             recentModel: Chat.recents
 
             onNavSelected: function (id) { win.selectWorkspace(id) }
             onRecentSelected: function (id) { Chat.openConversation(id) }
-            onProjectSelected: function (id) { win.currentProject = id }
+            // Another project opens; the open one shows itself.
+            onProjectSelected: function (id) {
+                if (id === Projects.currentId)
+                    projectSheet.manage(id);
+                else
+                    Projects.openProject(id);
+            }
+            onNewProjectRequested: projectSheet.openNew()
             onCollapseRequested: win.sidebarOpen = false
             onNewChatRequested: Chat.newChat()
             onSettingsRequested: settingsSheet.open()

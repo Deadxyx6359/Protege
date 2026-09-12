@@ -232,6 +232,8 @@ events with `to` set. Roles carry *narrowed* tool sets — a reviewer that canno
 write is a better reviewer.
 *Why here:* `MESSAGE`/`to` already exists on the trace and nothing emits it, so
 Codex's agent-interaction view currently renders an empty graph.
+*Since:* `AgentsView.qml` draws a team as its members in working order, with
+the hand-offs lit as they happen (handoff 13).
 *Done when:* a scripted two-agent run produces a traceable hand-off, a member
 cannot exceed the team's policy, and a failing member does not hang the team.
 
@@ -380,8 +382,9 @@ accepts through the `Memory` bridge, held to `vault.write` for that note and
 audited; the write goes through the vault, so it can be undone, and a note
 edited since is re-based rather than overwritten. The holding area is not
 ported because nothing is deleted: the conversation stays where it was.
-*Still to do:* the review screen (Codex, on `Memory`), and retention settings
-for conversations themselves.
+*Still to do:* retention settings for conversations themselves. The review
+screen is `MemoryView.qml` (handoff 14): a refused accept offers writing for
+that note's folder only, never the whole vault.
 
 **B6 ✅ Projects reconciled** — `core/projects.py`, bridge `ui/bridge/projects.py`
 Fold legacy `projects.py` and `knowledge_graph.py` onto the new spine: a
@@ -395,7 +398,8 @@ plus the project's; the combined view is read-only, and where both hold a
 capability the earlier expiry wins. Scheduled jobs keep the global grants
 only, so what is on screen never changes what a nightly job may do. Removing
 a project forgets it and its grants and leaves its notes. The security review
-checks every project's grants. Bridge: `Projects`.
+checks every project's grants. Bridge: `Projects`. The sidebar lists the real
+projects, and `ProjectSheet.qml` makes one or shows the open one (handoff 14).
 *Done since:* the graph, folded from legacy `knowledge_graph.py` onto the
 vault: a tag map with nested tags as hubs, laid out the same way every time,
 and the links between notes. Bridge: `Graph`.
@@ -576,7 +580,7 @@ and resumable.
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1802 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 1808 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

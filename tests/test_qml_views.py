@@ -235,6 +235,31 @@ out["write_scopes"] = [s.replace("\\", "/").rstrip("/").split("/")[-2:]
 propose("fedcba9876543210", "Beans")
 call(memory, "reject", "fedcba9876543210")
 out["rejected"] = ctx.memory.pendingCount == 0 and not os.path.exists(vault + "/Memory/Beans.md")
+
+# -- projects -----------------------------------------------------------------
+sidebar = root.findChild(QObject, "workspaceSidebar")
+out["sample_projects"] = [p["name"] for p in plain(sidebar.property("projectModel"))]
+projects_sheet = root.findChild(QObject, "projectSheet")
+call(projects_sheet, "openNew")
+projects_sheet.setProperty("name", "Thesis")
+call(projects_sheet, "makeProject")
+pump(0.2)
+out["projects"] = [p["name"] for p in ctx.projects.projects]
+out["open_project"] = ctx.projects.currentName
+out["sidebar_projects"] = [p["name"] for p in plain(sidebar.property("projectModel"))]
+out["sidebar_current"] = sidebar.property("currentProject") == ctx.projects.currentId != ""
+pid = ctx.projects.currentId
+ctx.projects.grant("files.read", [inbox])
+call(projects_sheet, "manage", pid)
+call(projects_sheet, "revoke", "files.read")
+out["project_grants"] = ctx.projects.grants
+call(projects_sheet, "leave")
+out["left"] = ctx.projects.currentId == ""
+call(projects_sheet, "manage", pid)
+call(projects_sheet, "forget")
+out["armed_kept"] = any(p["id"] == pid for p in ctx.projects.projects)
+call(projects_sheet, "forget")
+out["forgotten"] = ctx.projects.projects == []
 print(json.dumps(out))
 """
 
@@ -308,6 +333,14 @@ def test_the_views_work_in_the_window(run):
     assert out["write_scopes"] == [["Vault", "Memory"]], \
         "writing was allowed wider than the folder the note goes in"
     assert out["rejected"]
+
+    assert out["sample_projects"] == [], "the sidebar still shows sample projects"
+    assert out["projects"] == ["Thesis"] and out["open_project"] == "Thesis"
+    assert out["sidebar_projects"] == ["Thesis"] and out["sidebar_current"]
+    assert out["project_grants"] == []
+    assert out["left"]
+    assert out["armed_kept"], "a project was forgotten on the first press"
+    assert out["forgotten"]
 
     script_errors = [line for line in errors.splitlines()
                      if "TypeError" in line or "ReferenceError" in line]

@@ -281,6 +281,12 @@ Schedule.addJob({
   name, and the security review checks them like any other grant.
 - `personality` is stored, but the conversation does not use it yet. `folder` is
   where the project's notes live; it grants nothing.
+- The sidebar lists `projects` and marks `currentId`; a project's colour comes
+  from its id, so it does not change when another is removed. Clicking another
+  project opens it; clicking the open one shows `ProjectSheet.qml`: rename,
+  folder, the open project's `grants` each with a way to take it away, leave,
+  and forget, which asks twice. Granting something only in a project is not
+  offered yet: the permission screen grants everywhere.
 
 ## `Graph` — what a folder of notes knows
 

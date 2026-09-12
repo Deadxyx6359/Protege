@@ -62,8 +62,10 @@ Item {
         id: panel
         anchors.centerIn: parent
         width: Math.min(root.sheetWidth, root.width - Theme.space.xxl * 2)
+        // Both of the content's margins, top and bottom: counting one left
+        // every sheet short by the other and cut off its last row.
         height: Math.min(root.sheetMaxHeight,
-                         header.height + body.implicitHeight + Theme.space.xl)
+                         header.height + Theme.space.lg + body.implicitHeight + Theme.space.xl)
 
         scale: root._open ? 1.0 : 0.96
         y: root._open ? 0 : Theme.space.lg
