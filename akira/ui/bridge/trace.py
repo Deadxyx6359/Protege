@@ -104,6 +104,9 @@ class TraceListModel(QAbstractListModel):
         self.endResetModel()
         self.countChanged.emit()
 
+    def rows(self) -> list[Event]:
+        return list(self._rows)
+
     @Property(int, notify=countChanged)
     def count(self) -> int:
         return len(self._rows)
@@ -163,6 +166,15 @@ class TraceBridge(QObject):
         self._model.clear()
         self._active = []
         self.activeAgentsChanged.emit()
+
+    @Slot(int, result="QVariantList")
+    def recent(self, limit: int = 100) -> list:
+        """The newest events as plain maps, oldest first, for views that draw a
+        run rather than list it: the same fields as the model's roles."""
+        rows = self._model.rows()[-max(1, int(limit)):]
+        return [{"at": e.at, "kind": e.kind.value, "agent": e.agent, "text": e.text,
+                 "tool": e.tool, "ok": e.ok, "recipient": e.to, "step": e.step}
+                for e in rows]
 
     def _on_event(self, event: Event) -> None:
         """Runs on the UI thread, whichever thread emitted it."""

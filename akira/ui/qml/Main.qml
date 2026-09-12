@@ -88,6 +88,7 @@ Window {
                 { id: "chats", icon: "chat", label: "Chats" },
                 { id: "code", icon: "code", label: "Code" },
                 { id: "research", icon: "search", label: "Research" },
+                { id: "agents", icon: "team", label: "Agents" },
                 { id: "documents", icon: "document", label: "Documents" },
                 { id: "memory", icon: "clock", label: "Memory" }
             ]
@@ -176,13 +177,20 @@ Window {
                 SceneHost {
                     objectName: "workspaceScene"
                     anchors.fill: parent
-                    view: win.currentNav
-                    quiet: Chat.messages.count > 0
+                    // Agents work in the coding world; their cards keep it quiet.
+                    view: win.currentNav === "agents" ? "code" : win.currentNav
+                    quiet: win.currentNav === "agents" || Chat.messages.count > 0
                     motion: ThemeBridge.motionScale
                 }
 
+                AgentsView {
+                    objectName: "agentsView"
+                    anchors.fill: parent
+                    visible: win.currentNav === "agents"
+                }
+
                 ChatView {
-                    visible: win.currentNav !== "research"
+                    visible: win.currentNav !== "research" && win.currentNav !== "agents"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
@@ -217,6 +225,7 @@ Window {
                 Composer {
                     id: composer
                     objectName: "workspaceComposer"
+                    visible: win.currentNav !== "agents"
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: Theme.space.lg
