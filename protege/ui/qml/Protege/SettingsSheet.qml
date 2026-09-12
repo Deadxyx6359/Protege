@@ -122,6 +122,7 @@ Sheet {
 
                         Text {
                             text: routeRow.modelData.label
+                            textFormat: Text.PlainText
                             font: Theme.type.body
                             color: Theme.textPrimary
                         }
@@ -140,6 +141,7 @@ Sheet {
                     Text {
                         Layout.fillWidth: true
                         text: routeRow.modelData.blurb
+                        textFormat: Text.PlainText
                         font: Theme.type.caption
                         color: Theme.textTertiary
                         elide: Text.ElideRight
@@ -184,6 +186,7 @@ Sheet {
                           ? "No models found."
                           : Settings.availableModels.length + " model"
                             + (Settings.availableModels.length === 1 ? "" : "s") + " found."
+                    textFormat: Text.PlainText
                     font: Theme.type.bodyStrong
                     color: Theme.textPrimary
                 }
@@ -199,6 +202,7 @@ Sheet {
                 Text {
                     Layout.fillWidth: true
                     text: Settings.modelsDirectory
+                    textFormat: Text.PlainText
                     font: Theme.type.monoSmall
                     color: Theme.textTertiary
                     wrapMode: Text.WrapAnywhere

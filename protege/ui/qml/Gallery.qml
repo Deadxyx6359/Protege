@@ -147,6 +147,7 @@ Window {
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
                                 text: "radius " + parent.modelData.label
+                                textFormat: Text.PlainText
                                 font: Theme.type.caption
                                 color: Theme.textTertiary
                             }
@@ -197,6 +198,7 @@ Window {
                                 anchors.bottom: parent.bottom
                                 anchors.margins: Theme.space.sm
                                 text: parent.modelData.n
+                                textFormat: Text.PlainText
                                 font: Theme.type.caption
                                 color: Theme.contrastText(parent.modelData.c)
                             }

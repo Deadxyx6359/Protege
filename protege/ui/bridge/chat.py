@@ -68,10 +68,13 @@ class MessageListModel(QAbstractListModel):
             case self.RoleRole:
                 return message.role
             case self.TextRole:
-                # Shown as Markdown, so a picture is served as a link and never
-                # loaded: its address could name a server (see qtguard). The
-                # transcript keeps the words as written. An error is plain text.
-                return message.text if message.error else inert_markdown(message.text)
+                # A reply is shown as Markdown, so a picture in it is served as
+                # a link and never loaded: its address could name a server (see
+                # qtguard). The person's own words and an error are shown as
+                # plain text, as written. The transcript keeps everything as is.
+                if message.role != "assistant" or message.error:
+                    return message.text
+                return inert_markdown(message.text)
             case self.ErrorRole:
                 return message.error
         return None

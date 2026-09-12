@@ -93,7 +93,7 @@ Item {
 
         Text {
             Layout.alignment: Qt.AlignHCenter
-            text: "Everything stays on this machine."
+            text: "Your conversations stay on this machine."
             font: Theme.type.callout
             color: Theme.textTertiary
         }
@@ -167,6 +167,9 @@ Item {
                         anchors.leftMargin: Theme.space.lg
                         anchors.rightMargin: Theme.space.lg
                         text: row.text
+                        // As typed. Pasted text can carry HTML, and AutoText
+                        // would render it and load any picture it names.
+                        textFormat: Text.PlainText
                         font: Theme.type.body
                         color: Theme.textPrimary
                         wrapMode: Text.Wrap
@@ -236,6 +239,7 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     text: root.busyStage
+                    textFormat: Text.PlainText
                     font: Theme.type.body
                     color: Theme.textSecondary
                 }

@@ -55,6 +55,7 @@ Item {
             rightPadding: Theme.space.xl
             verticalAlignment: Text.AlignVCenter
             text: root._index >= 0 ? root.options[root._index].label : root.placeholder
+            textFormat: Text.PlainText
             font: Theme.type.callout
             color: root._index >= 0 ? Theme.textPrimary : Theme.textTertiary
             elide: Text.ElideRight
@@ -113,6 +114,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     width: Math.min(implicitWidth, box.width - 110)
                     text: option.modelData.label
+                    textFormat: Text.PlainText
                     font: Theme.type.callout
                     color: Theme.textPrimary
                     elide: Text.ElideRight
@@ -121,6 +123,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: text !== ""
                     text: option.modelData.detail || ""
+                    textFormat: Text.PlainText
                     font: Theme.type.caption
                     color: Theme.textTertiary
                 }

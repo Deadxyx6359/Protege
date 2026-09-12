@@ -63,6 +63,7 @@ Item {
             }
             contentItem: Text {
                 text: fresh.text
+                textFormat: Text.PlainText
                 font: Theme.type.caption
                 color: fresh.enabled ? Theme.textSecondary : Theme.textTertiary
                 horizontalAlignment: Text.AlignHCenter
@@ -153,7 +154,7 @@ Item {
                         contentItem: RowLayout {
                             spacing: 10
                             Icon { Layout.leftMargin: 12; name: starter.modelData.icon; size: 15; color: Theme.textSecondary }
-                            Text { Layout.fillWidth: true; text: starter.text; font: Theme.type.callout; color: Theme.textPrimary }
+                            Text { Layout.fillWidth: true; text: starter.text; textFormat: Text.PlainText; font: Theme.type.callout; color: Theme.textPrimary }
                             Text { Layout.rightMargin: 12; text: "↗"; font: Theme.type.callout; color: Theme.textTertiary }
                         }
                         onClicked: root.chooseStarter(index)

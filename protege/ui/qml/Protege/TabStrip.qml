@@ -98,6 +98,7 @@ Item {
                         id: label
                         Layout.fillWidth: true
                         text: tab.modelData.title
+                        textFormat: Text.PlainText
                         font: tab.active ? Theme.type.captionStrong : Theme.type.caption
                         color: tab.active ? Theme.textPrimary : Theme.textSecondary
                         elide: Text.ElideRight

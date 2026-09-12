@@ -35,7 +35,10 @@ before changing it.
    offers that server the person's sign-in. The one exception is Markdown a
    bridge serves ready for it, `Chat` message text and `Agents.answer`, whose
    pictures arrive as links. Nothing else goes to `Text.MarkdownText`,
-   `Text.RichText` or `Text.StyledText`.
+   `Text.RichText` or `Text.StyledText`. `tests/test_qml_text_formats.py`
+   holds every QML file to this: a `Text` or `Label` whose text is not a
+   literal must set `textFormat`, and rich text may appear only where that
+   test allows it.
 
 ## Context properties
 

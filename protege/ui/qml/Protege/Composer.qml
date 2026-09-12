@@ -159,6 +159,7 @@ Item {
             Layout.alignment: Qt.AlignHCenter
             visible: root.footnote !== ""
             text: root.footnote
+            textFormat: Text.PlainText
             font: Theme.type.caption
             color: Theme.textTertiary
         }

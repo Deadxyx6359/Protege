@@ -87,6 +87,8 @@ Item {
                    - (detailText.visible ? detailText.width + Theme.space.sm : 0)
             anchors.verticalCenter: parent.verticalCenter
             text: root.label
+            // Conversation titles and project names: never rich text.
+            textFormat: Text.PlainText
             font: root.selected ? Theme.type.bodyStrong : Theme.type.body
             color: root.selected ? Theme.textPrimary
                                  : (root.hovered ? Theme.textPrimary : Theme.textSecondary)
@@ -102,6 +104,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             visible: root.detail !== ""
             text: root.detail
+            textFormat: Text.PlainText
             font: Theme.type.caption
             color: Theme.textTertiary
         }

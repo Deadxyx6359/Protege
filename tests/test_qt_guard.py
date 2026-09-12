@@ -143,9 +143,12 @@ def test_the_chat_serves_pictures_as_links_and_keeps_the_words(app):
     model = MessageListModel()
     said = "Here: ![chart](file://server/share/chart.png)"
     reply, failure = Message("assistant", said), Message("assistant", "![x](y)", error=True)
-    model.reset([reply, failure])
+    typed = Message("user", "What is ![this](y)?")
+    model.reset([reply, failure, typed])
     shown = model.data(model.index(0, 0), MessageListModel.TextRole)
     assert shown == "Here: \\![chart](file://server/share/chart.png)"
     assert reply.text == said, "the transcript was changed"
     assert model.data(model.index(1, 0), MessageListModel.TextRole) == "![x](y)", \
         "an error is plain text and was altered"
+    assert model.data(model.index(2, 0), MessageListModel.TextRole) == "What is ![this](y)?", \
+        "the person's own words are plain text and were altered"

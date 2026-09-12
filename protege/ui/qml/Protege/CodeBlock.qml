@@ -48,6 +48,8 @@ Item {
             anchors.leftMargin: Theme.space.md
             anchors.verticalCenter: parent.verticalCenter
             text: Blocks.languageLabel(root.lang)
+            // The tag after the fence is the model's, so it is plain text.
+            textFormat: Text.PlainText
             font: Theme.type.caption
             color: Theme.textTertiary
         }

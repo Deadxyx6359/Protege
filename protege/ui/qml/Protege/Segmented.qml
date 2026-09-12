@@ -66,6 +66,7 @@ Item {
                 Text {
                     anchors.centerIn: parent
                     text: parent.modelData.label
+                    textFormat: Text.PlainText
                     font: root._index === parent.index ? Theme.type.captionStrong
                                                        : Theme.type.caption
                     color: root._index === parent.index ? Theme.textPrimary

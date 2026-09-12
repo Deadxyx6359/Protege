@@ -105,12 +105,14 @@ Item {
 
                 Text {
                     text: root.title
+                    textFormat: Text.PlainText
                     font: Theme.type.title3
                     color: Theme.textPrimary
                 }
                 Text {
                     visible: root.subtitle !== ""
                     text: root.subtitle
+                    textFormat: Text.PlainText
                     font: Theme.type.caption
                     color: Theme.textTertiary
                 }

@@ -9,6 +9,7 @@ import QtQuick
 */
 Text {
     color: Theme.textTertiary
+    textFormat: Text.PlainText
     // Built with Qt.font() because QML forbids assigning both `font` and
     // `font.<sub>` on the same object.
     font: Qt.font({
