@@ -104,7 +104,7 @@ these names, so renaming one is a deliberate, coordinated act.
 
 **This is the most load-bearing piece of UI in the application.** Every
 irreversible action waits on it: file writes, `run_python`, `run_tests`,
-`git_commit`, the document tools that create or change a file
+`git_commit`, `git_push`, `save_screenshot`, the document tools that create or change a file
 (`create_document`, `edit_document`, `update_spreadsheet`), and any scheduled
 job that reaches one of those. Until something
 answers `requested`, each waits five minutes and is refused, and a scheduled

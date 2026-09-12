@@ -8,12 +8,17 @@ Three tiers of consequence, each behind the gate it deserves:
   * **Running** — `run_python` and `run_tests` execute code, which can do
     anything the user can. That is `shell.run`: irreversible, so every single
     run is confirmed, whatever the grant says.
-  * **Recording** — `git_commit` writes history. Confirmed as well.
+  * **Recording and publishing** — `git_commit` writes history and `git_push`
+    sends it to a remote. Each is confirmed, every time.
 
-**There is no push.** Pushing sends the repository off this machine, and the
-only door off this machine is to be the network chokepoint (C1), which does
-not exist yet. Until it does nothing here speaks a network protocol, and git
-is explicitly told not to.
+**Pushing is the person's own git, asked each time.** `git_push` sends the
+checked-out branch to its remote the way the person would: with the git login
+already set up on this computer, so no credential passes through Akira or a
+model. It never forces, pushes only to https and ssh remotes, and the question
+it puts to the person names the exact address and how many commits. git is its
+own process, out of the network guard's sight, so the permission (`vcs.write`
+for the repository) and that question are the controls. Every other git call
+here still blocks every network protocol.
 
 ## Running code
 
@@ -56,10 +61,12 @@ from __future__ import annotations
 import ast
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from akira.security.paths import PathViolation, real, reject_dangerous
@@ -542,6 +549,160 @@ git_commit = Tool(
 )
 
 
+# -- git_push ---------------------------------------------------------------------
+
+PUSH_TIMEOUT_S = 120.0
+
+#: Where a push may go. https and ssh are how a person pushes to a host. Plain
+#: http and git:// send the code unencrypted, ext:: runs a program, and a local
+#: path would write outside the folder the permission covers.
+PUSH_PROTOCOLS = ("https", "ssh")
+
+_SCP_LIKE = re.compile(r"\A[\w.-]+@[\w.-]+:(?!//)\S+\Z")
+_USERINFO = re.compile(r"(?<=://)[^/@\s]+@")
+_REMOTE_NAME = re.compile(r"\A\w[\w.-]{0,63}\Z")
+
+
+def _shown_url(text: str) -> str:
+    """\a text with any name or token in an address hidden, as a model or the log may see it."""
+    return _USERINFO.sub("•••@", text)
+
+
+def _push_protocol(url: str) -> str:
+    if _SCP_LIKE.match(url):
+        return "ssh"
+    scheme, sep, _ = url.partition("://")
+    if sep:
+        return scheme.lower()
+    return "ext" if url.startswith("ext::") else "file"
+
+
+def _personal_config(repo: Path, key: str) -> list[str]:
+    """\a key from the person's own git configuration, system then global, never
+    the repository's, which whoever prepared the repository could have written."""
+    values: list[str] = []
+    for level in ("--system", "--global"):
+        code, out, _ = _git(repo, "config", level, "--get-all", key)
+        if code == 0:
+            values += [line for line in out.splitlines() if line.strip()]
+    return values
+
+
+@dataclass(frozen=True)
+class _Push:
+    repo: Path
+    remote: str
+    branch: str
+    url: str
+    ahead: int
+    """Commits the remote does not have, or -1 for a branch it has never seen."""
+
+    tracked: bool
+
+
+def _push_plan(arguments: dict) -> _Push:
+    repo = _repository(arguments["path"])
+    code, out, _ = _git(repo, "symbolic-ref", "--quiet", "--short", "HEAD")
+    if code != 0 or not out.strip():
+        raise ToolError("the repository is not on a branch, so there is nothing to push by name")
+    branch = out.strip()
+    wanted = str(arguments.get("branch") or "").strip()
+    if wanted and wanted != branch:
+        raise ToolError(f"only the checked-out branch, {branch}, is pushed; switch to {wanted} first")
+    code, out, _ = _git(repo, "config", "--get", f"branch.{branch}.remote")
+    tracked = code == 0 and bool(out.strip())
+    remote = str(arguments.get("remote") or "").strip() or (out.strip() if tracked else "origin")
+    if not _REMOTE_NAME.match(remote):
+        raise ToolError(f"{remote!r} is not a remote name")
+    code, out, _ = _git(repo, "remote", "get-url", "--push", remote)
+    if code != 0 or not out.strip():
+        raise ToolError(f"there is no remote called {remote}")
+    url = out.strip()
+    if _push_protocol(url) not in PUSH_PROTOCOLS:
+        raise ToolError(f"{_shown_url(url)} is not an https or ssh address, so nothing is "
+                        "pushed there")
+    code, out, _ = _git(repo, "rev-list", "--count", f"refs/remotes/{remote}/{branch}..HEAD")
+    ahead = int(out.strip()) if code == 0 and out.strip().isdigit() else -1
+    return _Push(repo, remote, branch, url, ahead, tracked)
+
+
+def _what(plan: _Push) -> str:
+    if plan.ahead < 0:
+        return f"the new branch {plan.branch}"
+    return f"{plan.ahead} commit{'' if plan.ahead == 1 else 's'} on {plan.branch}"
+
+
+def _describe_push(arguments: dict, context: ToolContext) -> str:
+    plan = _push_plan(arguments)
+    if plan.ahead == 0:
+        raise ToolError(f"{plan.branch} is already on {plan.remote}; nothing to push")
+    return (f"Push {_what(plan)} from {plan.repo} to {plan.remote}, {_shown_url(plan.url)}. "
+            "This publishes them there.")
+
+
+def _push_argv(plan: _Push) -> list[str]:
+    git = shutil.which("git")
+    if git is None:
+        raise ToolError("git is not installed, or is not on PATH")
+    settings = ["core.fsmonitor=false", f"core.hooksPath={_no_hooks_dir()}",
+                "protocol.allow=never",
+                *(f"protocol.{protocol}.allow=always" for protocol in PUSH_PROTOCOLS),
+                # Reset, then only the person's own helpers: a repository cannot
+                # name the program that is handed their password.
+                "credential.helper=",
+                *(f"credential.helper={helper}"
+                  for helper in _personal_config(plan.repo, "credential.helper")),
+                "core.sshCommand="
+                + (_personal_config(plan.repo, "core.sshCommand") or ["ssh"])[-1]]
+    argv = [git, "--no-pager"]
+    for setting in settings:
+        argv += ["-c", setting]
+    argv += ["-C", str(plan.repo), "push", "--porcelain"]
+    if not plan.tracked:
+        argv.append("--set-upstream")
+    # Named exactly, and never with a leading +: nothing is forced.
+    return argv + [plan.remote, f"refs/heads/{plan.branch}:refs/heads/{plan.branch}"]
+
+
+def _run_push(arguments: dict, context: ToolContext) -> ToolResult:
+    plan = _push_plan(arguments)
+    shown = _shown_url(plan.url)
+    if plan.ahead == 0:
+        return ToolResult.failure(f"{plan.branch} is already on {plan.remote}; nothing to push.")
+    code, out, err, timed_out = _run(_push_argv(plan), cwd=plan.repo, timeout=PUSH_TIMEOUT_S,
+                                     env=_env(**_GIT_ENV))
+    if timed_out:
+        raise ToolError(f"the push to {shown} did not finish within {PUSH_TIMEOUT_S:.0f} seconds")
+    detail = _shown_url((out + "\n" + err).strip())[-1500:]
+    if code != 0:
+        if any(sign in detail for sign in ("rejected", "non-fast-forward", "fetch first")):
+            return ToolResult.failure(
+                f"{plan.remote} has commits this branch does not, so the push was refused. "
+                f"Nothing was forced. Pull or rebase first.\n\n{detail}")
+        return ToolResult.failure(f"The push to {shown} failed.\n\n{detail}")
+    return ToolResult.success(
+        f"Pushed {_what(plan)} to {plan.remote} ({shown}). Hooks were not run.",
+        data={"remote": plan.remote, "branch": plan.branch})
+
+
+git_push = Tool(
+    name="git_push",
+    summary=("Push the checked-out branch of a git repository to its remote with the person's "
+             "own git login, publishing its commits there. Never forces."),
+    parameters=(
+        _path_parameter(),
+        Parameter("remote", "string", "The remote. Defaults to the branch's own, or origin.",
+                  required=False),
+        Parameter("branch", "string", "Only the checked-out branch can be pushed.",
+                  required=False),
+    ),
+    requires=(Requirement("vcs.write", scope_from="path"),),
+    reversible=False,
+    describe=_describe_push,
+    run=_run_push,
+)
+
+
 # -- open_in_editor ------------------------------------------------------------
 
 
@@ -612,4 +773,4 @@ open_in_editor = Tool(
 
 
 ALL = (check_syntax, run_python, run_tests, git_status, git_diff, git_log,
-       git_commit, open_in_editor)
+       git_commit, git_push, open_in_editor)

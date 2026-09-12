@@ -117,7 +117,15 @@ class ToolRegistry:
 
         # -- irreversible actions stop for a person ---------------------------
         if not tool.reversible:
-            summary = _describe(tool, cleaned)
+            try:
+                summary = (tool.describe(cleaned, context) if tool.describe is not None
+                           else _describe(tool, cleaned))
+            except ToolError as exc:
+                # Refused before anyone was asked, and recorded like any refusal.
+                context.audit.tool_call(
+                    context.actor, name, cleaned, allowed=False, error=str(exc),
+                    duration_ms=int((time.monotonic() - started) * 1000))
+                return ToolResult.failure(str(exc))
             approved = False
             try:
                 approved = bool(context.confirm(summary))

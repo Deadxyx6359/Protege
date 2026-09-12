@@ -159,6 +159,11 @@ class Tool:
     reversible: bool = True
     """False means every call stops for confirmation, grant or no grant."""
 
+    describe: Callable[[dict, ToolContext], str] | None = None
+    """What to ask the person before an irreversible call, when the arguments
+    alone do not say it: a push names the address it goes to and how many
+    commits. It may raise `ToolError` to refuse before anyone is asked."""
+
     def json_schema(self) -> dict:
         """The tool-call schema handed to the model."""
         return {

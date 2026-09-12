@@ -72,7 +72,7 @@ measured benchmarks, not from optimism.
 | Agent loop, prompted tool calling | **Done** | A3 |
 | Multiple agents in teams (research team, software team) | Fine — Hermes-3-8B is built for tool calling and fits the card | A4 |
 | Visual display of which model is doing what, and how agents interact | Fine — `Trace` carries it; UI is Codex's | A5 |
-| Coding agent, Claude-Code-like, reads/writes/runs code via VS Code | **Done** — on the tool gate: check, run, test, git, open in VS Code. No push yet: git runs as its own process, which the network door does not cover | A8 |
+| Coding agent, Claude-Code-like, reads/writes/runs code via VS Code | **Done** — on the tool gate: check, run, test, commit, push, open in VS Code. A push uses the person's own git login, never forces, and is asked each time | A8 |
 
 ### 2.2 Knowledge
 
@@ -285,8 +285,14 @@ access is `shell.run` — irreversible, therefore always confirmed.
 `git_status`/`git_diff`/`git_log`/`git_commit`, `open_in_editor`. Code runs
 behind the network guard with a scrubbed environment. Git is hardened
 against config-driven execution (fsmonitor, hooks, credential helpers,
-signing, lazy fetch). VS Code starts without cmd.exe. **No push** — it
-waits for C1.
+signing, lazy fetch). VS Code starts without cmd.exe.
+*Done, push:* `git_push`, the way the person would: their own git login, so no
+credential passes through Akira; the checked-out branch only, never forced;
+https and ssh remotes only; and a question that names the address and how many
+commits, every time. git is its own process, out of the network guard's sight,
+so `vcs.write` and that question are the controls, and nothing a repository's
+own configuration names (hooks, credential helper, ssh command) is run. The
+implementer may propose commits and pushes.
 
 ### Phase B — the second brain
 
@@ -433,9 +439,8 @@ in C++, out of sight of both checks. Every engine now refuses the network
 and on QML that imports its own connection; and pictures in replies are served
 as links, because Qt opens `file://server/…` as a file and Windows as a
 network share.
-*Still to do:* `git push`, which runs git itself, a separate process the guard
-cannot see, so it needs its own design; and the clients: C2 search, C3
-browser, C5 connectors.
+*Still to do:* the clients: C2 search, C3 browser, C5 connectors. `git push`
+is done under A8 with its own controls, since git is a process of its own.
 
 **C2 ○ Web search** — `core/tools/builtin/search.py`
 
@@ -559,7 +564,7 @@ and resumable.
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1784 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 1794 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

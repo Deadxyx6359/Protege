@@ -111,9 +111,10 @@ IMPLEMENTER = AgentSpec(
         "change."
     ),
     route=Route.CODE,
-    # Tests, not commits: whether a change is recorded is a person's call.
+    # It may propose a commit and a push, as a person working in the repository
+    # would; whether either happens is still the person's call, asked each time.
     tools=("read_file", "list_directory", "search_files", "write_file",
-           "check_syntax", "run_tests"),
+           "check_syntax", "run_tests", "git_commit", "git_push"),
     max_steps=10,
     temperature=0.2,
 )
