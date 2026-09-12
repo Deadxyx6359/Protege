@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-from protege.skills.author import check_syntax, scan_imports
-from protege.skills.library import LIBRARY, by_name
+from akira.skills.author import check_syntax, scan_imports
+from akira.skills.library import LIBRARY, by_name
 
 
 def run(skill_name: str, tmp_path: Path, *args: str) -> tuple[int, str, str]:
@@ -221,8 +221,8 @@ def test_install_writes_an_unapproved_header(tmp_path, tk_available):
             # Tk works in this process, so this is a real defect.
             raise
         pytest.skip("Tk is unavailable in this environment")
-    from protege.ui import theme
-    from protege.ui.skill_library_dialog import SkillLibraryDialog
+    from akira.ui import theme
+    from akira.ui.skill_library_dialog import SkillLibraryDialog
 
     theme.install(root)
     root.withdraw()

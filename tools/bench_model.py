@@ -52,8 +52,8 @@ def vram_used_mib() -> int | None:
 
 
 def bench(path: Path, n_ctx: int, n_gpu_layers: int, max_tokens: int) -> dict:
-    from protege.models.base import ChatMessage, ModelSpec, Role
-    from protege.models.llama_backend import LlamaBackend
+    from akira.models.base import ChatMessage, ModelSpec, Role
+    from akira.models.llama_backend import LlamaBackend
 
     baseline = vram_used_mib()
 

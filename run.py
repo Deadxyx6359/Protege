@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Protege entry point.
+"""Akira entry point.
 
 Order of operations here is deliberate and should not be rearranged:
 
@@ -19,7 +19,7 @@ from pathlib import Path
 
 # Step 1. Nothing above this line imports anything that could capture an
 # unpatched socket reference.
-from protege.security import netguard
+from akira.security import netguard
 
 netguard.install()
 
@@ -27,19 +27,22 @@ netguard.install()
 # machine runs 125%) an unaware process is rendered small and bitmap-stretched
 # by Windows, which resamples every glyph and makes crisp fonts look soft.
 # It must happen before the first Tk call, hence here rather than in the UI.
-from protege.ui import theme as _theme  # noqa: E402
+from akira.ui import theme as _theme  # noqa: E402
 
 _theme.enable_dpi_awareness()
 
-from protege import __version__, store  # noqa: E402  (must follow netguard.install)
-from protege.schemas import SchemaError  # noqa: E402
-from protege.security.paths import capabilities, real  # noqa: E402
+from akira import __version__, store  # noqa: E402  (must follow netguard.install)
+from akira.core.config import migrate_config  # noqa: E402
+from akira.schemas import SchemaError  # noqa: E402
+from akira.security.paths import capabilities, real  # noqa: E402
 
-DEFAULT_VAULT_ENV = "PROTEGE_VAULT"
+DEFAULT_VAULT_ENV = "AKIRA_VAULT"
+#: Its name before the rename, still read so an existing setup keeps working.
+LEGACY_VAULT_ENV = "PROTEGE_VAULT"
 
 
 def _default_vault() -> Path | None:
-    env = os.environ.get(DEFAULT_VAULT_ENV)
+    env = os.environ.get(DEFAULT_VAULT_ENV) or os.environ.get(LEGACY_VAULT_ENV)
     if env:
         return Path(env)
     return None
@@ -50,22 +53,26 @@ def _resolve_vault(explicit: str | None) -> Path:
     if candidate is None:
         raise SystemExit(
             "No vault specified.\n"
-            "Pass --vault PATH, or set the PROTEGE_VAULT environment variable to the "
+            "Pass --vault PATH, or set the AKIRA_VAULT environment variable to the "
             "directory holding your Obsidian vault."
         )
     return candidate.expanduser()
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="protege", description=__doc__)
+    parser = argparse.ArgumentParser(prog="akira", description=__doc__)
     parser.add_argument("--vault", help="path to the Obsidian vault directory")
     parser.add_argument(
         "--check",
         action="store_true",
         help="bootstrap and validate the vault configuration, then exit without starting the UI",
     )
-    parser.add_argument("--version", action="version", version=f"Protege {__version__}")
+    parser.add_argument("--version", action="version", version=f"Akira {__version__}")
     args = parser.parse_args(argv)
+
+    moved = migrate_config()
+    if moved:
+        print(moved, file=sys.stderr)
 
     vault = _resolve_vault(args.vault)
 
@@ -87,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Step 3. The UI import lives here, after the guard is installed and the
     # configuration is known good.
-    from protege.ui.app import run_app
+    from akira.ui.app import run_app
 
     return run_app(vault, manifest, settings, personality)
 

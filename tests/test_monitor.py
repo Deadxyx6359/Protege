@@ -9,17 +9,17 @@ import os
 
 import pytest
 
-from protege.core.agents import monitor as monitor_module
-from protege.core.agents.monitor import (Monitor, MonitorError, WatchStore, describe_event,
+from akira.core.agents import monitor as monitor_module
+from akira.core.agents.monitor import (Monitor, MonitorError, WatchStore, describe_event,
                                          register_notify_action)
-from protege.core.permissions import AuditLog, Policy, SecretStore
-from protege.core.schedule import (ActionRegistry, ActionResult, JobGrant, JobStore, OnEvent,
+from akira.core.permissions import AuditLog, Policy, SecretStore
+from akira.core.schedule import (ActionRegistry, ActionResult, JobGrant, JobStore, OnEvent,
                                    Scheduler)
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 @pytest.fixture

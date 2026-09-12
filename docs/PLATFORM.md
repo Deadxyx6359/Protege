@@ -1,4 +1,4 @@
-# Protégé — the platform
+# Akira — the platform
 
 The assistant becomes a place where agents work: teams that research, build,
 watch and automate, with real reach into the machine and the network, and a
@@ -46,7 +46,7 @@ the permission model exists has to be rewritten once it does.
 
 ## The security model has inverted, and this needs saying plainly
 
-The original Protégé opened no socket, ever. `verify_offline.py` proved it, and
+The original Akira opened no socket, ever. `verify_offline.py` proved it, and
 the README called it a hard constraint.
 
 **Web search, email, banking and computer use end that.** There is no version of
@@ -99,7 +99,7 @@ runs unattended once permitted.
 ## Architecture
 
 ```
-protege/
+akira/
   core/
     agents/
       loop.py         one agent: perceive, decide, call a tool, repeat
@@ -128,7 +128,7 @@ protege/
       call.py         full-duplex session, survives the window closing
     connectors/       email, calendar, Canvas, banking (read), messaging
   ui/
-    qml/Protege/
+    qml/Akira/
       scenes/         the animated backdrops
       agents/         team view, live activity graph
       voice/          the call widget

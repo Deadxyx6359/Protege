@@ -13,9 +13,9 @@ import time
 
 import pytest
 
-from protege.core.net import NetError, host_of, is_public, redact
-from protege.core.net import client as net
-from protege.core.permissions import AuditLog, Policy
+from akira.core.net import NetError, host_of, is_public, redact
+from akira.core.net import client as net
+from akira.core.permissions import AuditLog, Policy
 
 PUBLIC = "93.184.216.34"
 
@@ -108,7 +108,7 @@ def test_what_is_sent_is_a_plain_get_to_the_checked_address(wire):
     [sent] = site.requests
     assert (sent["method"], sent["path"], sent["address"], sent["port"]) == ("GET", "/", PUBLIC, 443)
     headers = {key.lower(): value for key, value in sent["headers"].items()}
-    assert "protege" in headers["user-agent"].lower()
+    assert "akira" in headers["user-agent"].lower()
     assert headers["accept-encoding"] == "identity"
     assert not {"cookie", "authorization", "proxy-authorization"} & set(headers)
 

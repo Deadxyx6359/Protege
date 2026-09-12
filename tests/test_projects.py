@@ -9,15 +9,15 @@ from pathlib import Path
 
 import pytest
 
-from protege.core.permissions import AuditLog, Policy
-from protege.core.projects import LayeredPolicy, ProjectError, ProjectStore
-from protege.core.review import review
-from protege.core.tools import default_registry
+from akira.core.permissions import AuditLog, Policy
+from akira.core.projects import LayeredPolicy, ProjectError, ProjectStore
+from akira.core.review import review
+from akira.core.tools import default_registry
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 @pytest.fixture

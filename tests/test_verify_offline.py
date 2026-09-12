@@ -79,9 +79,9 @@ def test_from_import_without_module_is_ignored():
 @pytest.mark.parametrize(
     "name,importer,is_package,expected",
     [
-        (".schemas", "protege.store", False, "protege.schemas"),
-        (".defaults", "protege.personality", True, "protege.personality.defaults"),
-        ("..schemas", "protege.lock.manifest", False, "protege.schemas"),
+        (".schemas", "akira.store", False, "akira.schemas"),
+        (".defaults", "akira.personality", True, "akira.personality.defaults"),
+        ("..schemas", "akira.lock.manifest", False, "akira.schemas"),
     ],
 )
 def test_relative_resolution(name, importer, is_package, expected):
@@ -129,9 +129,9 @@ def test_the_exemptions_are_the_guards_and_the_chokepoint():
     # exactly what each may import, so adding one, or widening one, is a
     # deliberate act that changes this test.
     assert vo.EXEMPT_IMPORTS == {
-        "protege.security.netguard": frozenset({"socket"}),
-        "protege.core.net.client": frozenset({"socket", "ssl", "http.client", "urllib.parse"}),
-        "protege.security.qtguard": frozenset({"PySide6.QtNetwork"}),
+        "akira.security.netguard": frozenset({"socket"}),
+        "akira.core.net.client": frozenset({"socket", "ssl", "http.client", "urllib.parse"}),
+        "akira.security.qtguard": frozenset({"PySide6.QtNetwork"}),
     }
     assert vo.SOURCE_EXEMPT == frozenset(vo.EXEMPT_IMPORTS)
 
@@ -149,13 +149,13 @@ def test_the_guard_may_not_connect():
 
 
 def test_only_the_chokepoint_may_open_the_guard():
-    source = ("from protege.security import netguard\n"
+    source = ("from akira.security import netguard\n"
               "with netguard.admitting(hosts=('example.com',)):\n    pass\n")
-    assert vo._admission_findings(_parse(source), "protege.core.tools.builtin.web",
+    assert vo._admission_findings(_parse(source), "akira.core.tools.builtin.web",
                                   vo.REPO_ROOT / "web.py")
     assert not vo._admission_findings(_parse(source), vo.CHOKEPOINT, vo.REPO_ROOT / "fetch.py")
-    sneaky = "from protege.security.netguard import admitting\n"
-    assert vo._admission_findings(_parse(sneaky), "protege.core.agents.loop",
+    sneaky = "from akira.security.netguard import admitting\n"
+    assert vo._admission_findings(_parse(sneaky), "akira.core.agents.loop",
                                   vo.REPO_ROOT / "loop.py")
 
 

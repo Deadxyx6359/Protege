@@ -8,19 +8,19 @@ import json
 
 import pytest
 
-from protege.core.agents.roles import GATHERER
-from protege.core.brain import Index, VaultError
-from protege.core.brain.corpora import ConversationArchive, DocumentFolder
-from protege.core.brain.retrieve import Passage, fuse, gather
-from protege.core.documents import sheets, word
-from protege.core.permissions import AuditLog, Policy, SecretStore
-from protege.core.permissions.capabilities import ScopeKind, get
-from protege.core.tools import ToolContext, default_registry
+from akira.core.agents.roles import GATHERER
+from akira.core.brain import Index, VaultError
+from akira.core.brain.corpora import ConversationArchive, DocumentFolder
+from akira.core.brain.retrieve import Passage, fuse, gather
+from akira.core.documents import sheets, word
+from akira.core.permissions import AuditLog, Policy, SecretStore
+from akira.core.permissions.capabilities import ScopeKind, get
+from akira.core.tools import ToolContext, default_registry
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 def docx(outline: str) -> bytes:

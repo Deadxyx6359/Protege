@@ -11,9 +11,9 @@ import tkinter as tk
 
 import pytest
 
-from protege import store
-from protege.projects import ensure_project
-from protege.schemas import Settings
+from akira import store
+from akira.projects import ensure_project
+from akira.schemas import Settings
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def vault(tmp_path):
 
 
 def test_px_scales_with_the_display():
-    from protege.ui import theme
+    from akira.ui import theme
 
     factor = theme.scale()
     assert factor >= 1.0
@@ -50,7 +50,7 @@ def test_px_scales_with_the_display():
 
 
 def test_enable_dpi_awareness_reports_a_factor():
-    from protege.ui import theme
+    from akira.ui import theme
 
     factor = theme.enable_dpi_awareness()
     assert factor >= 1.0
@@ -67,7 +67,7 @@ def test_theme_scaling_is_applied_to_the_interpreter(root):
 
 
 def test_body_text_is_pure_white():
-    from protege.ui import theme
+    from akira.ui import theme
 
     assert theme.FG == "#ffffff"
 
@@ -75,7 +75,7 @@ def test_body_text_is_pure_white():
 def test_ground_is_darker_than_panels_which_are_darker_than_raised():
     """The three-step depth ramp is what stops the UI reading as one flat
     black rectangle."""
-    from protege.ui import theme
+    from akira.ui import theme
 
     def luminance(hex_colour: str) -> int:
         return sum(int(hex_colour[i:i + 2], 16) for i in (1, 3, 5))
@@ -87,7 +87,7 @@ def test_ground_is_darker_than_panels_which_are_darker_than_raised():
 
 
 def _fab(root):
-    from protege.ui.fab import FloatingActionButton
+    from akira.ui.fab import FloatingActionButton
 
     fired: list[str] = []
     host = tk.Frame(root, width=600, height=400)
@@ -160,7 +160,7 @@ def test_fab_toggle_is_idempotent(root):
 
 
 def test_fab_with_no_actions_does_nothing(root):
-    from protege.ui.fab import FloatingActionButton
+    from akira.ui.fab import FloatingActionButton
 
     host = tk.Frame(root)
     host.pack()
@@ -177,7 +177,7 @@ def test_fab_with_no_actions_does_nothing(root):
 
 
 def test_activity_reports_stages_in_plain_language(root):
-    from protege.ui.activity import STAGE_TEXT, ActivityIndicator
+    from akira.ui.activity import STAGE_TEXT, ActivityIndicator
 
     indicator = ActivityIndicator(root)
     indicator.pack()
@@ -199,7 +199,7 @@ def test_activity_reports_stages_in_plain_language(root):
 def test_activity_covers_every_stage_the_pipeline_emits():
     """The pipeline's `on_stage` strings and the indicator's vocabulary must
     not drift apart -- an unmapped stage shows a raw identifier."""
-    from protege.ui.activity import STAGE_TEXT
+    from akira.ui.activity import STAGE_TEXT
 
     emitted = {"retrieving", "assembling", "generating", "checking",
                "summarizing", "generating questions", "checking for other locked topics"}
@@ -207,7 +207,7 @@ def test_activity_covers_every_stage_the_pipeline_emits():
 
 
 def test_activity_stops_cleanly(root):
-    from protege.ui.activity import ActivityIndicator
+    from akira.ui.activity import ActivityIndicator
 
     indicator = ActivityIndicator(root)
     indicator.pack()
@@ -219,7 +219,7 @@ def test_activity_stops_cleanly(root):
 
 
 def test_activity_shows_an_elapsed_clock(root):
-    from protege.ui.activity import ActivityIndicator
+    from akira.ui.activity import ActivityIndicator
 
     indicator = ActivityIndicator(root)
     indicator.pack()
@@ -234,7 +234,7 @@ def test_activity_shows_an_elapsed_clock(root):
 
 def test_slow_stages_gain_an_explanation(root):
     """A 40-second wait with no explanation is indistinguishable from a hang."""
-    from protege.ui.activity import STAGE_HINT
+    from akira.ui.activity import STAGE_HINT
 
     assert "generating" in STAGE_HINT
     assert "checking" in STAGE_HINT
@@ -246,7 +246,7 @@ def test_slow_stages_gain_an_explanation(root):
 def test_sidebar_is_short(root):
     """It listed thirteen rows once -- a menu bar wearing a sidebar's clothes.
     Creation actions belong to the + button; this is navigation only."""
-    from protege.ui.sidebar import NAV_ITEMS
+    from akira.ui.sidebar import NAV_ITEMS
 
     assert len(NAV_ITEMS) <= 6
     keys = {key for key, _, _ in NAV_ITEMS}
@@ -255,8 +255,8 @@ def test_sidebar_is_short(root):
 
 
 def test_sidebar_builds_and_marks_the_current_project(root):
-    from protege.ui import theme
-    from protege.ui.sidebar import Sidebar
+    from akira.ui import theme
+    from akira.ui.sidebar import Sidebar
 
     bar = Sidebar(
         root, actions={"new_session": lambda: None, "settings": lambda: None},
@@ -280,11 +280,11 @@ def test_sidebar_builds_and_marks_the_current_project(root):
 def test_main_window_layout(vault, tk_available):
     """Chat is a fixed-width column with rain either side, so a wider window
     yields more rain rather than longer, less readable lines."""
-    from protege.ui import theme
-    from protege.ui.app import CHAT_COLUMN_WIDTH, ProtegeWindow
+    from akira.ui import theme
+    from akira.ui.app import CHAT_COLUMN_WIDTH, AkiraWindow
 
     try:
-        win = ProtegeWindow(vault, store.load_manifest(vault), Settings(),
+        win = AkiraWindow(vault, store.load_manifest(vault), Settings(),
                             store.load_personality(vault))
     except tk.TclError:
         if tk_available:
@@ -306,10 +306,10 @@ def test_main_window_layout(vault, tk_available):
 
 
 def test_activity_is_hidden_at_rest_and_shown_while_busy(vault, tk_available):
-    from protege.ui.app import ProtegeWindow
+    from akira.ui.app import AkiraWindow
 
     try:
-        win = ProtegeWindow(vault, store.load_manifest(vault), Settings(),
+        win = AkiraWindow(vault, store.load_manifest(vault), Settings(),
                             store.load_personality(vault))
     except tk.TclError:
         if tk_available:
@@ -342,7 +342,7 @@ def test_px_preserves_the_sign_of_an_offset():
     button and its menu a pixel past the corner of the window, so the button
     was shaved along two edges on every launch.
     """
-    from protege.ui import theme
+    from akira.ui import theme
 
     assert theme.px(-26) < 0
     assert theme.px(-26) == -theme.px(26)
@@ -354,10 +354,10 @@ def test_px_preserves_the_sign_of_an_offset():
 
 def test_the_fab_and_its_card_stay_inside_the_window(vault, tk_available):
     """The corner controls must sit inside the frame they float over."""
-    from protege.ui.app import ProtegeWindow
+    from akira.ui.app import AkiraWindow
 
     try:
-        win = ProtegeWindow(vault, store.load_manifest(vault), Settings(),
+        win = AkiraWindow(vault, store.load_manifest(vault), Settings(),
                             store.load_personality(vault))
     except tk.TclError:
         if tk_available:

@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from protege import store
-from protege.schemas import Manifest, SchemaError
+from akira import store
+from akira.schemas import Manifest, SchemaError
 
 
 @pytest.fixture

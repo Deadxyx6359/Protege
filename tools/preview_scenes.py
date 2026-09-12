@@ -17,7 +17,7 @@ sys.path.insert(0, str(REPO))
 
 from PySide6.QtCore import QDateTime, QEventLoop, QTimer
 from PySide6.QtGui import QGuiApplication
-from protege.ui.engine import build_engine, configure_application, load
+from akira.ui.engine import build_engine, configure_application, load
 
 CASES = {
     "summer": ("coast", "2026-07-15T14:00:00", "clear"),
@@ -48,7 +48,7 @@ def write_gallery(directory: Path, captures: list[dict]) -> None:
     data = json.dumps(grouped)
     page = """<!doctype html><html lang="en"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Protégé · Quiet worlds</title>
+<title>Akira · Quiet worlds</title>
 <style>
 :root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#0c121b;color:#e3e9e8}
 body{max-width:1280px;margin:auto;padding:32px 28px}header{display:flex;align-items:end;justify-content:space-between;gap:24px;margin-bottom:24px}
@@ -59,7 +59,7 @@ nav{display:flex;gap:7px;flex-wrap:wrap;margin:20px 0}figure{margin:0;overflow:h
 img{display:block;width:100%;height:auto;image-rendering:pixelated;aspect-ratio:16/9}footer{display:flex;justify-content:space-between;color:#93a6ab;font-size:12px;margin-top:16px;gap:24px}
 @media(max-width:650px){body{padding:20px 14px}h1{font-size:25px}footer{display:block;line-height:1.8}}
 </style>
-<header><div><small>Protégé / scene studies</small><h1>Quiet worlds.</h1></div><button id="play">Pause animation</button></header>
+<header><div><small>Akira / scene studies</small><h1>Quiet worlds.</h1></div><button id="play">Pause animation</button></header>
 <nav aria-label="Choose a scene" id="scenes"></nav>
 <figure><img id="painting" alt=""></figure>
 <footer><span id="caption"></span><span>Illustrated conditions · Preview uses fixed dates, not live weather</span></footer>
@@ -100,7 +100,7 @@ def main():
     engine, theme = build_engine()
     warnings = []
     engine.warnings.connect(lambda errors: warnings.extend(e.toString() for e in errors))
-    window = load(engine, REPO / "protege/ui/qml/SceneGallery.qml")
+    window = load(engine, REPO / "akira/ui/qml/SceneGallery.qml")
     w, h = map(int, args.size.split("x"))
     window.setWidth(w)
     window.setHeight(h)

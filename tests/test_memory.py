@@ -13,22 +13,22 @@ import json
 
 import pytest
 
-from protege.lock.pipeline import OutputGate
-from protege.lock.tripwires import TripwireSet
-from protege.memory.consolidate import Consolidator
-from protege.memory.live import (
+from akira.lock.pipeline import OutputGate
+from akira.lock.tripwires import TripwireSet
+from akira.memory.consolidate import Consolidator
+from akira.memory.live import (
     SOURCE_PINNED,
     SOURCE_PROPOSED,
     LiveMemory,
     new_session_id,
     parse_remember_calls,
 )
-from protege.models import ModelManager, ModelSpec, Role
-from protege.models.scripted import ScriptedBackend
-from protege.projects import ensure_project
-from protege.schemas import Manifest, Settings
-from protege.store import bootstrap_vault, tripwire_dir
-from protege.vault import scan_vault
+from akira.models import ModelManager, ModelSpec, Role
+from akira.models.scripted import ScriptedBackend
+from akira.projects import ensure_project
+from akira.schemas import Manifest, Settings
+from akira.store import bootstrap_vault, tripwire_dir
+from akira.vault import scan_vault
 
 LEAK = "Sodium metal reacts violently with water, releasing hydrogen."
 
@@ -298,7 +298,7 @@ def test_pending_notes_are_not_retrievable(vault):
     memory.write("Gravity is 9.8.", topics=["physics"])
     _consolidator(vault, memory, manager, settings, manifest, gate).consolidate(memory, "t")
 
-    from protege.lock.retrieval import retrieve
+    from akira.lock.retrieval import retrieve
 
     # Otherwise the review step would be decorative: unreviewed model output
     # would already be influencing answers.

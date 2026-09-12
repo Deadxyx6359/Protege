@@ -8,14 +8,14 @@ from datetime import date
 
 import pytest
 
-from protege.core.brain import ConflictError, Vault, VaultError, markdown, moment_format
-from protege.core.brain import vault as vault_module
-from protege.core.brain.markdown import Link
+from akira.core.brain import ConflictError, Vault, VaultError, markdown, moment_format
+from akira.core.brain import vault as vault_module
+from akira.core.brain.markdown import Link
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 # == Markdown ============================================================================

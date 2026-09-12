@@ -20,7 +20,7 @@ The mechanism behind that old flake is now pinned down, and it is not Tk's
 fault: under pytest's **default fd-level capture** a second `tk.Tk()` in the
 same process can fail to initialise, reporting "Can't find a usable init.tcl"
 about a file that plainly exists. The same test passes under `-s` or
-`--capture=sys`. Modules that must build their own root (ProtegeWindow is one)
+`--capture=sys`. Modules that must build their own root (AkiraWindow is one)
 therefore live with a real risk of a spurious `TclError` -- which is exactly
 why they must not translate one into a skip. See `tk_available`.
 """
@@ -46,7 +46,7 @@ def _ensure_root() -> tk.Tk | None:
         except tk.TclError:
             _failed = True
             return None
-        from protege.ui import theme
+        from akira.ui import theme
 
         theme.install(widget)
         widget.geometry("900x620+4000+4000")
@@ -61,7 +61,7 @@ def _own_the_default_root():
 
     Tkinter keeps a module-level `_default_root`: the first `tk.Tk()` created
     in the process. Any widget built without an explicit master is parented to
-    it. `ProtegeWindow` is its own `tk.Tk`, so whichever test touched Tk first
+    it. `AkiraWindow` is its own `tk.Tk`, so whichever test touched Tk first
     decided who the default root was -- and when that test destroyed its
     window, `_default_root` was left pointing at a dead interpreter. Every
     later test that built an unmastered widget then failed with "application
@@ -79,7 +79,7 @@ def _own_the_default_root():
 def tk_available() -> bool:
     """Whether Tk works at all in this process.
 
-    Modules that build their own `tk.Tk` (ProtegeWindow is one) used to catch
+    Modules that build their own `tk.Tk` (AkiraWindow is one) used to catch
     every `TclError` and skip with "no display available". That is only ever
     true of a headless machine, and on a machine with a display it turned real
     bugs into green runs -- most recently a sprite created against the wrong

@@ -12,16 +12,16 @@ from contextlib import contextmanager
 
 import pytest
 
-from protege.core.config import AppConfig, ModelConfig, autoconfigure
-from protege.core.conversation import (
+from akira.core.config import AppConfig, ModelConfig, autoconfigure
+from akira.core.conversation import (
     Cancelled,
     Conversation,
     Responder,
     build_prompt,
     route_for,
 )
-from protege.core.models import HEAVY_BYTES, ModelRouter, Route
-from protege.models.base import GenerationResult
+from akira.core.models import HEAVY_BYTES, ModelRouter, Route
+from akira.models.base import GenerationResult
 
 
 @pytest.fixture(autouse=True)
@@ -32,7 +32,7 @@ def tiny_models_allowed(monkeypatch):
     production and absurd in a test — writing real-sized files would make the
     suite move gigabytes.
     """
-    monkeypatch.setattr("protege.core.config._MIN_MODEL_BYTES", 8)
+    monkeypatch.setattr("akira.core.config._MIN_MODEL_BYTES", 8)
 
 
 def write_model(path, extra=0):
@@ -283,7 +283,7 @@ def test_autoconfigure_is_a_no_op_without_models(tmp_path):
 def test_a_model_too_large_for_the_card_is_offloaded_partially(tmp_path, monkeypatch):
     """6 GB of VRAM. A 13 GB model has to be split, not refused."""
     big = write_model(tmp_path / "big.gguf", extra=256)
-    monkeypatch.setattr("protege.core.config._FITS_ON_GPU_BYTES", 32)
+    monkeypatch.setattr("akira.core.config._FITS_ON_GPU_BYTES", 32)
 
     config = AppConfig()
     autoconfigure(config, tmp_path)
@@ -292,7 +292,7 @@ def test_a_model_too_large_for_the_card_is_offloaded_partially(tmp_path, monkeyp
 
 
 def test_config_round_trips_through_disk(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path))
     original = AppConfig(
         appearance="light",
         reduce_motion=True,
@@ -309,7 +309,7 @@ def test_config_round_trips_through_disk(tmp_path, monkeypatch):
 
 def test_a_corrupt_config_does_not_stop_startup(tmp_path, monkeypatch):
     """Losing a preference is an annoyance. Refusing to launch over it is a bug."""
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path))
     (tmp_path / "config.json").write_text("{not json at all", encoding="utf-8")
 
     loaded = AppConfig.load()
@@ -330,7 +330,7 @@ def test_a_file_without_the_gguf_header_is_not_discovered(tmp_path):
     (tmp_path / "impostor.gguf").write_bytes(b"PK\x03\x04 this is a zip")
     write_model(tmp_path / "real.gguf")
 
-    from protege.core.config import discover_models
+    from akira.core.config import discover_models
 
     assert [p.name for p in discover_models(tmp_path)] == ["real.gguf"]
 
@@ -338,10 +338,10 @@ def test_a_file_without_the_gguf_header_is_not_discovered(tmp_path):
 def test_a_barely_started_download_is_not_discovered(tmp_path, monkeypatch):
     """The size floor is the only defence against a partial file here, and it
     only catches the very beginning of one — see the note in config.py."""
-    monkeypatch.setattr("protege.core.config._MIN_MODEL_BYTES", 4096)
+    monkeypatch.setattr("akira.core.config._MIN_MODEL_BYTES", 4096)
     (tmp_path / "downloading.gguf").write_bytes(b"GGUF" + b"\x00" * 100)
 
-    from protege.core.config import discover_models
+    from akira.core.config import discover_models
 
     assert discover_models(tmp_path) == []
 
@@ -363,10 +363,10 @@ def sizes_in_bytes(monkeypatch):
     109 GB of placeholder models in the temp directory and took the suite from
     27 seconds to minutes.
     """
-    monkeypatch.setattr("protege.core.config._MIN_MODEL_BYTES", 8)
-    monkeypatch.setattr("protege.core.config._SMALL_MODEL_BYTES", 250)
-    monkeypatch.setattr("protege.core.config._ROOMY_MODEL_BYTES", 450)
-    monkeypatch.setattr("protege.core.config._FITS_ON_GPU_BYTES", 500)
+    monkeypatch.setattr("akira.core.config._MIN_MODEL_BYTES", 8)
+    monkeypatch.setattr("akira.core.config._SMALL_MODEL_BYTES", 250)
+    monkeypatch.setattr("akira.core.config._ROOMY_MODEL_BYTES", 450)
+    monkeypatch.setattr("akira.core.config._FITS_ON_GPU_BYTES", 500)
 
 
 def gguf(path, gigabytes):
@@ -377,7 +377,7 @@ def gguf(path, gigabytes):
 
 
 def test_the_code_route_prefers_a_coder(tmp_path):
-    from protege.core.config import plan_routes
+    from akira.core.config import plan_routes
 
     chat = gguf(tmp_path / "Qwen3-8B-Q4_K_M.gguf", 4.7)
     coder = gguf(tmp_path / "Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf", 4.4)
@@ -390,7 +390,7 @@ def test_the_code_route_prefers_a_coder(tmp_path):
 
 def test_without_a_coder_the_chat_model_answers_code_too(tmp_path):
     """Worse than a dedicated coder, but not broken."""
-    from protege.core.config import plan_routes
+    from akira.core.config import plan_routes
 
     chat = gguf(tmp_path / "Qwen3-8B-Q4_K_M.gguf", 4.7)
     plan = plan_routes([chat])
@@ -401,7 +401,7 @@ def test_without_a_coder_the_chat_model_answers_code_too(tmp_path):
 def test_a_model_that_fits_the_card_beats_a_bigger_one_that_does_not(tmp_path):
     """Fitting matters more than parameter count: spilling to host memory is
     the difference between 32 tok/s and 2."""
-    from protege.core.config import plan_routes
+    from akira.core.config import plan_routes
 
     fits = gguf(tmp_path / "Qwen3-8B-Q4_K_M.gguf", 4.7)
     huge = gguf(tmp_path / "Mistral-Small-24B-Q4_K_M.gguf", 13.4)
@@ -413,7 +413,7 @@ def test_a_model_that_fits_the_card_beats_a_bigger_one_that_does_not(tmp_path):
 
 
 def test_the_only_model_is_used_even_if_it_does_not_fit(tmp_path):
-    from protege.core.config import plan_routes
+    from akira.core.config import plan_routes
 
     huge = gguf(tmp_path / "Mistral-Small-24B-Q4_K_M.gguf", 13.4)
     plan = plan_routes([huge])
@@ -426,7 +426,7 @@ def test_the_only_model_is_used_even_if_it_does_not_fit(tmp_path):
 def test_a_roomier_model_gets_more_context(tmp_path):
     """Measured: the 4.36 GB coder holds 16K in 5700 MiB; the 4.68 GB chat
     model only holds 8K in 5800 MiB."""
-    from protege.core.config import plan_routes
+    from akira.core.config import plan_routes
 
     roomy = gguf(tmp_path / "Small-Coder-7B.gguf", 4.4)
     tight = gguf(tmp_path / "Big-8B.gguf", 4.8)
@@ -439,7 +439,7 @@ def test_a_roomier_model_gets_more_context(tmp_path):
 
 def test_a_coder_gets_a_lower_temperature_and_a_longer_budget(tmp_path):
     """Code wants to be reproducible more than it wants to be interesting."""
-    from protege.core.config import plan_routes
+    from akira.core.config import plan_routes
 
     coder = gguf(tmp_path / "Qwen2.5-Coder-7B.gguf", 4.4)
     chat = gguf(tmp_path / "Qwen3-8B.gguf", 4.7)
@@ -451,7 +451,7 @@ def test_a_coder_gets_a_lower_temperature_and_a_longer_budget(tmp_path):
 
 
 def test_a_small_model_claims_the_fast_route(tmp_path):
-    from protege.core.config import plan_routes
+    from akira.core.config import plan_routes
 
     tiny = gguf(tmp_path / "Qwen3-1.7B.gguf", 1.1)
     chat = gguf(tmp_path / "Qwen3-8B.gguf", 4.7)
@@ -464,7 +464,7 @@ def test_a_small_model_claims_the_fast_route(tmp_path):
 
 def test_one_model_does_not_become_its_own_fast_route(tmp_path):
     """Two routes pointing at one model is not a fast path."""
-    from protege.core.config import plan_routes
+    from akira.core.config import plan_routes
 
     only = gguf(tmp_path / "Tiny-1B.gguf", 1.0)
     plan = plan_routes([only])
@@ -474,6 +474,6 @@ def test_one_model_does_not_become_its_own_fast_route(tmp_path):
 
 
 def test_planning_nothing_yields_nothing(tmp_path):
-    from protege.core.config import plan_routes
+    from akira.core.config import plan_routes
 
     assert plan_routes([]) == {}

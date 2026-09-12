@@ -5,15 +5,15 @@ from __future__ import annotations
 import re
 
 
-from protege.chat import Conversation, DirectResponder
-from protege.lock.directive import (
+from akira.chat import Conversation, DirectResponder
+from akira.lock.directive import (
     DECLINE_PATTERN,
     build_directive,
     decline_for,
 )
-from protege.models import ModelManager, ModelSpec, Role
-from protege.models.scripted import ScriptedBackend
-from protege.schemas import Manifest, Settings
+from akira.models import ModelManager, ModelSpec, Role
+from akira.models.scripted import ScriptedBackend
+from akira.schemas import Manifest, Settings
 
 
 def test_directive_lists_every_unlocked_topic():

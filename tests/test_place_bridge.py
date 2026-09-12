@@ -13,9 +13,9 @@ pytest.importorskip("PySide6.QtCore")
 
 from PySide6.QtCore import QCoreApplication  # noqa: E402
 
-from protege.core.context.place import PlaceStore  # noqa: E402
-from protege.core.context.weather import Found, Reading, WeatherError  # noqa: E402
-from protege.ui.bridge.place import PlaceBridge  # noqa: E402
+from akira.core.context.place import PlaceStore  # noqa: E402
+from akira.core.context.weather import Found, Reading, WeatherError  # noqa: E402
+from akira.ui.bridge.place import PlaceBridge  # noqa: E402
 
 
 @pytest.fixture

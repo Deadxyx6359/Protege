@@ -6,7 +6,7 @@ and leaves no record. This renders a QML root to an image instead, so a visual
 change can be checked the same way a test is — and in both appearances at once,
 which is where most colour mistakes actually surface.
 
-    python tools/preview.py protege/ui/qml/Gallery.qml --mode both
+    python tools/preview.py akira/ui/qml/Gallery.qml --mode both
     python tools/preview.py path/to/Thing.qml --out shot.png --size 1200x800
 
 The file must have a Window or ApplicationWindow at its root.
@@ -25,8 +25,8 @@ if str(REPO) not in sys.path:
 from PySide6.QtCore import QEventLoop, QTimer  # noqa: E402
 from PySide6.QtGui import QGuiApplication  # noqa: E402
 
-from protege.ui.engine import build_engine, configure_application, load  # noqa: E402
-from protege.ui.shell import build_context  # noqa: E402
+from akira.ui.engine import build_engine, configure_application, load  # noqa: E402
+from akira.ui.shell import build_context  # noqa: E402
 
 
 def _size(text: str) -> tuple[int, int]:

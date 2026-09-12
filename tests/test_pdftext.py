@@ -16,7 +16,7 @@ import zlib
 
 import pytest
 
-from protege.pdftext import PdfError, extract_lines
+from akira.pdftext import PdfError, extract_lines
 
 
 def obj(number: int, body: bytes) -> bytes:
@@ -96,7 +96,7 @@ def test_a_name_valued_key_is_read_to_its_end():
     bytes were parsed as page content. It produced garbage rather than an
     error, which is how it survived a first pass.
     """
-    from protege.pdftext import _lookup
+    from akira.pdftext import _lookup
 
     assert _lookup(b"<</Filter /FlateDecode/Length 40>>", "Filter") == b"/FlateDecode"
     assert _lookup(b"<</Length 40/Filter /FlateDecode>>", "Length") == b"40"

@@ -18,7 +18,7 @@ import zipfile
 
 import pytest
 
-from protege.documents import (
+from akira.documents import (
     Block,
     Document,
     DocumentError,
@@ -30,7 +30,7 @@ from protege.documents import (
     suggest_domain,
     write_notes,
 )
-from protege.vault import extract_topics, parse_frontmatter
+from akira.vault import extract_topics, parse_frontmatter
 
 
 def docx_bytes(paragraphs: list[tuple[str, int]]) -> bytes:
@@ -224,7 +224,7 @@ def test_duplicate_ids_are_numbered_and_flagged():
 
 
 def test_every_proposed_id_is_a_valid_topic():
-    from protege.vault import coerce_topic
+    from akira.vault import coerce_topic
 
     _doc, notes = proposal([
         ("Step 1 - Feature Engineering", 1), (LONG, 0),
@@ -255,7 +255,7 @@ def test_written_notes_are_tagged_and_locked_not_unlocked(tmp_path):
     assert topics == ("solar_key_concepts",)
     assert "Key Concepts" in body
 
-    from protege.schemas import Manifest
+    from akira.schemas import Manifest
 
     assert not Manifest.initial().is_unlocked("solar_key_concepts")
 

@@ -18,14 +18,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _order(source: str) -> list[tuple[str, str]]:
-    """Top-level Protégé imports and guard installs, in the order they run."""
+    """Top-level Akira imports and guard installs, in the order they run."""
     order = []
     for node in ast.parse(source).body:
-        if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("protege"):
+        if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("akira"):
             order.append(("import", node.module or ""))
         elif isinstance(node, ast.Import):
             order.extend(("import", alias.name) for alias in node.names
-                         if alias.name.startswith("protege"))
+                         if alias.name.startswith("akira"))
         elif (isinstance(node, ast.Expr) and isinstance(node.value, ast.Call)
               and ast.unparse(node.value) == "netguard.install()"):
             order.append(("install", ""))
@@ -39,7 +39,7 @@ def test_the_network_guard_goes_up_before_anything_else(launcher):
     installed = order.index(("install", ""))
     later = [module for kind, module in order[installed + 1:] if kind == "import"]
     earlier = [module for kind, module in order[:installed]
-               if kind == "import" and module != "protege.security"]
+               if kind == "import" and module != "akira.security"]
     assert later, f"{launcher} imports nothing after the guard"
     assert not earlier, f"{launcher} imports {earlier} before the guard is up"
 
@@ -56,7 +56,7 @@ def test_the_offline_proof_walks_both_launchers():
 
 def test_the_document_readers_do_not_import_saxutils():
     """`xml.sax.saxutils` imports `urllib.request` at module level."""
-    for path in (ROOT / "protege").rglob("*.py"):
+    for path in (ROOT / "akira").rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("xml.sax"):

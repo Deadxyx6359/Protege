@@ -8,13 +8,13 @@ from datetime import date
 
 import pytest
 
-from protege.core.permissions import AuditLog, Policy, SecretStore
-from protege.core.tools import ToolContext, default_registry
+from akira.core.permissions import AuditLog, Policy, SecretStore
+from akira.core.tools import ToolContext, default_registry
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 @pytest.fixture
@@ -147,7 +147,7 @@ def test_history_and_restore_through_the_tools(root, tmp_path):
 
 
 def test_the_gatherer_can_search_and_read_notes():
-    from protege.core.agents.roles import ANALYST, GATHERER
+    from akira.core.agents.roles import ANALYST, GATHERER
 
     assert {"search_notes", "read_note"} <= set(GATHERER.tools)
     assert "read_note" in ANALYST.tools

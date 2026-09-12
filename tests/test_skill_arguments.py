@@ -15,11 +15,11 @@ from __future__ import annotations
 
 import json
 
-from protege import store
-from protege.projects import ensure_project, get_project
-from protege.security.paths import PathPolicy
-from protege.skills.library import LIBRARY
-from protege.skills.sandbox import approve, run_skill
+from akira import store
+from akira.projects import ensure_project, get_project
+from akira.security.paths import PathPolicy
+from akira.skills.library import LIBRARY
+from akira.skills.sandbox import approve, run_skill
 
 
 def prepared(tmp_path):

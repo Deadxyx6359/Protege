@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import pytest
 
-from protege.core.brain import Vault
-from protege.core.brain import graph as graph_module
-from protege.core.brain.graph import layout, link_graph, tag_map
+from akira.core.brain import Vault
+from akira.core.brain import graph as graph_module
+from akira.core.brain.graph import layout, link_graph, tag_map
 
 
 def write(root, rel, text):

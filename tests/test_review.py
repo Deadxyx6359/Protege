@@ -13,11 +13,11 @@ from datetime import datetime
 
 import pytest
 
-from protege.core import review as review_module
-from protege.core.permissions import CATALOGUE, AuditLog, Policy
-from protege.core.permissions.audit import Event as AuditEvent
-from protege.core.permissions.capabilities import Risk, ScopeKind, get
-from protege.core.review import (
+from akira.core import review as review_module
+from akira.core.permissions import CATALOGUE, AuditLog, Policy
+from akira.core.permissions.audit import Event as AuditEvent
+from akira.core.permissions.capabilities import Risk, ScopeKind, get
+from akira.core.review import (
     REVIEW_ACTION,
     Finding,
     Review,
@@ -27,14 +27,14 @@ from protege.core.review import (
     register_review_action,
     review,
 )
-from protege.core.schedule import ActionRegistry, JobStore, Scheduler
+from akira.core.schedule import ActionRegistry, JobStore, Scheduler
 
 DAY = 86400
 
 
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
     monkeypatch.setattr(review_module, "_SECRET_OWNERS", {})
 
 
@@ -222,7 +222,7 @@ def test_reaching_for_protege_settings_is_critical_even_when_refused(log, tmp_pa
     tool_event(log, at=time.time() - 60, allowed=False, action="write_file",
                capability="files.write", path=str(protected / "permissions.json"))
     result = run(Policy(), log, tmp_path, protected=protected)
-    found = [f for f in result.findings if f.code == "protege-state"]
+    found = [f for f in result.findings if f.code == "akira-state"]
     assert found and found[0].severity == "critical"
     assert "refused" in found[0].detail
 
@@ -245,7 +245,7 @@ def test_an_attempt_on_an_ssh_key_that_was_refused_is_a_warning(log, tmp_path):
 
 def test_an_ordinary_file_is_not_sensitive(log, tmp_path):
     tool_event(log, at=time.time() - 60, path=str(tmp_path / "notes" / "ssh-notes.md"))
-    assert not {"sensitive-path", "protege-state"} & codes(run(Policy(), log, tmp_path))
+    assert not {"sensitive-path", "akira-state"} & codes(run(Policy(), log, tmp_path))
 
 
 def test_a_burst_of_refusals_from_one_agent_is_flagged(log, tmp_path):

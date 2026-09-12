@@ -1,7 +1,7 @@
 # Model weights. The 24B alone is 13 GB, which is well past what GitHub will
 # take and is not source in any case -- the README says where to get one.
 # Anchored with a leading slash. Unanchored, this also matched the
-# protege/models package, which then never reached the repository.
+# akira/models package, which then never reached the repository.
 /models/
 *.gguf
 *.bin

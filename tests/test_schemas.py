@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from protege.schemas import (
+from akira.schemas import (
     BAND_COUNT,
     Manifest,
     Personality,
@@ -236,7 +236,7 @@ def test_settings_rejects_bad_project_name():
 def test_no_auditor_strictness_disables_blocking():
     # Strictness widens what counts as a clean PASS. There is deliberately no
     # value that makes the auditor fail open.
-    from protege.schemas import AuditorSettings
+    from akira.schemas import AuditorSettings
 
     assert "off" not in AuditorSettings.VALID_STRICTNESS
     assert "disabled" not in AuditorSettings.VALID_STRICTNESS
@@ -286,7 +286,7 @@ def test_trait_rejects_whitespace_only_band_text():
 
 
 def test_shipped_traits_all_valid_and_neutral_by_default():
-    from protege.personality.defaults import SHIPPED_TRAITS, default_personality
+    from akira.personality.defaults import SHIPPED_TRAITS, default_personality
 
     for trait in SHIPPED_TRAITS:
         assert len(trait.bands) == BAND_COUNT
@@ -299,7 +299,7 @@ def test_shipped_traits_all_valid_and_neutral_by_default():
 
 
 def test_shipped_trait_set_covers_the_brief():
-    from protege.personality.defaults import SHIPPED_TRAITS
+    from akira.personality.defaults import SHIPPED_TRAITS
 
     ids = {t.id for t in SHIPPED_TRAITS}
     assert ids >= {
@@ -316,7 +316,7 @@ def test_personality_rejects_duplicate_trait_ids():
 
 
 def test_personality_roundtrip():
-    from protege.personality.defaults import default_personality
+    from akira.personality.defaults import default_personality
 
     original = default_personality()
     restored = Personality.from_json(original.to_json())

@@ -14,9 +14,9 @@ import textwrap
 
 import pytest
 
-from protege.core.permissions import AuditLog, Policy, SecretStore
-from protege.core.tools import ToolContext, default_registry
-from protege.core.tools.builtin import coding
+from akira.core.permissions import AuditLog, Policy, SecretStore
+from akira.core.tools import ToolContext, default_registry
+from akira.core.tools.builtin import coding
 
 GIT = shutil.which("git")
 needs_git = pytest.mark.skipif(GIT is None, reason="git is not installed")
@@ -24,7 +24,7 @@ needs_git = pytest.mark.skipif(GIT is None, reason="git is not installed")
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 @pytest.fixture
@@ -153,10 +153,10 @@ def test_code_run_this_way_cannot_reach_the_network(project, tmp_path):
 
 
 def test_credentials_in_the_environment_do_not_reach_the_code(project, tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_TEST_TOKEN", "sk-live-secret")
+    monkeypatch.setenv("AKIRA_TEST_TOKEN", "sk-live-secret")
     script = write(project / "env.py", """
         import os
-        print("token:", os.environ.get("PROTEGE_TEST_TOKEN"))
+        print("token:", os.environ.get("AKIRA_TEST_TOKEN"))
     """)
     result = call("run_python", {"path": str(script)}, approved(tmp_path, ("shell.run", project)))
     assert "token: None" in result.content

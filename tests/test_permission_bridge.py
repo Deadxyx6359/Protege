@@ -16,18 +16,18 @@ import pytest
 
 pytest.importorskip("PySide6.QtCore")
 
-from protege.core.agents import Kind, Trace  # noqa: E402
-from protege.core.permissions import CATALOGUE, AuditLog, Policy  # noqa: E402
-from protege.ui.bridge.permissions import (  # noqa: E402
+from akira.core.agents import Kind, Trace  # noqa: E402
+from akira.core.permissions import CATALOGUE, AuditLog, Policy  # noqa: E402
+from akira.ui.bridge.permissions import (  # noqa: E402
     ConfirmBridge,
     PermissionsBridge,
 )
-from protege.ui.bridge.trace import TraceBridge  # noqa: E402
+from akira.ui.bridge.trace import TraceBridge  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 # -- the confirmation -------------------------------------------------------
@@ -130,7 +130,7 @@ def test_a_second_answer_is_ignored(app):
 def test_nobody_answering_expires_to_no(monkeypatch):
     """A dismissed dialog must not park an agent forever holding a model."""
     monkeypatch.setattr(
-        "protege.ui.bridge.permissions.CONFIRM_TIMEOUT_S", 0.15)
+        "akira.ui.bridge.permissions.CONFIRM_TIMEOUT_S", 0.15)
     bridge = ConfirmBridge()
     started = time.monotonic()
     assert ask_on_a_worker(bridge) is False
@@ -181,8 +181,8 @@ def test_asking_after_close_is_refused_without_waiting():
 
 def test_the_bridge_satisfies_the_tool_context_contract(tmp_path):
     """It has to be usable as `confirm` without adaptation."""
-    from protege.core.permissions import SecretStore
-    from protege.core.tools import ToolContext, default_registry
+    from akira.core.permissions import SecretStore
+    from akira.core.tools import ToolContext, default_registry
 
     bridge = ConfirmBridge()
     bridge.close()   # so the refusal is immediate
@@ -316,7 +316,7 @@ def test_the_handoff_edge_survives_the_crossing():
 
 
 def test_the_model_is_capped_so_a_long_run_does_not_grow_forever(monkeypatch):
-    monkeypatch.setattr("protege.ui.bridge.trace.MAX_ROWS", 10)
+    monkeypatch.setattr("akira.ui.bridge.trace.MAX_ROWS", 10)
     trace = Trace()
     bridge = TraceBridge(trace)
     for number in range(40):

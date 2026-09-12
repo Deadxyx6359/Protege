@@ -12,11 +12,11 @@ pytest.importorskip("PySide6", reason="the Qt interface is optional for the old 
 
 from PySide6.QtCore import QCoreApplication, QEventLoop, QTimer  # noqa: E402
 
-from protege.core.config import AppConfig, ModelConfig  # noqa: E402
-from protege.core.conversations import ConversationStore  # noqa: E402
-from protege.core.models import ModelRouter  # noqa: E402
-from protege.models.base import GenerationResult  # noqa: E402
-from protege.ui.bridge import ChatBridge  # noqa: E402
+from akira.core.config import AppConfig, ModelConfig  # noqa: E402
+from akira.core.conversations import ConversationStore  # noqa: E402
+from akira.core.models import ModelRouter  # noqa: E402
+from akira.models.base import GenerationResult  # noqa: E402
+from akira.ui.bridge import ChatBridge  # noqa: E402
 
 
 @pytest.fixture(scope="module")

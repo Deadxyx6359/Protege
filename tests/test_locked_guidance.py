@@ -13,29 +13,29 @@ import tkinter as tk
 
 import pytest
 
-from protege import store
-from protege.chat import BlockDetail, Turn
-from protege.projects import ensure_project
-from protege.schemas import Manifest, Settings
+from akira import store
+from akira.chat import BlockDetail, Turn
+from akira.projects import ensure_project
+from akira.schemas import Manifest, Settings
 
 
 @pytest.fixture(scope="module")
 def app(tmp_path_factory, tk_available):
-    """One ProtegeWindow for the whole module.
+    """One AkiraWindow for the whole module.
 
-    A ProtegeWindow *is* a `tk.Tk`, so building one per test would leave
+    A AkiraWindow *is* a `tk.Tk`, so building one per test would leave
     several Tcl interpreters alive at once -- a configuration Tk tolerates
     badly, and which failed here with a spurious "tk wasn't installed
     properly" partway through the file. One window, reset between tests.
     """
-    from protege.ui.app import ProtegeWindow
+    from akira.ui.app import AkiraWindow
 
     vault_path = tmp_path_factory.mktemp("vault")
     store.bootstrap_vault(vault_path)
     ensure_project(vault_path, "default")
 
     try:
-        win = ProtegeWindow(
+        win = AkiraWindow(
             vault_path, store.load_manifest(vault_path), Settings(),
             store.load_personality(vault_path),
         )
@@ -97,7 +97,7 @@ def test_compliant_decline_offers_teaching(win):
     guidance hung off `turn.blocked` never ran. This drives the real entry
     point rather than calling `_render_block` directly.
     """
-    win._append("Protege\n", "assistant_prefix")
+    win._append("Akira\n", "assistant_prefix")
     win._stream_marker = win.scrollback.index("end-1c")
     win._stream_started = False
 
@@ -259,7 +259,7 @@ def test_block_detail_link_still_present(win):
 def test_leading_blank_tokens_are_suppressed(win):
     """Qwen3's template emits a newline pair around its suppressed reasoning
     block, so every reply began with two blank lines under the label."""
-    win._append("Protege\n", "assistant_prefix")
+    win._append("Akira\n", "assistant_prefix")
     win._stream_marker = win.scrollback.index("end-1c")
     win._stream_started = False
 
@@ -269,13 +269,13 @@ def test_leading_blank_tokens_are_suppressed(win):
     win.update_idletasks()
 
     text = scrollback_text(win)
-    assert "Protege\nHow may I assist you?" in text
-    assert "Protege\n\n" not in text
+    assert "Akira\nHow may I assist you?" in text
+    assert "Akira\n\n" not in text
 
 
 def test_internal_blank_lines_are_preserved(win):
     """Only the leading run is trimmed; paragraph breaks inside a reply matter."""
-    win._append("Protege\n", "assistant_prefix")
+    win._append("Akira\n", "assistant_prefix")
     win._stream_marker = win.scrollback.index("end-1c")
     win._stream_started = False
 
@@ -288,7 +288,7 @@ def test_internal_blank_lines_are_preserved(win):
 
 
 def test_a_reply_that_is_only_whitespace_prints_nothing(win):
-    win._append("Protege\n", "assistant_prefix")
+    win._append("Akira\n", "assistant_prefix")
     before = scrollback_text(win)
     win._stream_marker = win.scrollback.index("end-1c")
     win._stream_started = False

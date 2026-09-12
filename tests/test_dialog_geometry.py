@@ -15,14 +15,14 @@ from __future__ import annotations
 
 import pytest
 
-from protege import store
-from protege.lock.pipeline import OutputGate
-from protege.lock.tripwires import TripwireSet
-from protege.models import ModelManager
-from protege.personality.defaults import default_personality
-from protege.projects import ensure_project
-from protege.schemas import Manifest, Settings
-from protege.unlock import UnlockFlow
+from akira import store
+from akira.lock.pipeline import OutputGate
+from akira.lock.tripwires import TripwireSet
+from akira.models import ModelManager
+from akira.personality.defaults import default_personality
+from akira.projects import ensure_project
+from akira.schemas import Manifest, Settings
+from akira.unlock import UnlockFlow
 
 
 @pytest.fixture
@@ -87,7 +87,7 @@ def assert_not_shrunk(window, name: str) -> None:
 
     The fit-to-content pass may only grow a window. It once used
     `winfo_width()` as its floor, which is 1 on an unmapped window, so it
-    collapsed the PIN dialog from 700px to a 105px sliver -- "PROTEGE" clipped
+    collapsed the PIN dialog from 700px to a 105px sliver -- "AKIRA" clipped
     to "OTEGE", buttons half off the edge. `assert_fits` alone did not catch
     that, because the requirement matched the shrunken size perfectly. Only a
     real launch revealed it, which is exactly why this assertion exists.
@@ -130,7 +130,7 @@ def assert_has_minsize(window, name: str) -> None:
 
 
 def test_settings_window_fits(root, vault):
-    from protege.ui.settings_window import SettingsWindow
+    from akira.ui.settings_window import SettingsWindow
 
     manifest, settings, _, _ = pieces(vault)
     window = SettingsWindow(root, vault, manifest, settings, default_personality(),
@@ -144,7 +144,7 @@ def test_settings_window_fits(root, vault):
 
 def test_every_settings_tab_fits(root, vault):
     """Each tab individually -- the notebook only sizes to the active one."""
-    from protege.ui.settings_window import SettingsWindow
+    from akira.ui.settings_window import SettingsWindow
 
     manifest, settings, _, _ = pieces(vault)
     window = SettingsWindow(root, vault, manifest, settings, default_personality(),
@@ -161,7 +161,7 @@ def test_every_settings_tab_fits(root, vault):
 
 
 def test_skills_window_fits(root, vault):
-    from protege.ui.skills_window import SkillsWindow
+    from akira.ui.skills_window import SkillsWindow
 
     manifest, settings, manager, gate = pieces(vault)
     window = SkillsWindow(root, vault, "default", manifest, settings, manager, gate)
@@ -173,7 +173,7 @@ def test_skills_window_fits(root, vault):
 
 
 def test_vault_browser_fits(root, vault):
-    from protege.ui.vault_browser import VaultBrowser
+    from akira.ui.vault_browser import VaultBrowser
 
     manifest, _, _, _ = pieces(vault)
     window = VaultBrowser(root, vault, manifest, "default")
@@ -185,7 +185,7 @@ def test_vault_browser_fits(root, vault):
 
 
 def test_unlock_dialog_fits(root, vault):
-    from protege.ui.unlock_dialog import UnlockDialog
+    from akira.ui.unlock_dialog import UnlockDialog
 
     manifest, settings, manager, _ = pieces(vault)
     flow = UnlockFlow(vault, manifest, settings, manager, tripwires=TripwireSet.load(vault))
@@ -198,7 +198,7 @@ def test_unlock_dialog_fits(root, vault):
 
 
 def test_topic_manager_fits(root, vault):
-    from protege.ui.unlock_dialog import TopicManagerDialog
+    from akira.ui.unlock_dialog import TopicManagerDialog
 
     manifest, settings, manager, _ = pieces(vault)
     flow = UnlockFlow(vault, manifest, settings, manager, tripwires=TripwireSet.load(vault))
@@ -210,7 +210,7 @@ def test_topic_manager_fits(root, vault):
 
 
 def test_relock_dialog_fits(root, vault):
-    from protege.ui.unlock_dialog import RelockDialog
+    from akira.ui.unlock_dialog import RelockDialog
 
     manifest, settings, manager, _ = pieces(vault)
     flow = UnlockFlow(vault, manifest, settings, manager, tripwires=TripwireSet.load(vault))
@@ -222,7 +222,7 @@ def test_relock_dialog_fits(root, vault):
 
 
 def test_knowledge_web_fits(root, vault):
-    from protege.ui.knowledge_web import KnowledgeWebDialog
+    from akira.ui.knowledge_web import KnowledgeWebDialog
 
     manifest, settings, manager, _ = pieces(vault)
     flow = UnlockFlow(vault, manifest, settings, manager, tripwires=TripwireSet.load(vault))
@@ -234,8 +234,8 @@ def test_knowledge_web_fits(root, vault):
 
 
 def test_memory_panel_fits(root, vault):
-    from protege.memory.live import LiveMemory
-    from protege.ui.memory_panel import MemoryPanel
+    from akira.memory.live import LiveMemory
+    from akira.ui.memory_panel import MemoryPanel
 
     manifest, _, _, gate = pieces(vault)
     memory = LiveMemory(vault, "default", manifest, gate, session_id="s1")
@@ -247,8 +247,8 @@ def test_memory_panel_fits(root, vault):
 
 
 def test_pin_dialogs_fit(root):
-    from protege.security.pin import hash_pin
-    from protege.ui.pin_dialog import PinChangeDialog, PinPromptDialog, PinSetupDialog
+    from akira.security.pin import hash_pin
+    from akira.ui.pin_dialog import PinChangeDialog, PinPromptDialog, PinSetupDialog
 
     encoded = hash_pin("1234")
     for window, name in (
@@ -264,7 +264,7 @@ def test_pin_dialogs_fit(root):
 
 def test_new_trait_dialog_fits(root):
     """Five band boxes plus a form and buttons -- the tallest small dialog."""
-    from protege.ui.personality_panel import NewTraitDialog
+    from akira.ui.personality_panel import NewTraitDialog
 
     window = NewTraitDialog(root, ("directness",))
     try:
@@ -274,7 +274,7 @@ def test_new_trait_dialog_fits(root):
 
 
 def test_attachments_dialog_fits(root):
-    from protege.ui.file_dialogs import AttachmentsDialog
+    from akira.ui.file_dialogs import AttachmentsDialog
 
     window = AttachmentsDialog(root, [("a.txt", "content")])
     try:
@@ -284,7 +284,7 @@ def test_attachments_dialog_fits(root):
 
 
 def test_import_dialog_fits(root, vault):
-    from protege.ui.file_dialogs import ImportDialog
+    from akira.ui.file_dialogs import ImportDialog
 
     manifest, _, _, _ = pieces(vault)
     window = ImportDialog(root, vault, "default", manifest)
@@ -295,7 +295,7 @@ def test_import_dialog_fits(root, vault):
 
 
 def test_document_import_dialog_fits(root, vault):
-    from protege.ui.document_import import DocumentImportDialog
+    from akira.ui.document_import import DocumentImportDialog
 
     manifest, _, _, _ = pieces(vault)
     window = DocumentImportDialog(root, vault, "default", manifest)

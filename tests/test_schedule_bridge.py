@@ -13,27 +13,27 @@ pytest.importorskip("PySide6.QtCore")
 
 from PySide6.QtCore import QCoreApplication  # noqa: E402
 
-from protege.core.permissions import AuditLog, Policy, SecretStore  # noqa: E402
-from protege.core.review import (  # noqa: E402
+from akira.core.permissions import AuditLog, Policy, SecretStore  # noqa: E402
+from akira.core.review import (  # noqa: E402
     Finding,
     Review,
     ReviewStore,
     ensure_review_job,
     register_review_action,
 )
-from protege.core.schedule import (  # noqa: E402
+from akira.core.schedule import (  # noqa: E402
     ActionRegistry,
     ActionResult,
     Daily,
     JobStore,
     Scheduler,
 )
-from protege.ui.bridge.schedule import ScheduleBridge  # noqa: E402
+from akira.ui.bridge.schedule import ScheduleBridge  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 @pytest.fixture
@@ -127,7 +127,7 @@ def test_a_critical_finding_is_announced_not_left_in_a_list(app, parts):
     announced = []
     bridge.criticalFound.connect(announced.append)
     review = Review(time.time(), 30, [
-        Finding("critical", "protege-state", "An agent reached for Protégé's own settings")])
+        Finding("critical", "akira-state", "An agent reached for Akira's own settings")])
 
     worker = threading.Thread(target=bridge.on_review, args=(review,))
     worker.start()
@@ -135,7 +135,7 @@ def test_a_critical_finding_is_announced_not_left_in_a_list(app, parts):
 
     assert pump_until(app, lambda: bool(announced))
     assert announced == [1] and bridge.criticalCount == 1
-    assert bridge.findings[0]["code"] == "protege-state"
+    assert bridge.findings[0]["code"] == "akira-state"
 
 
 def test_a_quiet_review_raises_no_alarm(app, parts):
@@ -175,7 +175,7 @@ def test_before_any_review_it_says_so(parts):
 def test_the_application_puts_every_bridge_in_front_of_qml(app):
     """Built but unregistered, a bridge is invisible to QML — which is where
     A5's three bridges sat until this wiring existed."""
-    from protege.ui.shell import build_context
+    from akira.ui.shell import build_context
 
     ctx = build_context(persist=False)
     try:
@@ -196,8 +196,8 @@ def test_the_application_puts_every_bridge_in_front_of_qml(app):
 
 
 def _with_agent_actions(actions):
-    from protege.core.schedule.actions import register_agent_actions
-    from protege.core.tools import default_registry
+    from akira.core.schedule.actions import register_agent_actions
+    from akira.core.tools import default_registry
 
     register_agent_actions(actions, router=None, registry=default_registry())
 

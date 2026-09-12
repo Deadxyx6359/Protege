@@ -6,8 +6,8 @@ import socket
 
 import pytest
 
-from protege.security import netguard
-from protege.security.paths import (
+from akira.security import netguard
+from akira.security.paths import (
     PathPolicy,
     PathViolation,
     capabilities,
@@ -120,7 +120,7 @@ def test_tier_zero_grants_the_model_nothing(vault):
 
 
 def test_tier_zero_still_lets_the_application_read_its_own_config(vault):
-    # Trust tiers gate the model, not Protege. The manifest is the file that
+    # Trust tiers gate the model, not Akira. The manifest is the file that
     # defines the gate; the app must always be able to read it.
     policy = PathPolicy.build(vault, trust_tier=0)
     assert policy.resolve_app(".protege/manifest.json").name == "manifest.json"
@@ -177,7 +177,7 @@ def test_require_names_the_missing_capability(vault):
 
 
 def test_no_tier_grants_network_access():
-    from protege.security.paths import TIERS
+    from akira.security.paths import TIERS
 
     for caps in TIERS.values():
         assert not any("network" in field.lower() for field in vars(caps))

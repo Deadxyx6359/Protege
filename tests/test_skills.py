@@ -6,21 +6,21 @@ import json
 
 import pytest
 
-from protege.lock.pipeline import OutputGate
-from protege.lock.tripwires import TripwireSet
-from protege.models import ModelManager, ModelSpec, Role
-from protege.models.scripted import ScriptedBackend
-from protege.projects import ensure_project
-from protege.schemas import Manifest, Settings
-from protege.security.paths import PathPolicy
-from protege.skills.author import (
+from akira.lock.pipeline import OutputGate
+from akira.lock.tripwires import TripwireSet
+from akira.models import ModelManager, ModelSpec, Role
+from akira.models.scripted import ScriptedBackend
+from akira.projects import ensure_project
+from akira.schemas import Manifest, Settings
+from akira.security.paths import PathPolicy
+from akira.skills.author import (
     SkillAuthor,
     SkillAuthoringError,
     check_syntax,
     scan_imports,
     strip_fences,
 )
-from protege.skills.sandbox import (
+from akira.skills.sandbox import (
     SkillError,
     approval_for,
     approve,
@@ -28,7 +28,7 @@ from protege.skills.sandbox import (
     revoke,
     run_skill,
 )
-from protege.store import bootstrap_vault, tripwire_dir
+from akira.store import bootstrap_vault, tripwire_dir
 
 GOOD_SKILL = '"""Adds numbers."""\n\nprint(2 + 2)\n'
 

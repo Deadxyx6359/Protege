@@ -1,4 +1,4 @@
-# Protégé
+# Akira
 
 > ### This branch is a rebuild, and this file is out of date
 >
@@ -29,7 +29,7 @@ it is permitted to use. Topics start locked. You unlock them by teaching them.
 The purpose is pedagogical: you learn by teaching. A lock that leaks defeats the
 point, so the lock system is the highest-priority component and was built first.
 
-**Quick start on this machine:** double-click the **Protégé** shortcut on the
+**Quick start on this machine:** double-click the **Akira** shortcut on the
 desktop. Everything below (model, CUDA runtime, vault configuration) is already
 installed and wired up; first launch asks you to choose a PIN.
 
@@ -40,7 +40,7 @@ Purple on black, **pure white** text. Opens maximised.
 **Why text looked low-res, and the actual fix.** It was never the typeface.
 Windows renders a non-DPI-aware process at logical size and bitmap-stretches
 it, so on a 125% display (this machine: 3440 physical pixels reported as 2752)
-every glyph is resampled and arrives soft. Protégé now declares per-monitor DPI
+every glyph is resampled and arrives soft. Akira now declares per-monitor DPI
 awareness *before Tk starts* -- `theme.enable_dpi_awareness()`, called from
 `run.py` ahead of any Tk call -- and scales its own pixel geometry through
 `theme.px()`. If text ever goes soft again, check that call still runs first.
@@ -172,7 +172,7 @@ Projects are created, renamed and deleted from the same window. Deleting names
 what is inside first ("Contains 12 note(s), 3 memory file(s)"), and refuses to
 remove the last remaining project. Note and project deletes are irreversible.
 
-Saving a note preserves the frontmatter Protégé wrote — `kind`, `session`,
+Saving a note preserves the frontmatter Akira wrote — `kind`, `session`,
 provenance — rather than flattening it to just the topic list.
 
 ## Files in, files out
@@ -195,7 +195,7 @@ provenance — rather than flattening it to just the topic list.
   **locked**, and each still has to be unlocked by explaining it. A convenience
   that skipped that would be a convenience around the point of the program.
 
-  PDF text is recovered without any third-party library (`protege/pdftext.py`):
+  PDF text is recovered without any third-party library (`akira/pdftext.py`):
   object streams are expanded, Flate streams inflated, `/ToUnicode` CMaps
   applied, and word gaps reconstructed from kerning or glyph spacing. Headings
   are inferred from type size, since a PDF records no structure at all. A
@@ -253,7 +253,7 @@ recounting it would. Same topic, different information content.
 
 ## Two modes
 
-**Protégé mode** is the default and the point of the program: the model answers
+**Akira mode** is the default and the point of the program: the model answers
 only from what you have taught it.
 
 **Everyday mode** (Sidebar → **Everyday mode**) stands the lock down and gives
@@ -275,7 +275,7 @@ What it does *not* do is unlock anything:
   `[LOCKED: ...]` marker looks identical whether the topic was taught or the
   constraint was off — so it is stated where it cannot be missed.
 - Retrieval stays **on**. It is your vault; everyday mode should not be worse
-  at your own notes than Protégé mode is.
+  at your own notes than Akira mode is.
 
 ## Review — unlocks that age
 
@@ -425,7 +425,7 @@ SP="$LOCALAPPDATA/Programs/Python/Python312/Lib/site-packages" && cp "$SP/nvidia
 ### Models
 
 Configured: **Qwen3 14B, Q4_K_M** (Apache 2.0), serving as both MAIN and
-AUDITOR. Protégé detects identical paths and loads the file once, so the
+AUDITOR. Akira detects identical paths and loads the file once, so the
 auditor costs no extra memory and reads MAIN's output in exactly the same
 dialect — the matched-tokenizer property the brief wanted, for free.
 
@@ -452,9 +452,9 @@ seconds for the audit. If that is too slow, `models/Qwen3-8B-Q4_K_M.gguf` is
 still on disk and runs fully on the GPU — select it in Settings → Models and
 set GPU layers back to `-1`.
 
-> **Qwen3 thinks out loud**, emitting reasoning between `<think>` tags. Protégé
+> **Qwen3 thinks out loud**, emitting reasoning between `<think>` tags. Akira
 > disables that at the source for Qwen3 files and filters the tags out of the
-> token stream regardless (`protege/models/think_filter.py`). Not cosmetic: the
+> token stream regardless (`akira/models/think_filter.py`). Not cosmetic: the
 > auditor's grammar is two lines, so a reasoning preamble around
 > `VERDICT: PASS` parses as malformed — which blocks *every* response. An
 > unfiltered stream presents as a totally broken application.
@@ -466,8 +466,8 @@ set GPU layers back to `-1`.
 
 ### Run
 
-The **Protégé** desktop shortcut launches the app against your Obsidian vault
-with no console window. `Protege (console).bat` in this directory does the
+The **Akira** desktop shortcut launches the app against your Obsidian vault
+with no console window. `Akira (console).bat` in this directory does the
 same with a console attached, for reading errors when something misbehaves.
 
 `run.py` lives in this project directory, not in your vault — the two are
@@ -475,31 +475,31 @@ separate on purpose, so Obsidian never indexes the application and your vault
 stays portable. Run it by absolute path from anywhere:
 
 ```bash
-python "C:\path\to\protege\run.py" --vault "C:\path\to\your\Obsidian Vault"
+python "C:\path\to\akira\run.py" --vault "C:\path\to\your\Obsidian Vault"
 ```
 
 Or `cd` into the project first:
 
 ```bash
-cd "C:\path\to\protege"; python run.py --vault "C:\path\to\your\Obsidian Vault"
+cd "C:\path\to\akira"; python run.py --vault "C:\path\to\your\Obsidian Vault"
 ```
 
-Set `PROTEGE_VAULT` to skip the `--vault` argument. To validate configuration
+Set `AKIRA_VAULT` to skip the `--vault` argument. To validate configuration
 without starting the UI:
 
 ```bash
-python "C:\path\to\protege\run.py" --vault "C:\path\to\vault" --check
+python "C:\path\to\akira\run.py" --vault "C:\path\to\vault" --check
 ```
 
 **Before you install a model**, the app still starts: you get the PIN dialog and
 the main window, and every menu is explorable. Sending a message refuses with
 "No inference library" until `llama-cpp-python` and a GGUF are in place.
-Protégé will not substitute a placeholder model — a fake model would sail
+Akira will not substitute a placeholder model — a fake model would sail
 through the auditor, and a lock system validated against one proves nothing.
 
 If you use Obsidian on the same vault: **disable Sync and all community
-plugins.** Protégé reads and writes the markdown directly and never touches
-Obsidian's state, but a sync client will happily upload the vault Protégé is
+plugins.** Akira reads and writes the markdown directly and never touches
+Obsidian's state, but a sync client will happily upload the vault Akira is
 built to keep local.
 
 ---
@@ -550,7 +550,7 @@ demonstrate, not after the field.
 ### The PIN is an access convenience, not encryption
 
 It is stored as a salted argon2id hash and never in plaintext. It stops someone
-opening Protégé on your unlocked machine.
+opening Akira on your unlocked machine.
 
 **It protects nothing on disk.** Your vault is plain markdown and JSON. Anyone
 with filesystem access can read every note, every transcript, and the manifest
@@ -564,7 +564,7 @@ archive and unpack it only while working.
 
 ### Block egress at the OS level
 
-Protégé reaches the network through one door, `protege/core/net/client.py`, and
+Akira reaches the network through one door, `akira/core/net/client.py`, and
 only to sites you allow with the *Fetch web pages* permission: https only, never
 to this computer or your local network, capped in size and time, and recorded
 in the activity log. A runtime guard raises on every other outbound connect,
@@ -573,7 +573,7 @@ module can reach the network.
 
 The interface is held to the same door. Qt, which draws it, can fetch pictures,
 fonts and pages by itself, in C++, where neither check would see it. So every
-QML engine Protégé makes refuses the network outright, `verify_offline.py`
+QML engine Akira makes refuses the network outright, `verify_offline.py`
 checks that it does, and pictures in replies are shown as links rather than
 loaded.
 
@@ -585,16 +585,16 @@ strictly stronger.
 Windows, elevated PowerShell:
 
 ```powershell
-New-NetFirewallRule -DisplayName "Block Protege egress" -Direction Outbound -Program "C:\Users\you\AppData\Local\Programs\Python\Python312\python.exe" -Action Block
+New-NetFirewallRule -DisplayName "Block Akira egress" -Direction Outbound -Program "C:\Users\you\AppData\Local\Programs\Python\Python312\python.exe" -Action Block
 ```
 
 That blocks *all* Python egress, which is blunt. A dedicated virtualenv
-interpreter for Protégé makes the rule precise.
+interpreter for Akira makes the rule precise.
 
-With the rule in place Protégé still works; only fetching pages fails, and it
+With the rule in place Akira still works; only fetching pages fails, and it
 says the site could not be reached. Leave the interpreter unblocked only if you
 want pages from the sites you allow. A firewall rule matches addresses, not site
-names, so the list of sites is enforced inside Protégé, by the chokepoint, not
+names, so the list of sites is enforced inside Akira, by the chokepoint, not
 by the rule.
 
 ### Audit log
@@ -610,7 +610,7 @@ where retrieval could later find it.
 ### Trust tiers
 
 A single integer in the manifest, changed only in Settings with PIN
-confirmation. Tiers gate **the model**, not Protégé itself — the application
+confirmation. Tiers gate **the model**, not Akira itself — the application
 always reads its own config, because the manifest is what defines the gate.
 
 | Tier | Model gets |
@@ -665,7 +665,7 @@ distinguish "formality: 60" from "formality: 70".
 - At most **8 traits** are active; the UI warns beyond that. Past about eight
   competing behavioral instructions a small model starts dropping them
   unpredictably.
-- Custom traits require **you** to write all five bands. Protégé cannot generate
+- Custom traits require **you** to write all five bands. Akira cannot generate
   meaningful descriptions for a trait it has never seen, and plausible-sounding
   invented ones would be worse than asking.
 - Shipped traits are fully editable, band text included.
@@ -742,7 +742,7 @@ UI says so before doing it.
 ## Extensibility
 
 - **Plugin directory** at `vault/.protege/plugins/` with a documented interface
-  in `protege/plugins.py`. Plugins get a `PluginContext` that hands out
+  in `akira/plugins.py`. Plugins get a `PluginContext` that hands out
   `generate_checked` — never a raw model backend — so extensions inherit gating
   by construction rather than by remembering to ask.
 - Plugins are **never auto-loaded**. Each must be explicitly enabled in
@@ -751,7 +751,7 @@ UI says so before doing it.
   and the check reports that exemption on every run rather than hiding it.
   "Write example plugin" drops a working, disabled example into the directory.
 - **The base model is a replaceable component — assume it will be replaced.**
-  Nothing above `protege/models/` knows llama.cpp exists.
+  Nothing above `akira/models/` knows llama.cpp exists.
 
 ---
 
@@ -784,7 +784,7 @@ warning strip is calibrated against exactly that behavior.
 ### Layout
 
 ```
-protege/
+akira/
   schemas.py        all persisted data, fail-closed validation
   store.py          atomic JSON/text I/O
   vault.py          markdown, frontmatter, note visibility
@@ -815,7 +815,7 @@ protege/
     history_window.py   searching kept transcripts
     file_dialogs.py   attach and import
 tools/
-  make_icon.py      generates protege/ui/assets/protege.ico
+  make_icon.py      generates akira/ui/assets/akira.ico
 ```
 
 ---
@@ -826,7 +826,7 @@ Ethics, morality, and literature are locked topics at first launch, gated
 identically to geography or mathematics. This is intentional — it is the
 mechanism by which you teach them.
 
-Protégé does not attempt to modify or strip the base model's trained
+Akira does not attempt to modify or strip the base model's trained
 dispositions. That isn't achievable through prompting and would produce an
 unreliable student rather than a blank one. **The lock system is behavioral
 gating. The weights are untouched.**

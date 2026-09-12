@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Static proof that Protégé reaches the network only through its one door.
+"""Static proof that Akira reaches the network only through its one door.
 
 Run this after every `pip install` and before every release. It exits non-zero
 and prints every offending path if anything fails.
 
 Four checks:
 
-1. **Source scan.** Every module in the `protege` package plus the entry points
+1. **Source scan.** Every module in the `akira` package plus the entry points
    is parsed and walked for imports of networking modules, and for the dynamic
    import forms (`__import__`, `importlib.import_module`) that a grep would
    miss.
@@ -19,15 +19,15 @@ Four checks:
 3. **One door.** Three modules are exempt, and each only for the modules named
    in `EXEMPT_IMPORTS`: the runtime guard, which imports `socket` to patch it;
    the Qt guard, which imports `PySide6.QtNetwork` to refuse it; and the
-   chokepoint `protege.core.net.client`, through which Protégé fetches pages
+   chokepoint `akira.core.net.client`, through which Akira fetches pages
    from sites the person has allowed. No other module may open the guard's door
    (`netguard.admitting`), so the chokepoint's rules cannot be walked around.
 
 4. **The interface's own door, shut.** Qt fetches in C++, over its own sockets,
    out of sight of both the runtime guard and the Python import scan. So the Qt
    modules that reach the network are forbidden like the stdlib ones, every QML
-   engine Protégé makes must be given `qtguard.shut`, and no QML or JavaScript
-   file under `protege/ui/qml` may import a module that brings its own
+   engine Akira makes must be given `qtguard.shut`, and no QML or JavaScript
+   file under `akira/ui/qml` may import a module that brings its own
    connection, such as `QtWebSockets` or `QtWebEngine`.
 
 That distinction in check 2 is the whole point of doing this properly rather
@@ -138,16 +138,16 @@ FORBIDDEN_QML = frozenset(
      "QtRemoteObjects", "QtMqtt", "QtCoap"}
 )
 
-QML_ROOT = REPO_ROOT / "protege" / "ui" / "qml"
+QML_ROOT = REPO_ROOT / "akira" / "ui" / "qml"
 QML_SUFFIXES = (".qml", ".js", ".mjs")
 _QML_IMPORT = re.compile(r"^[ \t]*\.?import[ \t]+([A-Za-z_][\w.]*)", re.M)
 
 # Constructing one of these makes an engine that could fetch on its own.
 ENGINE_TYPES = frozenset({"QQmlApplicationEngine", "QQmlEngine", "QQuickView", "QQuickWidget"})
 
-GUARD = "protege.security.netguard"
-CHOKEPOINT = "protege.core.net.client"
-QT_GUARD = "protege.security.qtguard"
+GUARD = "akira.security.netguard"
+CHOKEPOINT = "akira.core.net.client"
+QT_GUARD = "akira.security.qtguard"
 
 #: What shuts an engine's own access to the network.
 SHUT = "shut"
@@ -157,17 +157,17 @@ ADMISSION = "admitting"
 
 # The three modules that may import networking modules, and exactly which.
 #
-# `protege.security.netguard` imports `socket` to patch it. It must never
+# `akira.security.netguard` imports `socket` to patch it. It must never
 # connect: it replaces connect, bind and resolve with functions that raise, and
 # lets through only what the chokepoint has checked.
 #
-# `protege.core.net.client` is the chokepoint (C1), the one path from Protégé to
+# `akira.core.net.client` is the chokepoint (C1), the one path from Akira to
 # the network. Every request through it is held to `net.http` for its site,
 # https only, never to this machine or its network, capped, and audited. It may
 # import the standard-library pieces a client is built from and nothing more:
 # no `requests`, no `urllib.request`.
 #
-# `protege.security.qtguard` imports `PySide6.QtNetwork` for one thing: an
+# `akira.security.qtguard` imports `PySide6.QtNetwork` for one thing: an
 # access manager that refuses every request, which each QML engine is given.
 #
 # This is asserted by test. Every name added here is a hole in the guarantee,
@@ -181,7 +181,7 @@ SOURCE_EXEMPT = frozenset(EXEMPT_IMPORTS)
 
 DYNAMIC_IMPORT_CALLS = frozenset({"__import__", "import_module", "load_module", "exec_module"})
 
-# `protege.plugins` loads user-supplied files by path, which is dynamic import
+# `akira.plugins` loads user-supplied files by path, which is dynamic import
 # by definition -- there is no plain-import formulation of "load whatever the
 # user dropped in this directory". Exempting it from the dynamic-import check
 # does NOT exempt it from the forbidden-module check, and it does not make the
@@ -190,7 +190,7 @@ DYNAMIC_IMPORT_CALLS = frozenset({"__import__", "import_module", "load_module", 
 # unless it is explicitly enabled and its SHA-256 still matches what was
 # approved. The exemption is reported as a note on every run so it stays
 # visible rather than becoming invisible precedent.
-DYNAMIC_IMPORT_EXEMPT = frozenset({"protege.plugins"})
+DYNAMIC_IMPORT_EXEMPT = frozenset({"akira.plugins"})
 
 # `llama_backend` is listed even though startup imports it lazily. It is the
 # only module that pulls in `llama_cpp`, whose subtree contains both an unused
@@ -204,9 +204,9 @@ ENTRY_POINTS = (
     # graph walked at all: the scan proved the old Tk app offline and said
     # nothing about the one people now run.
     "shell.py",
-    "protege/__init__.py",
-    "protege/ui/app.py",
-    "protege/models/llama_backend.py",
+    "akira/__init__.py",
+    "akira/ui/app.py",
+    "akira/models/llama_backend.py",
 )
 
 
@@ -297,7 +297,7 @@ class ImportSite:
 
     `llama_cpp.llama` is the concrete case: `Llama.from_pretrained` contains
     `from huggingface_hub import hf_hub_download`, which downloads model weights
-    over the network. Protege never calls `from_pretrained` -- models load from
+    over the network. Akira never calls `from_pretrained` -- models load from
     local paths only. Treating that as a hard failure would make this script red
     on every clean install, and a check that is always red is a check nobody
     reads. It is reported as a note naming the enclosing function so the claim
@@ -372,7 +372,7 @@ def _dynamic_import_findings(tree: ast.AST, module: str, path: Path) -> list[Fin
     """Flag dynamic import machinery.
 
     Any of these can name a module at runtime, which defeats static analysis
-    entirely. Protege uses none of them, so their presence is itself the
+    entirely. Akira uses none of them, so their presence is itself the
     finding -- we do not attempt to evaluate the argument.
     """
     findings: list[Finding] = []
@@ -494,9 +494,9 @@ def scan_qml(result: ScanResult) -> None:
 
 
 def scan_source(result: ScanResult) -> None:
-    """Checks 1, 3 and 4: no networking imports in Protege's own source outside
+    """Checks 1, 3 and 4: no networking imports in Akira's own source outside
     the exemptions, no other door opened, and no QML engine left open."""
-    sources = sorted((REPO_ROOT / "protege").rglob("*.py"))
+    sources = sorted((REPO_ROOT / "akira").rglob("*.py"))
     sources += [REPO_ROOT / "run.py", REPO_ROOT / "shell.py"]
     for path in sources:
         if not path.is_file():
@@ -520,7 +520,7 @@ def scan_source(result: ScanResult) -> None:
                     # No module-level/function-level distinction here. That
                     # allowance exists for third-party code we did not write and
                     # cannot change. We wrote this code; a lazy import of a
-                    # networking module in Protege's own source is a defect
+                    # networking module in Akira's own source is a defect
                     # regardless of whether the function is currently called.
                     where = f" inside {site.enclosing}()" if site.enclosing else ""
                     result.errors.append(
@@ -579,7 +579,7 @@ def scan_reachable(result: ScanResult, max_modules: int = 6000) -> None:
             continue
         seen.add(module)
 
-        is_external = not module.startswith("protege") and module != "run"
+        is_external = not module.startswith("akira") and module != "run"
         if is_external:
             result.external_scanned += 1
 
@@ -622,7 +622,7 @@ def scan_reachable(result: ScanResult, max_modules: int = 6000) -> None:
                             path,
                             site.line,
                             f"lazy import of {resolved!r} inside {site.enclosing}() -- "
-                            "only reached if that function is called, and Protege does not call it",
+                            "only reached if that function is called, and Akira does not call it",
                             severity="note",
                         )
                     )
@@ -670,7 +670,7 @@ def scan_installed_inventory(result: ScanResult) -> None:
                                 _module_name_for(path),
                                 path,
                                 site.line,
-                                f"present on disk but unreachable from Protege: imports {site.name!r}",
+                                f"present on disk but unreachable from Akira: imports {site.name!r}",
                                 severity="note",
                             )
                         )
@@ -683,7 +683,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--source-only",
         action="store_true",
-        help="scan only Protege's own source, skipping the dependency graph walk",
+        help="scan only Akira's own source, skipping the dependency graph walk",
     )
     args = parser.parse_args(argv)
 
@@ -694,7 +694,7 @@ def main(argv: list[str] | None = None) -> int:
         scan_reachable(result)
         scan_installed_inventory(result)
 
-    print(f"verify_offline: scanned {result.modules_scanned} Protege modules, "
+    print(f"verify_offline: scanned {result.modules_scanned} Akira modules, "
           f"{result.qml_scanned} QML and script files, "
           f"{result.external_scanned} reachable external modules")
 
@@ -709,7 +709,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nFAIL: {len(result.errors)} networking finding(s):\n")
         for finding in result.errors:
             print(finding.render())
-        print(f"\nProtege must reach the network only through {CHOKEPOINT}. "
+        print(f"\nAkira must reach the network only through {CHOKEPOINT}. "
               "Fix every finding above.")
         return 1
 

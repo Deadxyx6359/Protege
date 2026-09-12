@@ -10,19 +10,19 @@ from contextlib import contextmanager
 
 import pytest
 
-from protege.core.brain import ConflictError, Index, Vault
-from protege.core.brain.distil import (DISTIL_ACTION, Distiller, PendingStore, accept,
+from akira.core.brain import ConflictError, Index, Vault
+from akira.core.brain.distil import (DISTIL_ACTION, Distiller, PendingStore, accept,
                                        ensure_distil_job, new_lines, parse_notes,
                                        register_distil_action, vault_of)
-from protege.core.permissions import AuditLog, Policy, SecretStore
-from protege.core.schedule import ActionRegistry, JobStore, Scheduler
-from protege.models.base import ModelUnavailable
-from protege.models.scripted import ScriptedBackend
+from akira.core.permissions import AuditLog, Policy, SecretStore
+from akira.core.schedule import ActionRegistry, JobStore, Scheduler
+from akira.models.base import ModelUnavailable
+from akira.models.scripted import ScriptedBackend
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 class Router:

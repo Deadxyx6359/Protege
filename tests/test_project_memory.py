@@ -9,17 +9,17 @@ from contextlib import contextmanager
 
 import pytest
 
-from protege.core.brain import Vault
-from protege.core.brain.distil import Distiller, PendingStore
-from protege.core.conversation import Conversation
-from protege.core.conversations import ConversationStore
-from protege.core.projects import ProjectStore
-from protege.models.scripted import ScriptedBackend
+from akira.core.brain import Vault
+from akira.core.brain.distil import Distiller, PendingStore
+from akira.core.conversation import Conversation
+from akira.core.conversations import ConversationStore
+from akira.core.projects import ProjectStore
+from akira.models.scripted import ScriptedBackend
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 class Router:

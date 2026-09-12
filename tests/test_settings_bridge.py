@@ -13,9 +13,9 @@ pytest.importorskip("PySide6", reason="the Qt interface is optional for the old 
 
 from PySide6.QtCore import QCoreApplication  # noqa: E402
 
-from protege.core.config import AppConfig, ModelConfig  # noqa: E402
-from protege.core.models import ModelRouter, Route  # noqa: E402
-from protege.ui.bridge import SettingsBridge  # noqa: E402
+from akira.core.config import AppConfig, ModelConfig  # noqa: E402
+from akira.core.models import ModelRouter, Route  # noqa: E402
+from akira.ui.bridge import SettingsBridge  # noqa: E402
 
 @pytest.fixture(scope="module")
 def qt_app():
@@ -31,7 +31,7 @@ def tiny_models_allowed(monkeypatch):
     per test — and because pytest keeps several runs' temp directories, that put
     tens of gigabytes on disk and took the suite from 27 seconds to minutes.
     """
-    monkeypatch.setattr("protege.core.config._MIN_MODEL_BYTES", 8)
+    monkeypatch.setattr("akira.core.config._MIN_MODEL_BYTES", 8)
 
 
 def write_model(path, extra=0):
@@ -47,13 +47,13 @@ def models(tmp_path, monkeypatch):
     directory.mkdir()
     small = write_model(directory / "Small-3B.gguf")
     large = write_model(directory / "Large-8B.gguf", extra=1024)
-    monkeypatch.setattr("protege.core.config.MODELS_DIR", directory)
+    monkeypatch.setattr("akira.core.config.MODELS_DIR", directory)
     return {"dir": directory, "small": small, "large": large}
 
 
 @pytest.fixture
 def bridge(qt_app, models, monkeypatch, tmp_path):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
     config = AppConfig(models={"chat": ModelConfig(path=str(models["large"]))})
     router = ModelRouter(config)
     return SettingsBridge(config, router), config, router

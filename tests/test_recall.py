@@ -9,20 +9,20 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from protege.core.brain.recall import ContextAssembler
-from protege.core.context.place import Place, PlaceStore
-from protege.core.conversation import Conversation, build_prompt
-from protege.core.documents import word
-from protege.core.permissions import AuditLog, Policy, SecretStore
-from protege.core.projects import ProjectStore
-from protege.core.tools import default_registry
+from akira.core.brain.recall import ContextAssembler
+from akira.core.context.place import Place, PlaceStore
+from akira.core.conversation import Conversation, build_prompt
+from akira.core.documents import word
+from akira.core.permissions import AuditLog, Policy, SecretStore
+from akira.core.projects import ProjectStore
+from akira.core.tools import default_registry
 
 FRIDAY = datetime(2026, 9, 11, 14, 5, tzinfo=timezone(timedelta(hours=1), "BST"))
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 @pytest.fixture

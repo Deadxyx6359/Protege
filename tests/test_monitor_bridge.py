@@ -13,9 +13,9 @@ pytest.importorskip("PySide6.QtCore")
 
 from PySide6.QtCore import QCoreApplication  # noqa: E402
 
-from protege.core.agents.monitor import Monitor, WatchStore  # noqa: E402
-from protege.core.permissions import AuditLog, Policy  # noqa: E402
-from protege.ui.bridge.monitor import MonitorBridge  # noqa: E402
+from akira.core.agents.monitor import Monitor, WatchStore  # noqa: E402
+from akira.core.permissions import AuditLog, Policy  # noqa: E402
+from akira.ui.bridge.monitor import MonitorBridge  # noqa: E402
 
 
 @pytest.fixture

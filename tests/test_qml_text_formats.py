@@ -16,7 +16,7 @@ import pytest
 
 pytest.importorskip("PySide6.QtQml")
 
-from protege.ui.engine import QML_ROOT  # noqa: E402
+from akira.ui.engine import QML_ROOT  # noqa: E402
 
 _OPEN = re.compile(r"\b(?:Text|Label)\s*\{")
 _TEXT = re.compile(r"(?:\A|[;\n])[ \t]*text[ \t]*:")
@@ -29,7 +29,7 @@ _RICH = re.compile(r"\b(?:Text|TextEdit)\.(?:RichText|StyledText|MarkdownText|Au
 #: Where rich text may appear, and why it is safe there.
 RICH_ALLOWED = {
     # Chat replies, which the bridge serves with every picture turned into a link.
-    "Protege/MessageBody.qml",
+    "Akira/MessageBody.qml",
 }
 
 

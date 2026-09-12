@@ -16,12 +16,12 @@ from contextlib import contextmanager
 
 import pytest
 
-from protege.core.agents import Agent, AgentSpec, Kind, Trace, parse_calls, render_tools
-from protege.core.agents.protocol import format_result
-from protege.core.conversation import Cancelled
-from protege.core.models import Route
-from protege.core.permissions import AuditLog, Policy, SecretStore
-from protege.core.tools import (
+from akira.core.agents import Agent, AgentSpec, Kind, Trace, parse_calls, render_tools
+from akira.core.agents.protocol import format_result
+from akira.core.conversation import Cancelled
+from akira.core.models import Route
+from akira.core.permissions import AuditLog, Policy, SecretStore
+from akira.core.tools import (
     Parameter,
     Tool,
     ToolContext,
@@ -33,7 +33,7 @@ from protege.core.tools import (
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 # -- a model that says exactly what the test needs ---------------------------
@@ -179,7 +179,7 @@ def test_rendered_tools_name_their_arguments():
 
 
 def test_a_result_is_labelled_with_its_status():
-    from protege.core.agents.protocol import Call
+    from akira.core.agents.protocol import Call
 
     ok = format_result(Call("read_file"), "contents", ok=True)
     bad = format_result(Call("read_file"), "boom", ok=False)
@@ -389,7 +389,7 @@ def test_a_tool_failure_does_not_end_the_run(context, workspace):
 
 
 def two_member_team(**kwargs):
-    from protege.core.agents import TeamSpec
+    from akira.core.agents import TeamSpec
 
     first = AgentSpec(name="first", role="You go first.", tools=(), max_steps=2)
     second = AgentSpec(name="second", role="You go second.", tools=(), max_steps=2)
@@ -397,7 +397,7 @@ def two_member_team(**kwargs):
 
 
 def build_team(replies, context, spec=None, registry=None):
-    from protege.core.agents import Team
+    from akira.core.agents import Team
 
     router = ScriptedRouter(replies)
     team = Team(spec or two_member_team(), router=router,
@@ -455,7 +455,7 @@ def test_a_member_that_fails_does_not_take_the_team_with_it(context):
                 raise RuntimeError("the first one fell over")
             yield ScriptedBackend(["the second one managed"])
 
-    from protege.core.agents import Team
+    from akira.core.agents import Team
 
     team = Team(two_member_team(), router=HalfBroken(),
                 registry=default_registry(), context=context(), trace=Trace())
@@ -481,7 +481,7 @@ def test_a_later_member_is_told_the_step_was_lost(context):
                 raise RuntimeError("down")
             yield self.backend
 
-    from protege.core.agents import Team
+    from akira.core.agents import Team
 
     router = FirstBroken()
     team = Team(two_member_team(), router=router, registry=default_registry(),
@@ -499,7 +499,7 @@ def test_a_team_where_nobody_finishes_says_so(context):
             raise RuntimeError("everything is down")
             yield  # pragma: no cover
 
-    from protege.core.agents import Team
+    from akira.core.agents import Team
 
     team = Team(two_member_team(), router=AllBroken([]),
                 registry=default_registry(), context=context(), trace=Trace())
@@ -511,7 +511,7 @@ def test_a_team_where_nobody_finishes_says_so(context):
 
 def test_a_member_cannot_exceed_the_teams_permissions(context, workspace):
     """Joining a team grants nothing. The team's policy is the ceiling."""
-    from protege.core.agents import Team, TeamSpec
+    from akira.core.agents import Team, TeamSpec
 
     greedy = AgentSpec(name="greedy", role="r",
                        tools=("read_file", "write_file"), max_steps=2)
@@ -544,7 +544,7 @@ def test_cancelling_stops_the_team_between_members(context):
 
 def test_a_contribution_is_trimmed_before_the_next_member_sees_it(context):
     """Four members each passing on 6000 characters overflows an 8k context."""
-    from protege.core.agents.team import MAX_CONTRIBUTION_CHARS
+    from akira.core.agents.team import MAX_CONTRIBUTION_CHARS
 
     team, router = build_team(["x" * 9000, "done"], context())
     team.run("go")
@@ -554,7 +554,7 @@ def test_a_contribution_is_trimmed_before_the_next_member_sees_it(context):
 
 
 def test_the_shipped_teams_are_well_formed(context):
-    from protege.core.agents import research_team, software_team
+    from akira.core.agents import research_team, software_team
 
     for spec in (research_team(), software_team()):
         assert spec.members
@@ -562,14 +562,14 @@ def test_the_shipped_teams_are_well_formed(context):
 
 
 def test_a_team_needs_members():
-    from protege.core.agents import TeamSpec
+    from akira.core.agents import TeamSpec
 
     with pytest.raises(ValueError):
         TeamSpec(name="empty", purpose="p", members=())
 
 
 def test_two_members_cannot_share_a_name():
-    from protege.core.agents import TeamSpec
+    from akira.core.agents import TeamSpec
 
     twin = AgentSpec(name="same", role="r")
     with pytest.raises(ValueError):
@@ -578,7 +578,7 @@ def test_two_members_cannot_share_a_name():
 
 def test_the_reviewer_cannot_write():
     """The role narrowing is the point, so it is asserted rather than trusted."""
-    from protege.core.agents.roles import CRITIC, REVIEWER
+    from akira.core.agents.roles import CRITIC, REVIEWER
 
     assert "write_file" not in REVIEWER.tools
     assert CRITIC.tools == ()
@@ -646,8 +646,8 @@ def test_reasoning_is_filtered_out_of_a_non_streamed_reply():
 
 def test_the_reviewer_holds_nothing_irreversible():
     """Read-only by construction, not by the reviewer's good behaviour."""
-    from protege.core.agents.roles import REVIEWER
-    from protege.core.tools.builtin import MODULES
+    from akira.core.agents.roles import REVIEWER
+    from akira.core.tools.builtin import MODULES
 
     tools = {tool.name: tool for module in MODULES for tool in module.ALL}
     for name in REVIEWER.tools:

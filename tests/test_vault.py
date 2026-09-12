@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from protege.schemas import Manifest
-from protege.vault import (
+from akira.schemas import Manifest
+from akira.vault import (
     NoteScope,
     classify,
     coerce_topic,

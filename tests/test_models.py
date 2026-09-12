@@ -6,10 +6,10 @@ import time
 
 import pytest
 
-from protege.models import ModelManager, ModelSpec, ModelUnavailable, Role, deadline_from
-from protege.models.base import ChatMessage, GenerationTimeout
-from protege.models.scripted import ScriptedBackend, always_block_auditor, always_pass_auditor
-from protege.schemas import Settings
+from akira.models import ModelManager, ModelSpec, ModelUnavailable, Role, deadline_from
+from akira.models.base import ChatMessage, GenerationTimeout
+from akira.models.scripted import ScriptedBackend, always_block_auditor, always_pass_auditor
+from akira.schemas import Settings
 
 
 def _settings(**models) -> Settings:

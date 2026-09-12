@@ -1,12 +1,14 @@
-# Protégé — the project
+# Akira — the project
 
-> **Renaming to Akira.** The product is now called **Akira**, after Akira
-> Nakashima; Codex's logo concepts are in `docs/branding/`. The code, the
-> `protege` package and the on-disk paths still use the old name. Renaming
-> those is deliberate work, not a find-and-replace: the configuration folder
-> (`%LOCALAPPDATA%\Protege`) holds the user's permissions, schedule, activity
-> log and saved credentials, and moving it needs a migration so none of that
-> is orphaned.
+> **Now called Akira**, after Akira Nakashima, and renamed throughout: the
+> package is `akira`, the QML module `Akira`, the settings folder
+> `%LOCALAPPDATA%\Akira`. That folder holds the person's permissions, schedule,
+> activity log and saved credentials, so it is moved from
+> `%LOCALAPPDATA%\Protege` at the first start after the rename, in one step, and
+> used where it is until it can be (`core/config.py`, `migrate_config`). Kept
+> on purpose: the legacy app's `.protege` folder inside a vault, the name sealed
+> into saved credentials, the `PROTEGE_PLUGIN` name plugins declare, and the
+> repository folder's own name.
 
 **This file is the canonical description and the work order.** Everything else
 is detail hanging off it. If a document disagrees with this one, this one is
@@ -35,7 +37,7 @@ before touching UI or tests.
 
 ---
 
-## 1. What Protégé is
+## 1. What Akira is
 
 A local-first AI assistant that is also **a place where agents work**. Teams
 that research, build, watch and automate, with real reach into the machine and
@@ -152,7 +154,7 @@ These are settled. Changing one is a conversation, not a commit.
 ## 4. Architecture
 
 ```
-protege/
+akira/
   core/                  the platform — testable headless, no UI imports
     permissions/         capabilities, grants, scope matching, audit, secrets
     tools/               tool schema, the gate, built-in tools
@@ -174,17 +176,17 @@ privileged action directly; it goes through a tool so it is gated and audited.
 
 ### 4.1 Ownership
 
-- **Claude** — `protege/core/**`, `protege/security/**`, and matching tests.
-- **Codex** — `protege/ui/qml/**`, `protege/design/**`, scene `.js`,
+- **Claude** — `akira/core/**`, `akira/security/**`, and matching tests.
+- **Codex** — `akira/ui/qml/**`, `akira/design/**`, scene `.js`,
   `tools/preview_scenes.py`.
-- **Shared, coordinate first** — `protege/ui/bridge/**`.
+- **Shared, coordinate first** — `akira/ui/bridge/**`.
 
 Before committing, check file mtimes. Work from the other agent arrives
 mid-session and must not be swept into a commit unreviewed.
 
 ### 4.2 The legacy layer
 
-The original knowledge-lock Protégé still supplies `documents.py`, `memory/`,
+The original knowledge-lock Akira still supplies `documents.py`, `memory/`,
 `knowledge_graph.py`, `projects.py`, `skills/` and `vault.py`. These work and
 are tested, but they predate the permission model and call privileged
 operations directly. They are **not** to be extended in place; each is ported
@@ -270,7 +272,7 @@ the UI.
 *Why here:* needs the audit log (A1) and the scheduler (A6), and every later
 phase adds attack surface it should already be watching.
 *Done:* runs daily at 09:00, late if the machine was off, and on demand. Also
-flags reaching for credentials or Protégé's own settings (always critical),
+flags reaching for credentials or Akira's own settings (always critical),
 grant-file tampering, mid-log damage, and permission changes in the window.
 It only reads — it never revokes anything itself. Critical findings raise a
 signal of their own rather than waiting in a list.
@@ -551,7 +553,7 @@ and resumable.
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1757 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 1777 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

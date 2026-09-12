@@ -1,7 +1,7 @@
 """The antialiased sprite renderer.
 
 Tk cannot antialias anything it draws, so every circle in the app was visibly
-staircased. `protege.ui.sprites` works around that by rasterising shapes itself
+staircased. `akira.ui.sprites` works around that by rasterising shapes itself
 from a signed distance and handing Tk a finished bitmap.
 
 Two classes of thing are worth testing here. The first is that the edges are
@@ -20,7 +20,7 @@ import tkinter as tk
 
 import pytest
 
-from protege.ui import sprites, theme
+from akira.ui import sprites, theme
 
 
 @pytest.fixture
@@ -126,7 +126,7 @@ def test_a_sprite_belongs_to_the_interpreter_that_will_draw_it(root):
     """The regression test for the real defect.
 
     `tk.PhotoImage(...)` with no master binds to tkinter's *default* root --
-    whichever one was created first. A ProtegeWindow is its own `tk.Tk`, so
+    whichever one was created first. A AkiraWindow is its own `tk.Tk`, so
     every sprite built for one belonged to the wrong interpreter and
     `create_image` failed with "image doesn't exist". The UI fixtures caught
     the TclError and skipped with "no display available", so the suite stayed

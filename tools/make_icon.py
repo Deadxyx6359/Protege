@@ -1,8 +1,8 @@
-"""Generate the Protege application icon: a tree, in the theme palette.
+"""Generate the Akira application icon: a tree, in the theme palette.
 
 Run: python tools/make_icon.py
 
-Writes `protege/ui/assets/protege.ico` as a genuine multi-resolution ICO
+Writes `akira/ui/assets/akira.ico` as a genuine multi-resolution ICO
 (16/24/32/48/64/128/256) so Windows picks the right size for the taskbar, the
 title bar, and Explorer instead of scaling one bitmap badly.
 
@@ -25,7 +25,7 @@ import struct
 import zlib
 from pathlib import Path
 
-OUT = Path(__file__).resolve().parent.parent / "protege" / "ui" / "assets" / "protege.ico"
+OUT = Path(__file__).resolve().parent.parent / "akira" / "ui" / "assets" / "akira.ico"
 SIZES = (16, 24, 32, 48, 64, 128, 256)
 
 # Theme palette, as RGB.

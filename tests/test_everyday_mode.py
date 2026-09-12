@@ -21,15 +21,15 @@ from dataclasses import replace
 
 import pytest
 
-from protege import store
-from protege.context.assembly import ContextAssembler
-from protege.lock.directive import build_directive, build_everyday_preamble
-from protege.lock.pipeline import OutputGate
-from protege.lock.tripwires import TopicTripwires, TripwireSet
-from protege.models import ModelManager
-from protege.personality.defaults import default_personality
-from protege.projects import ensure_project
-from protege.schemas import Manifest, Settings
+from akira import store
+from akira.context.assembly import ContextAssembler
+from akira.lock.directive import build_directive, build_everyday_preamble
+from akira.lock.pipeline import OutputGate
+from akira.lock.tripwires import TopicTripwires, TripwireSet
+from akira.models import ModelManager
+from akira.personality.defaults import default_personality
+from akira.projects import ensure_project
+from akira.schemas import Manifest, Settings
 
 
 TAUGHT = Manifest.initial().with_unlocked("python_basics").with_trust_tier(2)
@@ -76,7 +76,7 @@ def test_an_unknown_key_in_the_manifest_cannot_turn_it_on():
 
 def test_a_malformed_topic_still_raises_in_everyday_mode():
     """The short circuit must not swallow a caller's bug."""
-    from protege.schemas import SchemaError
+    from akira.schemas import SchemaError
 
     with pytest.raises(SchemaError):
         TAUGHT.unrestricted_view().is_unlocked("Not A Topic!")
@@ -134,8 +134,8 @@ def test_tripwires_have_nothing_to_scan_in_everyday_mode(tmp_path):
 
 def test_notes_for_locked_topics_become_retrievable(tmp_path):
     """The user's own vault, in a mode that is meant to be an ordinary assistant."""
-    from protege.lock.retrieval import retrieve
-    from protege.vault import scan_vault
+    from akira.lock.retrieval import retrieve
+    from akira.vault import scan_vault
 
     vault = tmp_path / "vault"
     vault.mkdir()
@@ -164,19 +164,19 @@ def test_notes_for_locked_topics_become_retrievable(tmp_path):
 def window(tmp_path_factory, tk_available):
     """One window for the module.
 
-    Deliberately not paired with `clean_root`: a ProtegeWindow *is* a `tk.Tk`,
+    Deliberately not paired with `clean_root`: a AkiraWindow *is* a `tk.Tk`,
     and standing one up beside the shared session root puts two live Tcl
     interpreters in a single test, which is the configuration that fails under
     pytest's default fd capture (see conftest).
     """
-    from protege.ui.app import ProtegeWindow
+    from akira.ui.app import AkiraWindow
 
     vault = tmp_path_factory.mktemp("vault")
     store.bootstrap_vault(vault)
     ensure_project(vault, "default")
     store.save_manifest(vault, TAUGHT)
     try:
-        win = ProtegeWindow(vault, store.load_manifest(vault), Settings(),
+        win = AkiraWindow(vault, store.load_manifest(vault), Settings(),
                             store.load_personality(vault))
     except tk.TclError:
         if tk_available:
@@ -225,7 +225,7 @@ def test_the_gating_layers_stand_down_but_retrieval_does_not(window):
     assert layers.tripwires is False and layers.auditor is False
     assert layers.retrieval is True, (
         "everyday mode must still see the user's own notes, or it is worse at "
-        "their material than Protege mode is"
+        "their material than Akira mode is"
     )
 
 

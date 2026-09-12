@@ -21,10 +21,10 @@ pytest.importorskip("PySide6.QtNetwork")
 from PySide6.QtCore import QCoreApplication, QUrl  # noqa: E402
 from PySide6.QtNetwork import QNetworkReply, QNetworkRequest  # noqa: E402
 
-from protege.core.conversation import Message  # noqa: E402
-from protege.security import qtguard  # noqa: E402
-from protege.security.qtguard import RefusingAccessManager, inert_markdown  # noqa: E402
-from protege.ui.bridge.chat import MessageListModel  # noqa: E402
+from akira.core.conversation import Message  # noqa: E402
+from akira.security import qtguard  # noqa: E402
+from akira.security.qtguard import RefusingAccessManager, inert_markdown  # noqa: E402
+from akira.ui.bridge.chat import MessageListModel  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -98,8 +98,8 @@ sys.path.insert(0, sys.argv[1])
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QGuiApplication
 app = QGuiApplication([])
-from protege.security import qtguard
-from protege.ui.engine import build_engine
+from akira.security import qtguard
+from akira.ui.engine import build_engine
 engine, theme = build_engine()
 engine.loadData(sys.argv[2].encode(), QUrl.fromLocalFile(os.path.join(sys.argv[1], "probe.qml")))
 wanted, deadline = int(sys.argv[3]), time.monotonic() + 10

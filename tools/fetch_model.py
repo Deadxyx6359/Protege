@@ -4,7 +4,7 @@
     python tools/fetch_model.py <url> [--name NAME.gguf]
 
 Fetches to `<name>.part` and renames only once the transfer completes, so a
-partial download is never visible to Protégé as a model. Without that the
+partial download is never visible to Akira as a model. Without that the
 application discovers a half-written file, assigns it to a route, and fails to
 load it — the failure arrives later and looks unrelated to the download.
 

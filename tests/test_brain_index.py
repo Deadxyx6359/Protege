@@ -8,14 +8,14 @@ import os
 
 import pytest
 
-from protege.core.brain import Vault, VaultError
-from protege.core.brain import index as index_module
-from protege.core.brain.index import Index, chunks, terms
+from akira.core.brain import Vault, VaultError
+from akira.core.brain import index as index_module
+from akira.core.brain.index import Index, chunks, terms
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 def write(root, rel, text):

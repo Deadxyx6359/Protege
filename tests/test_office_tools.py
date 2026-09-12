@@ -12,17 +12,17 @@ import json
 
 import pytest
 
-from protege.core.documents import Package, sheets, slides, word
-from protege.core.permissions import AuditLog, Policy, SecretStore
-from protege.core.tools import ToolContext, default_registry
-from protege.core.tools.builtin import office
+from akira.core.documents import Package, sheets, slides, word
+from akira.core.permissions import AuditLog, Policy, SecretStore
+from akira.core.tools import ToolContext, default_registry
+from akira.core.tools.builtin import office
 
 from test_office_formats import DECK_PARTS, WORD_PARTS, package_bytes, tiny_pdf
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 @pytest.fixture
@@ -77,7 +77,7 @@ def test_documents_need_their_own_permission_not_file_access(folder):
 
 
 def test_the_research_gatherer_can_read_documents():
-    from protege.core.agents.roles import ANALYST, GATHERER
+    from akira.core.agents.roles import ANALYST, GATHERER
 
     assert "read_document" in GATHERER.tools and "read_document" in ANALYST.tools
 

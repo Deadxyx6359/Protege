@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from protege.lock.auditor import (
+from akira.lock.auditor import (
     AUDITOR_SYSTEM,
     FENCE_DRAFT,
     FENCE_DRAFT_END,
@@ -17,9 +17,9 @@ from protege.lock.auditor import (
     build_audit_messages,
     parse_verdict,
 )
-from protege.models import ModelSpec, Role, deadline_from
-from protege.models.base import ModelUnavailable
-from protege.models.scripted import ScriptedBackend
+from akira.models import ModelSpec, Role, deadline_from
+from akira.models.base import ModelUnavailable
+from akira.models.scripted import ScriptedBackend
 
 
 def _backend(reply: str, **kwargs) -> ScriptedBackend:

@@ -12,17 +12,17 @@ from __future__ import annotations
 
 import pytest
 
-from protege.knowledge_graph import (
+from akira.knowledge_graph import (
     build_graph,
     hub_of,
     layout,
     summarize,
 )
-from protege.lock.auditor import parse_verdict
-from protege.lock.tripwires import TripwireSet
-from protege.models.think_filter import ThinkFilter, strip_think
-from protege.schemas import Manifest
-from protege.vault import scan_vault
+from akira.lock.auditor import parse_verdict
+from akira.lock.tripwires import TripwireSet
+from akira.models.think_filter import ThinkFilter, strip_think
+from akira.schemas import Manifest
+from akira.vault import scan_vault
 
 
 # --- strip_think ------------------------------------------------------------
@@ -133,13 +133,13 @@ def test_qwen3_detection_by_filename(filename, expected):
     the conversion and is frequently blank or wrong in community quants, while
     nobody renames a model file to disguise its family.
     """
-    from protege.models.base import ModelSpec, Role
+    from akira.models.base import ModelSpec, Role
 
     # _is_qwen3 only reads spec.path, so this needs no loaded model.
     class Probe:
         spec = ModelSpec(path=rf"C:\models\{filename}", role=Role.MAIN)
 
-    from protege.models.llama_backend import LlamaBackend
+    from akira.models.llama_backend import LlamaBackend
 
     assert LlamaBackend._is_qwen3.fget(Probe()) is expected
 
@@ -232,7 +232,7 @@ def test_topics_come_from_manifest_even_without_notes(vault):
 
 
 def test_topics_come_from_tripwires(vault, tmp_path):
-    from protege.lock.tripwires import TopicTripwires
+    from akira.lock.tripwires import TopicTripwires
 
     tripwires = TripwireSet(by_topic={"chemistry": TopicTripwires(topic="chemistry", keywords=("sodium",))})
     graph = build_graph(scan_vault(vault), Manifest.initial(), tripwires)
@@ -312,7 +312,7 @@ def test_icon_asset_exists_and_is_a_multi_size_ico():
     import struct
     from pathlib import Path
 
-    icon = Path(__file__).resolve().parent.parent / "protege" / "ui" / "assets" / "protege.ico"
+    icon = Path(__file__).resolve().parent.parent / "akira" / "ui" / "assets" / "akira.ico"
     assert icon.is_file(), "run tools/make_icon.py"
     data = icon.read_bytes()
     reserved, kind, count = struct.unpack("<HHH", data[:6])
@@ -338,7 +338,7 @@ def root(clean_root):
 
 
 def test_sidebar_constructs_and_lists_projects(root):
-    from protege.ui.sidebar import Sidebar
+    from akira.ui.sidebar import Sidebar
 
     calls: list[str] = []
     bar = Sidebar(
@@ -358,8 +358,8 @@ def test_sidebar_constructs_and_lists_projects(root):
 
 
 def test_sidebar_marks_the_current_project(root):
-    from protege.ui import theme
-    from protege.ui.sidebar import Sidebar
+    from akira.ui import theme
+    from akira.ui.sidebar import Sidebar
 
     bar = Sidebar(
         root, actions={}, projects=["a", "b"], current_project="b",
@@ -379,11 +379,11 @@ def test_knowledge_web_keeps_every_node_on_screen(root, vault):
     settles is the fix; this checks the outcome at several window sizes rather
     than trusting the mechanism.
     """
-    from protege.lock.tripwires import TripwireSet
-    from protege.models import ModelManager
-    from protege.schemas import Settings
-    from protege.ui.knowledge_web import KnowledgeWebDialog
-    from protege.unlock import UnlockFlow
+    from akira.lock.tripwires import TripwireSet
+    from akira.models import ModelManager
+    from akira.schemas import Settings
+    from akira.ui.knowledge_web import KnowledgeWebDialog
+    from akira.unlock import UnlockFlow
 
     for i in range(4):
         put(vault, f"d{i}.md", [f"domain{i}_alpha", f"domain{i}_beta", f"domain{i}_gamma"])
@@ -415,11 +415,11 @@ def test_knowledge_web_keeps_every_node_on_screen(root, vault):
 
 
 def test_knowledge_web_constructs(root, vault):
-    from protege.lock.tripwires import TripwireSet
-    from protege.models import ModelManager
-    from protege.schemas import Settings
-    from protege.ui.knowledge_web import KnowledgeWebDialog
-    from protege.unlock import UnlockFlow
+    from akira.lock.tripwires import TripwireSet
+    from akira.models import ModelManager
+    from akira.schemas import Settings
+    from akira.ui.knowledge_web import KnowledgeWebDialog
+    from akira.unlock import UnlockFlow
 
     put(vault, "a.md", ["python_basics"])
     put(vault, "b.md", ["chemistry_organic"])

@@ -13,7 +13,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 from PySide6.QtCore import QDateTime
 from PySide6.QtGui import QGuiApplication
-from protege.ui.engine import build_engine, configure_application, load
+from akira.ui.engine import build_engine, configure_application, load
 from preview_scenes import settle
 
 
@@ -29,7 +29,7 @@ def main():
     engine, theme = build_engine()
     warnings = []
     engine.warnings.connect(lambda errors: warnings.extend(e.toString() for e in errors))
-    window = load(engine, REPO / "protege/ui/qml/SceneGallery.qml")
+    window = load(engine, REPO / "akira/ui/qml/SceneGallery.qml")
     window.setWidth(960)
     window.setHeight(540)
     for scene in ("coast", "space", "research"):

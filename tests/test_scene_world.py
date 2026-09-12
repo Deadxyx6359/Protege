@@ -12,7 +12,7 @@ from PySide6.QtQml import QJSEngine
 def world():
     app = QCoreApplication.instance() or QCoreApplication([])
     engine = QJSEngine()
-    path = Path(__file__).resolve().parents[1] / "protege/ui/qml/Protege/scenes/world.js"
+    path = Path(__file__).resolve().parents[1] / "akira/ui/qml/Akira/scenes/world.js"
     source = path.read_text(encoding="utf-8").replace(".pragma library", "")
     result = engine.evaluate(source, str(path))
     assert not result.isError(), result.toString()

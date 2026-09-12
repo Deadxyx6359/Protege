@@ -1,12 +1,12 @@
 # QML bridges — what the interface can reach
 
-**Living reference.** This is the seam between `protege/core` and QML: every
+**Living reference.** This is the seam between `akira/core` and QML: every
 object the shell registers with the engine, what it offers, and the rules for
 using it. It describes what is true *now*. The notes in
 [handoffs/](handoffs/) describe what changed and when.
 
 A change to a bridge is not finished until this file says so. Owner: Claude
-(backend). Codex binds to it. `protege/ui/bridge/**` is shared, so coordinate
+(backend). Codex binds to it. `akira/ui/bridge/**` is shared, so coordinate
 before changing it.
 
 ---
@@ -30,7 +30,7 @@ before changing it.
    write itself is shown with `textFormat: Text.PlainText`. Qt's default,
    `Text.AutoText`, renders whatever looks like HTML, and loads an `<img>` in
    it. A web address is refused, because the engine's network access is shut
-   (`protege/security/qtguard.py`). A `file://server/share/…` address is not:
+   (`akira/security/qtguard.py`). A `file://server/share/…` address is not:
    Qt reads it as a local file, and Windows opens it as a network share, which
    offers that server the person's sign-in. The one exception is Markdown a
    bridge serves ready for it, `Chat` message text and `Agents.answer`, whose
@@ -57,7 +57,7 @@ before changing it.
 | `Monitor` | `MonitorBridge` | Watched folders, and the notices jobs put up |
 | `Place` | `PlaceBridge` | Where the person is, and the hemisphere the scenes turn their seasons by |
 
-Registered in `protege/ui/shell.py` (`AppContext.as_context`). A test asserts
+Registered in `akira/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
 
 ---
@@ -437,4 +437,4 @@ stage are new:
 If QML needs something that is not here, ask for it in a handoff (what, and
 why), or add the property or signal to the bridge yourself and record it here
 and in your handoff. Keep decisions out of bridges and out of QML: rules belong
-in `protege/core`, where they are tested without a running interface.
+in `akira/core`, where they are tested without a running interface.

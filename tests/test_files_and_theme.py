@@ -11,10 +11,10 @@ import tkinter as tk
 
 import pytest
 
-from protege.context.assembly import ContextAssembler
-from protege.personality.defaults import default_personality
-from protege.schemas import Manifest, Settings
-from protege.ui.file_dialogs import MAX_ATTACH_BYTES, FileReadError, read_text_file
+from akira.context.assembly import ContextAssembler
+from akira.personality.defaults import default_personality
+from akira.schemas import Manifest, Settings
+from akira.ui.file_dialogs import MAX_ATTACH_BYTES, FileReadError, read_text_file
 
 
 def words(text: str) -> int:
@@ -152,11 +152,11 @@ def test_attached_content_does_not_bypass_the_output_gate(tmp_path):
     """
     import json
 
-    from protege.lock.pipeline import PipelineResponder
-    from protege.chat import Conversation
-    from protege.models import ModelManager, ModelSpec, Role
-    from protege.models.scripted import ScriptedBackend
-    from protege.store import bootstrap_vault, tripwire_dir
+    from akira.lock.pipeline import PipelineResponder
+    from akira.chat import Conversation
+    from akira.models import ModelManager, ModelSpec, Role
+    from akira.models.scripted import ScriptedBackend
+    from akira.store import bootstrap_vault, tripwire_dir
 
     vault = tmp_path / "vault"
     vault.mkdir()
@@ -190,14 +190,14 @@ def test_attached_content_does_not_bypass_the_output_gate(tmp_path):
 
 
 def test_palette_has_no_duplicate_meanings():
-    from protege.ui import theme
+    from akira.ui import theme
 
     # Ground, prose, and accent must be distinct or the theme collapses.
     assert len({theme.BG, theme.FG, theme.PURPLE, theme.DANGER}) == 4
 
 
 def test_widgets_reexport_the_theme_palette():
-    from protege.ui import theme, widgets
+    from akira.ui import theme, widgets
 
     assert widgets.WARNING_BG == theme.WARNING_BG
     assert widgets.DANGER_FG == theme.DANGER
@@ -209,7 +209,7 @@ def test_no_stray_hex_literals_outside_theme():
     import re
     from pathlib import Path
 
-    ui_dir = Path(__file__).resolve().parent.parent / "protege" / "ui"
+    ui_dir = Path(__file__).resolve().parent.parent / "akira" / "ui"
     offenders = []
     for path in ui_dir.glob("*.py"):
         if path.name == "theme.py":
@@ -221,7 +221,7 @@ def test_no_stray_hex_literals_outside_theme():
 
 
 def test_font_families_resolve_without_a_root():
-    from protege.ui import theme
+    from akira.ui import theme
 
     assert theme.font_family() in theme.MONO_CANDIDATES
     assert theme.ui_family() in theme.UI_CANDIDATES
@@ -230,7 +230,7 @@ def test_font_families_resolve_without_a_root():
 def test_ui_and_mono_are_separate_roles():
     """Interface prose in a terminal face is what made the first cut look
     'low res and old'. Mono is reserved for chat, rain and wordmarks."""
-    from protege.ui import theme
+    from akira.ui import theme
 
     assert theme.MONO_CANDIDATES[0] != theme.UI_CANDIDATES[0]
     assert "Segoe UI" in theme.UI_CANDIDATES
@@ -252,7 +252,7 @@ def root(clean_root):
 
 def test_theme_install_sets_the_option_database(root):
     label = tk.Label(root)
-    from protege.ui import theme
+    from akira.ui import theme
 
     assert str(label.cget("background")) == theme.BG
     assert str(label.cget("foreground")) == theme.FG
@@ -260,7 +260,7 @@ def test_theme_install_sets_the_option_database(root):
 
 
 def test_rain_canvas_starts_and_stops(root):
-    from protege.ui.rain import RainCanvas
+    from akira.ui.rain import RainCanvas
 
     rain = RainCanvas(root, width=80)
     rain.pack()
@@ -275,7 +275,7 @@ def test_rain_canvas_starts_and_stops(root):
 
 
 def test_rain_rebuild_preserves_embedded_windows(root):
-    from protege.ui.rain import RainCanvas
+    from akira.ui.rain import RainCanvas
 
     rain = RainCanvas(root, width=200, height=200)
     rain.pack()
@@ -293,7 +293,7 @@ def test_rain_rebuild_preserves_embedded_windows(root):
 def test_themed_scrolled_text_uses_a_ttk_scrollbar(root):
     from tkinter import ttk
 
-    from protege.ui.widgets import ThemedScrolledText
+    from akira.ui.widgets import ThemedScrolledText
 
     widget = ThemedScrolledText(root, height=4)
     widget.pack()
@@ -302,7 +302,7 @@ def test_themed_scrolled_text_uses_a_ttk_scrollbar(root):
 
 
 def test_modal_dialog_transient_flag(root):
-    from protege.ui.widgets import ModalDialog
+    from akira.ui.widgets import ModalDialog
 
     transient = ModalDialog(root, "t")
     non_transient = ModalDialog(root, "n", transient=False)
@@ -315,8 +315,8 @@ def test_modal_dialog_transient_flag(root):
 
 
 def test_pin_dialogs_declare_initial_focus(root):
-    from protege.security.pin import hash_pin
-    from protege.ui.pin_dialog import PinPromptDialog, PinSetupDialog
+    from akira.security.pin import hash_pin
+    from akira.ui.pin_dialog import PinPromptDialog, PinSetupDialog
 
     setup = PinSetupDialog(root)
     assert setup.initial_focus is setup.first

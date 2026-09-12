@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from protege.retention import (
+from akira.retention import (
     age_of,
     last_demonstrated,
     next_due,
@@ -25,7 +25,7 @@ from protege.retention import (
     review_queue,
     summarize,
 )
-from protege.schemas import Manifest, SchemaError, UnlockEvent
+from akira.schemas import Manifest, SchemaError, UnlockEvent
 
 NOW = datetime(2026, 8, 1, 12, 0, tzinfo=timezone.utc)
 
@@ -222,7 +222,7 @@ def test_review_survives_a_save_and_load_round_trip():
 def test_the_default_settings_are_conservative():
     """Auto-relock off: silently withdrawing access to something the user did
     learn is worse than letting a stale unlock stand."""
-    from protege.schemas import Settings
+    from akira.schemas import Settings
 
     retention = Settings().retention
     assert retention.enabled is True
@@ -232,14 +232,14 @@ def test_the_default_settings_are_conservative():
 
 def test_the_settings_window_exposes_retention(clean_root, tmp_path):
     """A setting with no UI is an inert setting."""
-    from protege import store
-    from protege.personality.defaults import default_personality
-    from protege.ui.settings_window import SettingsWindow
+    from akira import store
+    from akira.personality.defaults import default_personality
+    from akira.ui.settings_window import SettingsWindow
 
     vault = tmp_path / "vault"
     vault.mkdir()
     store.bootstrap_vault(vault)
-    from protege.schemas import Settings
+    from akira.schemas import Settings
 
     window = SettingsWindow(clean_root, vault, Manifest.initial(), Settings(),
                             default_personality(), on_apply=lambda *_: None)

@@ -14,21 +14,21 @@ import tkinter as tk
 
 import pytest
 
-from protege import store
-from protege.chat import Turn, TurnCancelled
-from protege.projects import ensure_project
-from protege.schemas import Settings
+from akira import store
+from akira.chat import Turn, TurnCancelled
+from akira.projects import ensure_project
+from akira.schemas import Settings
 
 
 @pytest.fixture(scope="module")
 def app(tmp_path_factory, tk_available):
-    from protege.ui.app import ProtegeWindow
+    from akira.ui.app import AkiraWindow
 
     vault_path = tmp_path_factory.mktemp("vault")
     store.bootstrap_vault(vault_path)
     ensure_project(vault_path, "default")
     try:
-        win = ProtegeWindow(
+        win = AkiraWindow(
             vault_path, store.load_manifest(vault_path), Settings(),
             store.load_personality(vault_path),
         )
@@ -67,7 +67,7 @@ def begin_turn(win, prompt: str = "explain thevenin") -> int:
     """Put the window into the state `_on_send` leaves it in, without a model."""
     win._last_user_text = prompt
     win._set_busy(True)
-    win._append("Protege\n", "assistant_prefix")
+    win._append("Akira\n", "assistant_prefix")
     win._stream_marker = win.scrollback.index("end-1c")
     win._stream_started = False
     win._cancelled.clear()

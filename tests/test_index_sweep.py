@@ -12,16 +12,16 @@ import sqlite3
 
 import pytest
 
-from protege.core.brain import Index, Vault
-from protege.core.brain.corpora import ConversationArchive
-from protege.core.brain.index import anywhere, sweep
-from protege.core.config import config_dir
-from protege.core.permissions import Policy
+from akira.core.brain import Index, Vault
+from akira.core.brain.corpora import ConversationArchive
+from akira.core.brain.index import anywhere, sweep
+from akira.core.config import config_dir
+from akira.core.permissions import Policy
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 @pytest.fixture

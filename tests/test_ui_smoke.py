@@ -16,16 +16,16 @@ import tkinter as tk
 
 import pytest
 
-from protege.lock.pipeline import OutputGate
-from protege.lock.tripwires import TripwireSet
-from protege.memory.live import LiveMemory
-from protege.models import ModelManager, ModelSpec, Role
-from protege.models.scripted import ScriptedBackend
-from protege.personality.defaults import default_personality
-from protege.projects import ensure_project
-from protege.schemas import Manifest, Settings
-from protege.store import bootstrap_vault
-from protege.unlock import UnlockFlow
+from akira.lock.pipeline import OutputGate
+from akira.lock.tripwires import TripwireSet
+from akira.memory.live import LiveMemory
+from akira.models import ModelManager, ModelSpec, Role
+from akira.models.scripted import ScriptedBackend
+from akira.personality.defaults import default_personality
+from akira.projects import ensure_project
+from akira.schemas import Manifest, Settings
+from akira.store import bootstrap_vault
+from akira.unlock import UnlockFlow
 
 
 @pytest.fixture
@@ -69,7 +69,7 @@ def pump(widget: tk.Misc) -> None:
 
 
 def test_widgets_module_constructs(root):
-    from protege.ui.widgets import LabeledSlider, ScrollableFrame
+    from akira.ui.widgets import LabeledSlider, ScrollableFrame
 
     slider = LabeledSlider(root, "Directness", ["a", "b", "c", "d", "e"], 75)
     pump(root)
@@ -85,7 +85,7 @@ def test_widgets_module_constructs(root):
 
 
 def test_labeled_slider_marks_neutral(root):
-    from protege.ui.widgets import LabeledSlider
+    from akira.ui.widgets import LabeledSlider
 
     slider = LabeledSlider(root, "Warmth", ["a", "b", "c", "d", "e"], 50)
     pump(root)
@@ -94,8 +94,8 @@ def test_labeled_slider_marks_neutral(root):
 
 
 def test_pin_dialogs_construct(root):
-    from protege.ui.pin_dialog import PinChangeDialog, PinPromptDialog, PinSetupDialog
-    from protege.security.pin import hash_pin
+    from akira.ui.pin_dialog import PinChangeDialog, PinPromptDialog, PinSetupDialog
+    from akira.security.pin import hash_pin
 
     encoded = hash_pin("1234")
     for dialog in (
@@ -108,7 +108,7 @@ def test_pin_dialogs_construct(root):
 
 
 def test_unlock_dialogs_construct(root, pieces):
-    from protege.ui.unlock_dialog import RelockDialog, TopicManagerDialog, UnlockDialog
+    from akira.ui.unlock_dialog import RelockDialog, TopicManagerDialog, UnlockDialog
 
     vault, manifest, settings, manager, _ = pieces
     flow = UnlockFlow(vault, manifest, settings, manager, tripwires=TripwireSet.load(vault))
@@ -123,7 +123,7 @@ def test_unlock_dialogs_construct(root, pieces):
 
 
 def test_memory_panel_constructs(root, pieces):
-    from protege.ui.memory_panel import MemoryPanel
+    from akira.ui.memory_panel import MemoryPanel
 
     vault, manifest, settings, manager, gate = pieces
     memory = LiveMemory(vault, "default", manifest, gate, session_id="s1")
@@ -135,8 +135,8 @@ def test_memory_panel_constructs(root, pieces):
 
 
 def test_consolidation_review_constructs(root, pieces):
-    from protege.memory.consolidate import Consolidator
-    from protege.ui.memory_panel import ConsolidationReviewDialog
+    from akira.memory.consolidate import Consolidator
+    from akira.ui.memory_panel import ConsolidationReviewDialog
 
     vault, manifest, settings, manager, gate = pieces
     memory = LiveMemory(vault, "default", manifest, gate, session_id="s2")
@@ -150,7 +150,7 @@ def test_consolidation_review_constructs(root, pieces):
 
 
 def test_personality_panel_constructs(root):
-    from protege.ui.personality_panel import NewTraitDialog, PersonalityPanel
+    from akira.ui.personality_panel import NewTraitDialog, PersonalityPanel
 
     captured = []
     panel = PersonalityPanel(root, default_personality(), on_change=captured.append)
@@ -166,7 +166,7 @@ def test_personality_panel_constructs(root):
 
 
 def test_settings_window_constructs(root, pieces):
-    from protege.ui.settings_window import SettingsWindow
+    from akira.ui.settings_window import SettingsWindow
 
     vault, manifest, settings, _, _ = pieces
     window = SettingsWindow(
@@ -186,7 +186,7 @@ def test_settings_window_constructs(root, pieces):
 
 
 def test_skills_window_constructs(root, pieces):
-    from protege.ui.skills_window import SkillsWindow
+    from akira.ui.skills_window import SkillsWindow
 
     vault, manifest, settings, manager, gate = pieces
     window = SkillsWindow(root, vault, "default", manifest, settings, manager, gate)
@@ -195,7 +195,7 @@ def test_skills_window_constructs(root, pieces):
 
 
 def test_settings_collect_roundtrips_unchanged(root, pieces):
-    from protege.ui.settings_window import SettingsWindow
+    from akira.ui.settings_window import SettingsWindow
 
     vault, manifest, settings, _, _ = pieces
     window = SettingsWindow(
@@ -212,15 +212,15 @@ def test_settings_collect_roundtrips_unchanged(root, pieces):
 def test_main_window_constructs_and_reports_missing_models(vault, tk_available):
     """The main window is the most complex constructor; build one for real.
 
-    Not using the shared `root` fixture: ProtegeWindow *is* a `tk.Tk`, and two
+    Not using the shared `root` fixture: AkiraWindow *is* a `tk.Tk`, and two
     live Tk instances in one process is a configuration Tk tolerates badly.
     """
-    from protege.ui.app import ProtegeWindow
+    from akira.ui.app import AkiraWindow
 
     manifest = Manifest.initial().with_unlocked("physics")
     settings = Settings.from_json({"vault_path": str(vault)})
     try:
-        window = ProtegeWindow(vault, manifest, settings, default_personality())
+        window = AkiraWindow(vault, manifest, settings, default_personality())
     except tk.TclError:
         if tk_available:
             # Tk works in this process, so this is a real defect.
@@ -242,11 +242,11 @@ def test_main_window_constructs_and_reports_missing_models(vault, tk_available):
 
 
 def test_main_window_shows_the_warning_strip_when_a_layer_is_off(vault, tk_available):
-    from protege.ui.app import ProtegeWindow
+    from akira.ui.app import AkiraWindow
 
     settings = Settings.from_json({"lock_layers": {"auditor": False}})
     try:
-        window = ProtegeWindow(vault, Manifest.initial(), settings, default_personality())
+        window = AkiraWindow(vault, Manifest.initial(), settings, default_personality())
     except tk.TclError:
         if tk_available:
             # Tk works in this process, so this is a real defect.
@@ -263,7 +263,7 @@ def test_main_window_shows_the_warning_strip_when_a_layer_is_off(vault, tk_avail
 
 
 def test_layer_warning_appears_only_when_a_layer_is_off(root, pieces):
-    from protege.ui.settings_window import SettingsWindow
+    from akira.ui.settings_window import SettingsWindow
 
     vault, manifest, settings, _, _ = pieces
     window = SettingsWindow(

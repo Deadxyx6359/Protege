@@ -13,14 +13,14 @@ import json
 
 import pytest
 
-from protege import store
-from protege.lock.pipeline import OutputGate
-from protege.lock.tripwires import TripwireSet
-from protege.memory.live import LiveMemory
-from protege.models import ModelManager, ModelSpec, Role
-from protege.models.scripted import ScriptedBackend
-from protege.projects import ensure_project
-from protege.schemas import Manifest, Settings
+from akira import store
+from akira.lock.pipeline import OutputGate
+from akira.lock.tripwires import TripwireSet
+from akira.memory.live import LiveMemory
+from akira.models import ModelManager, ModelSpec, Role
+from akira.models.scripted import ScriptedBackend
+from akira.projects import ensure_project
+from akira.schemas import Manifest, Settings
 
 
 @pytest.fixture
@@ -67,7 +67,7 @@ def pieces(vault, unlocked=("physics",), tier=2):
 
 
 def test_memory_edit_persists_to_the_live_file(root, vault):
-    from protege.ui.memory_panel import MemoryPanel
+    from akira.ui.memory_panel import MemoryPanel
 
     manifest, _, _, gate = pieces(vault)
     memory = LiveMemory(vault, "default", manifest, gate, session_id="s1")
@@ -89,7 +89,7 @@ def test_memory_discard_removes_the_entry(root, vault, monkeypatch):
     import tkinter.messagebox as mb
 
     monkeypatch.setattr(mb, "askokcancel", lambda *a, **k: True)
-    from protege.ui.memory_panel import MemoryPanel
+    from akira.ui.memory_panel import MemoryPanel
 
     manifest, _, _, gate = pieces(vault)
     memory = LiveMemory(vault, "default", manifest, gate, session_id="s2")
@@ -106,7 +106,7 @@ def test_memory_discard_removes_the_entry(root, vault, monkeypatch):
 
 
 def test_memory_pin_writes_immediately(root, vault):
-    from protege.ui.memory_panel import MemoryPanel
+    from akira.ui.memory_panel import MemoryPanel
 
     manifest, _, _, gate = pieces(vault)
     memory = LiveMemory(vault, "default", manifest, gate, session_id="s3")
@@ -126,7 +126,7 @@ def test_memory_pin_refused_by_the_gate_is_reported(root, vault, monkeypatch):
 
     errors = []
     monkeypatch.setattr(mb, "showerror", lambda *a, **k: errors.append(a))
-    from protege.ui.memory_panel import MemoryPanel
+    from akira.ui.memory_panel import MemoryPanel
 
     (store.tripwire_dir(vault) / "chemistry.json").write_text(
         json.dumps({"topic": "chemistry", "keywords": ["sodium"]}), encoding="utf-8"
@@ -149,7 +149,7 @@ def test_memory_pin_refused_by_the_gate_is_reported(root, vault, monkeypatch):
 
 
 def test_removing_an_attachment_returns_the_updated_list(root):
-    from protege.ui.file_dialogs import AttachmentsDialog
+    from akira.ui.file_dialogs import AttachmentsDialog
 
     dialog = AttachmentsDialog(root, [("a.txt", "one"), ("b.txt", "two")])
     dialog.update_idletasks()
@@ -162,7 +162,7 @@ def test_removing_an_attachment_returns_the_updated_list(root):
 
 
 def test_closing_attachments_without_removing_keeps_everything(root):
-    from protege.ui.file_dialogs import AttachmentsDialog
+    from akira.ui.file_dialogs import AttachmentsDialog
 
     dialog = AttachmentsDialog(root, [("a.txt", "one")])
     dialog.update_idletasks()
@@ -175,8 +175,8 @@ def test_closing_attachments_without_removing_keeps_everything(root):
 
 
 def test_topic_manager_returns_the_manifest_on_close(root, vault):
-    from protege.ui.unlock_dialog import TopicManagerDialog
-    from protege.unlock import UnlockFlow
+    from akira.ui.unlock_dialog import TopicManagerDialog
+    from akira.unlock import UnlockFlow
 
     manifest, settings, manager, _ = pieces(vault)
     flow = UnlockFlow(vault, manifest, settings, manager, tripwires=TripwireSet.load(vault))
@@ -189,8 +189,8 @@ def test_topic_manager_returns_the_manifest_on_close(root, vault):
 
 
 def test_relock_via_dialog_updates_the_manifest(root, vault, monkeypatch):
-    from protege.ui.unlock_dialog import RelockDialog
-    from protege.unlock import UnlockFlow
+    from akira.ui.unlock_dialog import RelockDialog
+    from akira.unlock import UnlockFlow
 
     manifest, settings, manager, _ = pieces(vault)
     flow = UnlockFlow(vault, manifest, settings, manager, tripwires=TripwireSet.load(vault))
@@ -209,8 +209,8 @@ def test_relock_via_dialog_updates_the_manifest(root, vault, monkeypatch):
 def test_web_reports_no_change_when_nothing_was_done(root, vault):
     """Returning a manifest when nothing changed would make the caller
     re-save and re-wire on every close."""
-    from protege.ui.knowledge_web import KnowledgeWebDialog
-    from protege.unlock import UnlockFlow
+    from akira.ui.knowledge_web import KnowledgeWebDialog
+    from akira.unlock import UnlockFlow
 
     manifest, settings, manager, _ = pieces(vault)
     flow = UnlockFlow(vault, manifest, settings, manager, tripwires=TripwireSet.load(vault))
@@ -222,8 +222,8 @@ def test_web_reports_no_change_when_nothing_was_done(root, vault):
 
 
 def test_web_action_buttons_track_the_selection(root, vault):
-    from protege.ui.knowledge_web import KnowledgeWebDialog
-    from protege.unlock import UnlockFlow
+    from akira.ui.knowledge_web import KnowledgeWebDialog
+    from akira.unlock import UnlockFlow
 
     (vault / "global" / "notes").mkdir(parents=True, exist_ok=True)
     (vault / "global" / "notes" / "a.md").write_text(
@@ -256,7 +256,7 @@ def test_web_action_buttons_track_the_selection(root, vault):
 
 
 def make_settings(root, vault):
-    from protege.ui.settings_window import SettingsWindow
+    from akira.ui.settings_window import SettingsWindow
 
     return SettingsWindow(
         root, vault, store.load_manifest(vault), store.load_settings(vault),

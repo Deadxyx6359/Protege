@@ -12,8 +12,8 @@ import time
 
 import pytest
 
-from protege.core.conversation import Conversation
-from protege.core.conversations import (
+from akira.core.conversation import Conversation
+from akira.core.conversations import (
     ConversationError,
     ConversationStore,
     relative_time,
@@ -175,7 +175,7 @@ def test_deleting_an_invalid_id_is_a_no_op(store):
 def test_an_implausibly_large_file_is_refused(store, monkeypatch):
     conversation = a_conversation()
     store.save(conversation)
-    monkeypatch.setattr("protege.core.conversations.MAX_BYTES", 4)
+    monkeypatch.setattr("akira.core.conversations.MAX_BYTES", 4)
 
     with pytest.raises(ConversationError):
         store.load(conversation.id)

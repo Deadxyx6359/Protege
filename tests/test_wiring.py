@@ -9,17 +9,17 @@ from __future__ import annotations
 
 import pytest
 
-from protege.audit import AuditLog, log_path
-from protege.chat import Conversation
-from protege.lock.pipeline import PipelineResponder
-from protege.models import ModelManager, ModelSpec, Role
-from protege.models.scripted import ScriptedBackend
-from protege.personality.defaults import default_personality
-from protege.plugins import EXAMPLE_PLUGIN, digest_of, discover, plugin_dir
-from protege.plugins import load as load_plugins
-from protege.projects import ensure_project
-from protege.schemas import Manifest, SchemaError, Settings
-from protege.store import bootstrap_vault
+from akira.audit import AuditLog, log_path
+from akira.chat import Conversation
+from akira.lock.pipeline import PipelineResponder
+from akira.models import ModelManager, ModelSpec, Role
+from akira.models.scripted import ScriptedBackend
+from akira.personality.defaults import default_personality
+from akira.plugins import EXAMPLE_PLUGIN, digest_of, discover, plugin_dir
+from akira.plugins import load as load_plugins
+from akira.projects import ensure_project
+from akira.schemas import Manifest, SchemaError, Settings
+from akira.store import bootstrap_vault
 
 
 @pytest.fixture
@@ -92,7 +92,7 @@ def test_tool_description_is_dropped_whole_under_budget_pressure(vault):
     # All-or-nothing: a half-truncated description produces malformed REMEMBER
     # lines the parser drops, so the model would look like it was recording
     # things while nothing reached disk.
-    from protege.context.assembly import ContextAssembler
+    from akira.context.assembly import ContextAssembler
 
     def words(text: str) -> int:
         return len(text.split())
@@ -129,7 +129,7 @@ def test_tool_description_names_the_exact_unlocked_topics(vault):
     """Observed with the real model: an answer about gravity proposed
     `topic: "gravity"` while only `physics` was unlocked, so the write was
     refused and nothing reached disk. The description now lists the valid ids."""
-    from protege.memory.live import remember_tool_description
+    from akira.memory.live import remember_tool_description
 
     text = remember_tool_description(("physics", "python_basics"))
     assert "MUST be exactly one of: physics, python_basics" in text
@@ -137,7 +137,7 @@ def test_tool_description_names_the_exact_unlocked_topics(vault):
 
 
 def test_tool_description_with_nothing_unlocked_says_not_to_call_it():
-    from protege.memory.live import remember_tool_description
+    from akira.memory.live import remember_tool_description
 
     assert "do not call this tool" in remember_tool_description(())
 
@@ -277,7 +277,7 @@ def test_plugin_without_the_expected_attribute_is_reported(vault):
 def test_plugin_context_gates_generated_output(vault):
     # Extensions inherit gating by construction: the context hands out
     # generate_checked, never a raw backend.
-    from protege.models import ChatMessage
+    from akira.models import ChatMessage
 
     responder, _, _ = build(vault)
     path = write_plugin(vault)
@@ -294,8 +294,8 @@ def test_plugin_context_gates_generated_output(vault):
 def test_plugin_context_returns_a_gate_result_when_blocked(vault):
     import json
 
-    from protege.models import ChatMessage
-    from protege.store import tripwire_dir
+    from akira.models import ChatMessage
+    from akira.store import tripwire_dir
 
     (tripwire_dir(vault) / "chemistry.json").write_text(
         json.dumps({"topic": "chemistry", "keywords": ["sodium"]}), encoding="utf-8"

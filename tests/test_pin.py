@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from protege.schemas import Manifest, PinRecord
-from protege.security.pin import (
+from akira.schemas import Manifest, PinRecord
+from akira.security.pin import (
     ATTEMPT_DELAYS,
     MIN_PIN_LENGTH,
     AttemptTracker,

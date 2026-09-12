@@ -6,18 +6,18 @@ import json
 
 import pytest
 
-from protege.lock.tripwires import TripwireSet
-from protege.models import ModelManager, ModelSpec, Role
-from protege.models.scripted import ScriptedBackend
-from protege.schemas import Manifest, SchemaError, Settings
-from protege.store import bootstrap_vault, tripwire_dir
-from protege.unlock import (
+from akira.lock.tripwires import TripwireSet
+from akira.models import ModelManager, ModelSpec, Role
+from akira.models.scripted import ScriptedBackend
+from akira.schemas import Manifest, SchemaError, Settings
+from akira.store import bootstrap_vault, tripwire_dir
+from akira.unlock import (
     UnlockError,
     UnlockFlow,
     available_topics,
     validate_new_topic,
 )
-from protege.vault import scan_vault
+from akira.vault import scan_vault
 
 
 @pytest.fixture
@@ -284,7 +284,7 @@ def test_typed_topics_coerce_exactly_like_note_tags(typed, expected):
     while typing the identical string into the unlock dialog was rejected as a
     malformed id -- one input, two answers, no way to tell which rule applied.
     """
-    from protege.vault import coerce_topic
+    from akira.vault import coerce_topic
 
     assert validate_new_topic(typed, Manifest.initial()) == expected
     assert coerce_topic(typed) == expected

@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import pytest
 
-from protege import store
-from protege.projects import (
+from akira import store
+from akira.projects import (
     ProjectError,
     delete_project,
     ensure_project,
@@ -15,8 +15,8 @@ from protege.projects import (
     project_contents,
     rename_project,
 )
-from protege.schemas import Manifest, SchemaError
-from protege.vault import read_note
+from akira.schemas import Manifest, SchemaError
+from akira.vault import read_note
 
 
 @pytest.fixture
@@ -120,7 +120,7 @@ def root(clean_root):
 
 
 def open_browser(root, vault, manifest=None, project="default"):
-    from protege.ui.vault_browser import VaultBrowser
+    from akira.ui.vault_browser import VaultBrowser
 
     browser = VaultBrowser(root, vault, manifest or store.load_manifest(vault), project)
     browser.update_idletasks()
@@ -175,7 +175,7 @@ def test_retagging_changes_visibility(root, vault):
 def test_save_preserves_protege_written_frontmatter(root, vault):
     """A memory note carries session and provenance keys; retagging it must not
     flatten them away."""
-    from protege.vault import render_note
+    from akira.vault import render_note
 
     path = vault / "projects" / "default" / "notes" / "mem.md"
     path.parent.mkdir(parents=True, exist_ok=True)

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from protege.core.permissions import Policy
+from akira.core.permissions import Policy
 
 
 @pytest.mark.parametrize("scope,reason", [

@@ -13,12 +13,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from protege.core.agents.monitor import Monitor, MonitorError, WatchStore, describe_event
-from protege.core.net import NetError, Response
-from protege.core.net import client as net
-from protege.core.permissions import AuditLog, Policy, SecretStore
-from protege.core.schedule import ActionRegistry, ActionResult, JobStore, OnEvent, Scheduler
-from protege.core.schedule.actions import _task
+from akira.core.agents.monitor import Monitor, MonitorError, WatchStore, describe_event
+from akira.core.net import NetError, Response
+from akira.core.net import client as net
+from akira.core.permissions import AuditLog, Policy, SecretStore
+from akira.core.schedule import ActionRegistry, ActionResult, JobStore, OnEvent, Scheduler
+from akira.core.schedule.actions import _task
 
 from test_net import PUBLIC, Reply, Site
 
@@ -76,7 +76,7 @@ def rss(*items, title="Jobs"):
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 @pytest.fixture

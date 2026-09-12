@@ -14,8 +14,8 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from protege.core.permissions import AuditLog, Policy, SecretStore
-from protege.core.schedule import (
+from akira.core.permissions import AuditLog, Policy, SecretStore
+from akira.core.schedule import (
     ActionRegistry,
     ActionResult,
     Cron,
@@ -37,7 +37,7 @@ from protege.core.schedule import (
     narrow_policy,
     trigger_from_json,
 )
-from protege.core.schedule import scheduler as scheduler_module
+from akira.core.schedule import scheduler as scheduler_module
 
 #: A Monday morning, local time.
 START = datetime(2026, 3, 2, 8, 0)
@@ -45,7 +45,7 @@ START = datetime(2026, 3, 2, 8, 0)
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 class FakeClock:
@@ -526,7 +526,7 @@ def test_a_jobs_narrowed_policy_refuses_to_be_saved():
 
 
 def test_an_unattended_run_cannot_approve_anything_irreversible(build, clock, actions, tmp_path):
-    from protege.core.tools import default_registry
+    from akira.core.tools import default_registry
 
     folder = tmp_path / "work"
     folder.mkdir()
@@ -550,7 +550,7 @@ def test_an_unattended_run_cannot_approve_anything_irreversible(build, clock, ac
 
 
 def test_a_real_prompt_can_be_handed_in_once_an_interface_exists(build, clock, actions, tmp_path):
-    from protege.core.tools import default_registry
+    from akira.core.tools import default_registry
 
     folder = tmp_path / "work"
     folder.mkdir()
@@ -684,8 +684,8 @@ def test_the_service_runs_an_event_job_promptly_and_stops_cleanly(tmp_path, acti
 def test_a_scheduled_agent_runs_under_the_jobs_narrowed_permissions(tmp_path, clock):
     from contextlib import contextmanager
 
-    from protege.core.schedule.actions import register_agent_actions
-    from protege.core.tools import default_registry
+    from akira.core.schedule.actions import register_agent_actions
+    from akira.core.tools import default_registry
 
     class Backend:
         def __init__(self):
@@ -731,8 +731,8 @@ def test_a_scheduled_agent_runs_under_the_jobs_narrowed_permissions(tmp_path, cl
 
 
 def test_a_scheduled_team_that_does_not_exist_fails_plainly(tmp_path, clock):
-    from protege.core.schedule.actions import register_agent_actions
-    from protege.core.tools import default_registry
+    from akira.core.schedule.actions import register_agent_actions
+    from akira.core.tools import default_registry
 
     registry = ActionRegistry()
     register_agent_actions(registry, router=None, registry=default_registry())
@@ -801,8 +801,8 @@ def test_stopping_the_service_interrupts_a_running_job(tmp_path, actions):
 def test_a_scheduled_agent_stops_at_its_next_token_when_protege_closes(tmp_path, clock):
     from contextlib import contextmanager
 
-    from protege.core.schedule.actions import register_agent_actions
-    from protege.core.tools import default_registry
+    from akira.core.schedule.actions import register_agent_actions
+    from akira.core.tools import default_registry
 
     streaming = threading.Event()
 

@@ -17,15 +17,15 @@ pytest.importorskip("PySide6.QtCore")
 
 from PySide6.QtCore import QCoreApplication  # noqa: E402
 
-from protege.core.agents import Kind, Trace  # noqa: E402
-from protege.core.permissions import AuditLog, Policy, SecretStore  # noqa: E402
-from protege.core.tools import default_registry  # noqa: E402
-from protege.ui.bridge.agents import MAX_TASK_CHARS, AgentsBridge  # noqa: E402
+from akira.core.agents import Kind, Trace  # noqa: E402
+from akira.core.permissions import AuditLog, Policy, SecretStore  # noqa: E402
+from akira.core.tools import default_registry  # noqa: E402
+from akira.ui.bridge.agents import MAX_TASK_CHARS, AgentsBridge  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 @pytest.fixture

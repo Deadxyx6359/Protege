@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import pytest
 
-from protege import store
-from protege.projects import ensure_project
+from akira import store
+from akira.projects import ensure_project
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def vault(tmp_path):
 
 
 def open_settings(root, vault):
-    from protege.ui.settings_window import SettingsWindow
+    from akira.ui.settings_window import SettingsWindow
 
     manifest = store.load_manifest(vault)
     settings = store.load_settings(vault)

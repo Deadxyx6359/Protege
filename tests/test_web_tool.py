@@ -6,9 +6,9 @@ from __future__ import annotations
 
 import pytest
 
-from protege.core.net import client as net
-from protege.core.permissions import AuditLog, Policy, SecretStore
-from protege.core.tools import ToolContext, default_registry
+from akira.core.net import client as net
+from akira.core.permissions import AuditLog, Policy, SecretStore
+from akira.core.tools import ToolContext, default_registry
 
 from test_net import PUBLIC, Reply, Site
 

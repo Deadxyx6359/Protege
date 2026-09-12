@@ -12,13 +12,13 @@ import json
 
 import pytest
 
-from protege.lock.pipeline import GateReport, OutputGate, is_pure_decline
-from protege.lock.tripwires import TripwireSet
-from protege.models import ModelManager, ModelSpec, Role
-from protege.models.base import ModelUnavailable
-from protege.models.scripted import ScriptedBackend
-from protege.schemas import Manifest, Settings
-from protege.store import bootstrap_vault, tripwire_dir
+from akira.lock.pipeline import GateReport, OutputGate, is_pure_decline
+from akira.lock.tripwires import TripwireSet
+from akira.models import ModelManager, ModelSpec, Role
+from akira.models.base import ModelUnavailable
+from akira.models.scripted import ScriptedBackend
+from akira.schemas import Manifest, Settings
+from akira.store import bootstrap_vault, tripwire_dir
 
 
 @pytest.fixture

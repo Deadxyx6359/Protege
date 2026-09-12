@@ -12,7 +12,7 @@ import threading
 
 import pytest
 
-from protege.security import netguard
+from akira.security import netguard
 
 
 @pytest.fixture

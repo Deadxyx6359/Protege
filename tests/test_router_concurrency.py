@@ -19,13 +19,13 @@ import time
 
 import pytest
 
-from protege.core.config import AppConfig, ModelConfig
-from protege.core.models import ModelRouter, Route
+from akira.core.config import AppConfig, ModelConfig
+from akira.core.models import ModelRouter, Route
 
 
 @pytest.fixture(autouse=True)
 def tiny_models_allowed(monkeypatch):
-    monkeypatch.setattr("protege.core.config._MIN_MODEL_BYTES", 8)
+    monkeypatch.setattr("akira.core.config._MIN_MODEL_BYTES", 8)
 
 
 class Probe:

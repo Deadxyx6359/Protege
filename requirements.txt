@@ -1,4 +1,4 @@
-# Protege dependencies.
+# Akira dependencies.
 #
 # POLICY: every dependency is justified below. Anything that performs network
 # I/O as part of normal operation is rejected outright. Installing these
@@ -35,7 +35,7 @@ llama-cpp-python==0.3.34
 # We never call it. Models are loaded from local paths only.
 
 # CUDA 12 runtime redistributables for the wheel above. Local DLLs only; the
-# packages contain no Python code that runs in Protege.
+# packages contain no Python code that runs in Akira.
 nvidia-cuda-runtime-cu12
 nvidia-cublas-cu12
 
@@ -74,7 +74,7 @@ argon2-cffi==23.1.0
 # Local parsing only, no I/O.
 PyYAML==6.0.2
 
-# --- Development only (not required to run Protege) ---------------------------
+# --- Development only (not required to run Akira) ---------------------------
 
 # pytest: test runner. Not imported by the application.
 pytest==8.3.3

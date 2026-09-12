@@ -18,11 +18,11 @@ from pathlib import Path
 
 import pytest
 
-from protege import store
-from protege.history import load_all, search, summarize
-from protege.memory.consolidate import Consolidator
-from protege.projects import ensure_project, get_project
-from protege.schemas import Manifest, Settings
+from akira import store
+from akira.history import load_all, search, summarize
+from akira.memory.consolidate import Consolidator
+from akira.projects import ensure_project, get_project
+from akira.schemas import Manifest, Settings
 
 
 def vault_with(tmp_path, *, keep: bool) -> tuple[Path, Settings]:
@@ -168,7 +168,7 @@ def test_nothing_is_listed_before_anything_is_archived(tmp_path):
 
 
 def test_the_history_window_lists_and_filters(clean_root, tmp_path):
-    from protege.ui.history_window import HistoryWindow
+    from akira.ui.history_window import HistoryWindow
 
     vault, settings = vault_with(tmp_path, keep=True)
     consolidator(vault, settings)._retire_transcript(held(vault, "s1"))

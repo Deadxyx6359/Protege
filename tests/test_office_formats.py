@@ -14,8 +14,8 @@ from xml.etree import ElementTree
 
 import pytest
 
-from protege.core.documents import ooxml, pdf, sheets, slides, word
-from protege.core.documents.ooxml import Package, PackageError
+from akira.core.documents import ooxml, pdf, sheets, slides, word
+from akira.core.documents.ooxml import Package, PackageError
 
 DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n'
 REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"

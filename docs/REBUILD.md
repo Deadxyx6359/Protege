@@ -1,4 +1,4 @@
-# Protégé — Rebuild
+# Akira — Rebuild
 
 **[PROJECT.md](PROJECT.md) is the canonical description and work order.**
 This file covers the interface and model layer, and the findings that cost
@@ -137,7 +137,7 @@ routing does change is that you find out in seconds instead of minutes.
 ## Architecture
 
 ```
-protege/
+akira/
   design/       design tokens; the ThemeController QML sees
   core/
     workspace/    projects, notes, files
@@ -152,7 +152,7 @@ protege/
   ui/
     app.py        QGuiApplication + QML engine bootstrap
     bridge/       QObject models exposed to QML
-    qml/Protege/  components and views
+    qml/Akira/  components and views
 ```
 
 Kept from the old codebase, largely intact: `store.py` (atomic I/O),
@@ -171,9 +171,9 @@ one would leave nothing to use in the meantime.
 
 **Done — phase 1, the design system.**
 
-- `protege/design/` — the appearance decision (which palette, whether motion is
+- `akira/design/` — the appearance decision (which palette, whether motion is
   damped). Deliberately thin: Python owns only what is a platform question.
-- `protege/ui/qml/Protege/Theme.qml` — every visual constant. Palettes,
+- `akira/ui/qml/Akira/Theme.qml` — every visual constant. Palettes,
   optically-sized type, the 4pt space scale, radii, Apple's asymmetric easing
   curves, elevation.
 - `Squircle.qml` + `squircle.js` — continuous-curvature corners, the real
@@ -187,16 +187,16 @@ window that assembles them.
 
 **Done — the chat actually works.** Not a mockup any more:
 
-- `protege/core/` — config, task router, conversations, persistence. No Qt
+- `akira/core/` — config, task router, conversations, persistence. No Qt
   anywhere in it, so all of it is testable without a running application.
-- `protege/ui/bridge/` — the QObject adapters. A turn runs on a worker thread
+- `akira/ui/bridge/` — the QObject adapters. A turn runs on a worker thread
   and reports back through queued signals; nothing touches a QML property from
   the worker.
 - Streaming into the view, Stop that keeps the partial answer, errors shown as
   errors rather than dressed as replies.
 - Markdown and fenced code blocks, each with a language label and a copy
   button, split so code never inherits a proportional font or a wrap.
-- Conversations saved atomically to `%LOCALAPPDATA%/Protege/conversations/`,
+- Conversations saved atomically to `%LOCALAPPDATA%/Akira/conversations/`,
   listed in the sidebar, reopenable.
 - Models discovered from `models/` on launch. Drop a GGUF in and it is used.
 
@@ -228,7 +228,7 @@ window's item tree, so nothing drives its animations; they stall and hold the
 old value forever, which presents as a theme switch that half-applies. Colour
 animation belongs to the components, which are in the scene.
 
-**Import `llama_cpp` lazily.** `protege.models.llama_backend` imports it at
+**Import `llama_cpp` lazily.** `akira.models.llama_backend` imports it at
 module scope, which maps llama.dll and the CUDA 12 runtime into the process —
 hundreds of megabytes before a single model is loaded. Importing it from the
 core layer made the whole test suite heavy enough that Tk could no longer
@@ -244,7 +244,7 @@ loses ~19 tests to spurious errors and takes minutes instead of 27 seconds.
 
 **Claim Tkinter's `_default_root` before the tests do.** Tkinter parents any
 widget built without an explicit master to the first `tk.Tk()` created in the
-process. `ProtegeWindow` is its own `tk.Tk`, so whichever test touched Tk first
+process. `AkiraWindow` is its own `tk.Tk`, so whichever test touched Tk first
 silently decided who the default root was — and when that test destroyed its
 window, `_default_root` was left pointing at a torn-down interpreter. Later
 tests then failed with *"application has been destroyed"*, but only under some
@@ -293,7 +293,7 @@ chat tests replace `acquire` outright, which is why none of them caught it.
 
 **An unanchored ignore rule can swallow source.** `.gitignore` said `models/`,
 meaning the folder of GGUF weights, but a pattern without a leading slash
-matches that name anywhere, and it silently excluded the `protege/models`
+matches that name anywhere, and it silently excluded the `akira/models`
 package: the model manager, the llama backend and the rest were never
 committed. The application ran because the files were on disk. It surfaced
 only when the suite ran in a clean worktree of HEAD and failed at collection.

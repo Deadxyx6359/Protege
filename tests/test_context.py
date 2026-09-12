@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from protege.chat import Conversation
-from protege.context.assembly import ContextAssembler, estimate_tokens, truncate_to_tokens
-from protege.lock.retrieval import RetrievalResult, retrieve
-from protege.personality.defaults import default_personality
-from protege.personality.prompt import active_traits, build_personality_prompt
-from protege.projects import ensure_project, slugify, validate_name
-from protege.schemas import Manifest, Personality, PersonalityProfile, SchemaError, Settings, Trait
-from protege.vault import scan_vault
+from akira.chat import Conversation
+from akira.context.assembly import ContextAssembler, estimate_tokens, truncate_to_tokens
+from akira.lock.retrieval import RetrievalResult, retrieve
+from akira.personality.defaults import default_personality
+from akira.personality.prompt import active_traits, build_personality_prompt
+from akira.projects import ensure_project, slugify, validate_name
+from akira.schemas import Manifest, Personality, PersonalityProfile, SchemaError, Settings, Trait
+from akira.vault import scan_vault
 
 
 def words(text: str) -> int:

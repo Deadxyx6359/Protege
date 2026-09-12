@@ -15,13 +15,13 @@ import json
 
 import pytest
 
-from protege.chat import Conversation
-from protege.lock.pipeline import PipelineResponder
-from protege.models import ModelManager, ModelSpec, Role
-from protege.models.scripted import ScriptedBackend
-from protege.personality.defaults import default_personality
-from protege.schemas import Manifest, Settings
-from protege.store import bootstrap_vault, tripwire_dir
+from akira.chat import Conversation
+from akira.lock.pipeline import PipelineResponder
+from akira.models import ModelManager, ModelSpec, Role
+from akira.models.scripted import ScriptedBackend
+from akira.personality.defaults import default_personality
+from akira.schemas import Manifest, Settings
+from akira.store import bootstrap_vault, tripwire_dir
 
 
 LEAK = "Sodium metal reacts violently with water, producing hydrogen gas and sodium hydroxide."

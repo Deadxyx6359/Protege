@@ -8,17 +8,17 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from protege.core.agents import Agent, Trace
-from protege.core.agents.roles import GATHERER
-from protege.core.context.place import (Place, PlaceError, PlaceStore, check_place,
+from akira.core.agents import Agent, Trace
+from akira.core.agents.roles import GATHERER
+from akira.core.context.place import (Place, PlaceError, PlaceStore, check_place,
                                         describe_now, now_line, part_of_day, season)
-from protege.core.permissions import AuditLog, Policy, SecretStore
-from protege.core.tools import ToolContext, default_registry
+from akira.core.permissions import AuditLog, Policy, SecretStore
+from akira.core.tools import ToolContext, default_registry
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 BST = timezone(timedelta(hours=1), "BST")

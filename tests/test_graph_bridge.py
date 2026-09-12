@@ -12,8 +12,8 @@ pytest.importorskip("PySide6.QtCore")
 
 from PySide6.QtCore import QCoreApplication  # noqa: E402
 
-from protege.core.permissions import AuditLog, Policy  # noqa: E402
-from protege.ui.bridge.graph import GraphBridge  # noqa: E402
+from akira.core.permissions import AuditLog, Policy  # noqa: E402
+from akira.ui.bridge.graph import GraphBridge  # noqa: E402
 
 
 @pytest.fixture

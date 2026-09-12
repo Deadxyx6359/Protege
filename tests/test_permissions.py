@@ -13,7 +13,7 @@ import time
 
 import pytest
 
-from protege.core.permissions import (
+from akira.core.permissions import (
     CATALOGUE,
     AuditLog,
     Grant,
@@ -22,14 +22,14 @@ from protege.core.permissions import (
     SecretStore,
     redact,
 )
-from protege.core.permissions.capabilities import Direction, ScopeKind, get
-from protege.core.permissions.secrets import SecretError, available
+from akira.core.permissions.capabilities import Direction, ScopeKind, get
+from akira.core.permissions.secrets import SecretError, available
 
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
     """Never touch the real permission file or the real secret store."""
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 # -- the default ------------------------------------------------------------
@@ -175,7 +175,7 @@ def test_expired_grants_are_dropped_when_loading():
 
 
 def test_a_corrupt_grant_file_yields_no_permissions(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path))
     Policy.path().parent.mkdir(parents=True, exist_ok=True)
     Policy.path().write_text("{ this is not json", encoding="utf-8")
     assert Policy.load().active() == []
@@ -183,7 +183,7 @@ def test_a_corrupt_grant_file_yields_no_permissions(tmp_path, monkeypatch):
 
 def test_a_grant_for_an_undeclared_capability_is_dropped(tmp_path, monkeypatch):
     """An invented capability must not become an unrestricted one."""
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path))
     Policy.path().parent.mkdir(parents=True, exist_ok=True)
     Policy.path().write_text(json.dumps({
         "grants": [{"capability": "root.everything", "scopes": ["/"]}]

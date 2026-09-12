@@ -16,19 +16,19 @@ from pathlib import Path
 
 import pytest
 
-from protege.core.context import weather as weather_module
-from protege.core.context.place import PlaceStore, check_place, now_line
-from protege.core.context.weather import (EVERY_S, STALE_S, WEATHER, Reading, Weather,
+from akira.core.context import weather as weather_module
+from akira.core.context.place import PlaceStore, check_place, now_line
+from akira.core.context.weather import (EVERY_S, STALE_S, WEATHER, Reading, Weather,
                                           WeatherError, WeatherStore, condition,
                                           forecast_address)
-from protege.core.net import NetError, Response
-from protege.core.net import client as net
-from protege.core.permissions import AuditLog, Policy
+from akira.core.net import NetError, Response
+from akira.core.net import client as net
+from akira.core.permissions import AuditLog, Policy
 
 from test_net import PUBLIC, Reply, Site
 
 BRISTOL = (51.45, -2.59)
-WORLD_JS = (Path(__file__).resolve().parents[1] / "protege" / "ui" / "qml" / "Protege" / "scenes"
+WORLD_JS = (Path(__file__).resolve().parents[1] / "akira" / "ui" / "qml" / "Akira" / "scenes"
             / "world.js")
 
 
@@ -74,7 +74,7 @@ BRISTOL_FOUND = {"name": "Bristol", "latitude": 51.45523, "longitude": -2.59665,
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 @pytest.fixture

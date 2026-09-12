@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import pytest
 
-from protege.core.net import feed as feed_module
-from protege.core.net.feed import Entry, FeedError, parse_feed
+from akira.core.net import feed as feed_module
+from akira.core.net.feed import Entry, FeedError, parse_feed
 
 RSS = b"""<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">

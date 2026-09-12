@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from protege.lock.tripwires import (
+from akira.lock.tripwires import (
     MAX_SCAN_CHARS,
     TopicTripwires,
     TripwireError,
@@ -14,7 +14,7 @@ from protege.lock.tripwires import (
     seed_topic,
     validate_pattern,
 )
-from protege.store import bootstrap_vault, tripwire_dir
+from akira.store import bootstrap_vault, tripwire_dir
 
 
 @pytest.fixture

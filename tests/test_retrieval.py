@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from protege.lock.retrieval import (
+from akira.lock.retrieval import (
     BM25Index,
     build_index,
     chunk_note,
@@ -12,8 +12,8 @@ from protege.lock.retrieval import (
     retrieve,
     tokenize,
 )
-from protege.schemas import Manifest
-from protege.vault import Note, NoteScope, scan_vault
+from akira.schemas import Manifest
+from akira.vault import Note, NoteScope, scan_vault
 
 
 @pytest.fixture

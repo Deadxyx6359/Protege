@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from protege.core.permissions import AuditLog, Policy, SecretStore
-from protege.core.tools import (
+from akira.core.permissions import AuditLog, Policy, SecretStore
+from akira.core.tools import (
     Parameter,
     Requirement,
     Tool,
@@ -25,7 +25,7 @@ from protege.core.tools import (
 
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("PROTEGE_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path / "cfg"))
 
 
 @pytest.fixture

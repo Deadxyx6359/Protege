@@ -1,18 +1,18 @@
-# Protege -- local, offline AI assistant with a knowledge lock system.
+# Akira -- local, offline AI assistant with a knowledge lock system.
 #
 # Deliberately not published anywhere. There is no build backend configured and
 # no upload target; this file exists to configure pytest and to declare the
 # supported Python version in one place.
 
 [project]
-name = "protege"
+name = "akira"
 version = "0.1.0"
 description = "Local offline AI assistant gated by a knowledge lock system"
 requires-python = ">=3.11"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Import the package from the repo root without an install step. Protege is run
+# Import the package from the repo root without an install step. Akira is run
 # from a checkout, not from site-packages.
 pythonpath = ["."]
 # --capture=sys, not the default fd-level capture. Redirecting real file
@@ -23,4 +23,4 @@ pythonpath = ["."]
 # Tkinter ones — without this the suite loses ~19 tests to spurious errors and
 # takes minutes instead of seconds.
 addopts = "-q --strict-markers --capture=sys"
-filterwarnings = ["error::DeprecationWarning:protege.*"]
+filterwarnings = ["error::DeprecationWarning:akira.*"]

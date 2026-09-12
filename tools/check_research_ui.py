@@ -19,13 +19,13 @@ sys.path.insert(0, str(REPO))
 from PySide6.QtCore import QObject, QPointF, Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtTest import QTest
-from protege.core.config import AppConfig, ModelConfig
-from protege.core.conversations import ConversationStore
-from protege.core.models import ModelRouter
-from protege.design import ThemeController
-from protege.models.base import GenerationResult
-from protege.ui.bridge import ChatBridge, SettingsBridge
-from protege.ui.engine import build_engine, configure_application, load
+from akira.core.config import AppConfig, ModelConfig
+from akira.core.conversations import ConversationStore
+from akira.core.models import ModelRouter
+from akira.design import ThemeController
+from akira.models.base import GenerationResult
+from akira.ui.bridge import ChatBridge, SettingsBridge
+from akira.ui.engine import build_engine, configure_application, load
 from preview_scenes import settle
 
 
@@ -59,7 +59,7 @@ def main():
     args = parser.parse_args()
     app = QGuiApplication(sys.argv[:1])
     configure_application(app)
-    with TemporaryDirectory(prefix="protege-research-ui-") as directory:
+    with TemporaryDirectory(prefix="akira-research-ui-") as directory:
         temporary = Path(directory)
         placeholder = temporary / "scripted.gguf"
         placeholder.write_bytes(b"fixture-only")
@@ -79,7 +79,7 @@ def main():
         engine, theme = build_engine(theme=theme, context={"Chat": chat, "Settings": settings})
         warnings = []
         engine.warnings.connect(lambda errors: warnings.extend(e.toString() for e in errors))
-        window = load(engine, REPO / "protege/ui/qml/Main.qml")
+        window = load(engine, REPO / "akira/ui/qml/Main.qml")
 
         def named(name):
             item = window.findChild(QObject, name)
