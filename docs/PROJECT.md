@@ -91,7 +91,7 @@ measured benchmarks, not from optimism.
 | Web search | **Done**: DuckDuckGo, under its own permission that reaches DuckDuckGo and nothing else | C2 |
 | Full computer use — forms, posting, reservations, scraping without APIs, job applications, product testing | Fine — Playwright drives a real browser | C3 |
 | Screenshots | **Done**: agents read the words on screen; the person can save a capture where writing is allowed | C4 |
-| Email, calendar, text, Canvas, docs | Fine, per-connector permissions | C5 |
+| Email, calendar, text, Canvas, docs | **Gmail and Google Calendar reading done**, once the person connects an address: its own permission, a sealed sign-in, a secretary agent that reads and cannot send. Sending, other connectors to come | C5 |
 | Banking | **Read-only, permanently** | C5 |
 | Monitoring agent — watch for changes | **Folders, pages and feeds done**: changes wake scheduled jobs, which can put up notices or set an agent to work. Inboxes after C5 | C6 |
 | Time-based and event-based processes (daily/weekly/monthly/custom) | **Done** | A6 |
@@ -487,8 +487,22 @@ body is sent at most once, and none of it reaches the activity log.
 `loopback.Receiver` listens on 127.0.0.1, and nowhere else, for the browser
 being sent back with a sign-in's one-time code; `verify_offline.py` checks it
 binds nothing else and never reaches out.
-*Next:* the Google sign-in (PKCE, the lasting sign-in sealed with DPAPI), then
-reading mail and the calendar.
+*Done, Google reading:* the client file the person downloads from Google
+Cloud (a Desktop app client) is checked and sealed with DPAPI. Connecting an
+address needs its permission first, opens the person's own browser at Google's
+page with PKCE and a random state, asks only for reading, and keeps anything
+only if the person signed in as that address and allowed reading: the lasting
+sign-in sealed under a name without the address in it, the short-lived one in
+memory only. A withdrawn or expired sign-in asks the person to connect again;
+disconnecting hands it back to Google. `search_mail`, `read_mail` and
+`list_events` are held to `mail.read` or `calendar.read` for the address, never
+show a model the sign-in, and frame what they return as material. The
+`secretary` role reads mail and the calendar and has no tool that changes
+anything. Google's page will call the app unverified: it is the person's own
+client, and they can publish it to stop the lasting sign-in expiring after a
+week, which Google does for apps left in testing.
+*Next:* connecting from the window (the client file, the address, the two
+permissions, the browser), then inboxes for C6.
 
 **C6 ▶ Monitoring agent** — `core/agents/monitor.py`, bridge `ui/bridge/monitor.py`
 Watch a page, folder, inbox or feed for change; run on the scheduler; notify or
@@ -590,12 +604,12 @@ and resumable.
 | C | C7 Location and time | ✅ |
 | C | C4 Screen capture | ✅ |
 | C | C2 Web search | ✅ |
-| C | C5 Connectors | ▶ the signed-in door and the sign-in's return; Google next |
+| C | C5 Connectors | ▶ the signed-in door, Google sign-in, Gmail and Calendar reading; connecting from the window next |
 | C | C3, C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1831 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 1862 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---
