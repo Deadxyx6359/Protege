@@ -17,16 +17,26 @@ Every request, and every redirect it leads to, is held to:
   cannot be pointed back at a router's admin page or a service on this machine.
   The address that was checked is the address connected to: the name is never
   looked up a second time, which is how that check is usually dodged.
-- **Nothing of the person's.** No cookies, no credentials, no stored logins,
-  and addresses with a name or password in them are refused. A fixed
-  User-Agent says what is asking.
+- **Nothing of the person's** on `fetch`: no cookies, no credentials, no stored
+  logins, and addresses with a name or password in them are refused. A fixed
+  User-Agent says what is asking. `call`, below, is the one exception.
 - **Limits.** At most 5 MB of body, 20 seconds in all, 5 redirects.
 - **A record.** Each fetch goes into the activity log with its site, status and
   size. The query string is left out, since that is where addresses carry
   tokens.
 
-Only `GET`: reading. Sending anything, such as forms, posts or purchases, is a
-different capability (`web.submit`), irreversible, and not here.
+`fetch` only reads, with `GET`. Sending anything to the open web, such as
+forms, posts or purchases, is a different capability (`web.submit`),
+irreversible, and not here.
+
+`call` is for an account the person has connected (C5), and is the only request
+that carries anything of theirs: that account's sign-in. It is held tighter
+still. The account's own permission (`mail.read` for this mailbox, not a site
+grant) is checked before anything is sent; only the provider's own servers,
+named by the caller, are reached; a redirect is never followed, so a sign-in is
+never carried somewhere it was not meant for; the sign-in is asked for only
+once everything else has passed, and put nowhere but the one header; and
+neither it, nor a form, nor a query string is written to the activity log.
 """
 
 from __future__ import annotations
@@ -37,6 +47,7 @@ import socket
 import ssl
 import time
 import zlib
+from collections.abc import Callable
 from dataclasses import dataclass
 from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
 
@@ -283,8 +294,34 @@ def _unpacked(body: bytes, encoding: str, max_bytes: int) -> tuple[bytes, bool]:
     return out[:max_bytes], len(out) > max_bytes
 
 
+#: What `fetch` sends: nothing of the person's.
+_PLAIN_HEADERS = {"User-Agent": USER_AGENT, "Accept": ACCEPT,
+                  "Accept-Encoding": "identity", "Connection": "close"}
+
+
+def _answer(connection, target: _Target, method: str, headers: dict[str, str],
+            body: bytes | None, deadline: float, max_bytes: int, limit_s: float) -> _Reply:
+    if body is None:
+        connection.request(method, target.path, headers=headers)
+    else:
+        connection.request(method, target.path, body=body, headers=headers)
+    reply = connection.getresponse()
+    location = reply.getheader("Location") or ""
+    if reply.status in REDIRECTS and location:
+        return _Reply(reply.status, reply.reason, "", location, b"", False)
+    received, truncated = _read(reply, target.host, deadline, max_bytes, limit_s)
+    encoding = reply.getheader("Content-Encoding") or ""
+    if encoding.strip().lower() not in ("", "identity"):
+        received, cut = _unpacked(received, encoding, max_bytes)
+        truncated = truncated or cut
+    return _Reply(reply.status, reply.reason, reply.getheader("Content-Type") or "",
+                  "", received, truncated)
+
+
 def _exchange(target: _Target, addresses: list[str], deadline: float, max_bytes: int,
-              limit_s: float) -> _Reply:
+              limit_s: float, *, method: str = "GET", headers: dict[str, str] | None = None,
+              body: bytes | None = None) -> _Reply:
+    sent = headers if headers is not None else _PLAIN_HEADERS
     problem: Exception | None = None
     for address in addresses:
         remaining = deadline - time.monotonic()
@@ -292,20 +329,27 @@ def _exchange(target: _Target, addresses: list[str], deadline: float, max_bytes:
             break
         connection = _open(target.host, address, target.port, remaining)
         try:
-            connection.request("GET", target.path, headers={
-                "User-Agent": USER_AGENT, "Accept": ACCEPT,
-                "Accept-Encoding": "identity", "Connection": "close"})
-            reply = connection.getresponse()
-            location = reply.getheader("Location") or ""
-            if reply.status in REDIRECTS and location:
-                return _Reply(reply.status, reply.reason, "", location, b"", False)
-            body, truncated = _read(reply, target.host, deadline, max_bytes, limit_s)
-            encoding = reply.getheader("Content-Encoding") or ""
-            if encoding.strip().lower() not in ("", "identity"):
-                body, cut = _unpacked(body, encoding, max_bytes)
-                truncated = truncated or cut
-            return _Reply(reply.status, reply.reason, reply.getheader("Content-Type") or "",
-                          "", body, truncated)
+            if body is None:
+                return _answer(connection, target, method, sent, None, deadline, max_bytes,
+                               limit_s)
+            # A request that carries something is sent at most once. Failing to
+            # reach an address is a reason to try the next; losing the site after
+            # sending is not, because it may have been done already.
+            try:
+                connection.connect()
+            except ssl.SSLCertVerificationError:
+                raise
+            except (OSError, http.client.HTTPException) as exc:
+                problem = exc
+                continue
+            try:
+                return _answer(connection, target, method, sent, body, deadline, max_bytes,
+                               limit_s)
+            except ssl.SSLCertVerificationError:
+                raise
+            except (OSError, http.client.HTTPException) as exc:
+                raise NetError(f"Lost {target.host} after sending ({exc}), so it was not sent "
+                               "again: it may have arrived.") from None
         except ssl.SSLCertVerificationError as exc:
             raise NetError(f"{target.host}'s certificate could not be verified "
                            f"({exc.verify_message}), so nothing was fetched.") from None
@@ -381,3 +425,87 @@ def fetch(url: str, *, policy, audit: AuditLog | None = None, actor: str = ACTOR
     except NetError as exc:
         _record(audit, actor, url, started, capability=capability, error=str(exc))
         raise
+
+
+# -- a signed-in request ----------------------------------------------------------------------
+
+#: What a signed-in request may be: reading, or sending a form such as a sign-in code.
+CALL_METHODS = frozenset({"GET", "POST"})
+
+#: What a connected account's servers usually answer in.
+JSON = "application/json"
+
+
+def _record_call(audit: AuditLog | None, actor: str, method: str, url: str, started: float,
+                 capability: str, scope: str, *, response: Response | None = None,
+                 error: str = "") -> None:
+    """The log's line for a signed-in request: never the sign-in, the form or the query."""
+    if audit is None:
+        return
+    result = None
+    if response is not None:
+        result = {"status": response.status, "bytes": len(response.body),
+                  "truncated": response.truncated}
+    audit.tool_call(actor, "net.call", {"method": method, "url": redact(url)},
+                    allowed=response is not None, capability=capability, scope=scope,
+                    duration_ms=int((time.monotonic() - started) * 1000),
+                    error=error, result=result)
+
+
+def call(method: str, url: str, *, policy, capability: str, scope: str, hosts: tuple[str, ...],
+         audit: AuditLog | None = None, actor: str = ACTOR,
+         bearer: Callable[[], str] | None = None, form: dict[str, str] | None = None,
+         accept: str = JSON, max_bytes: int = MAX_BYTES,
+         timeout_s: float = TIMEOUT_S) -> Response:
+    """A request to a connected account's servers, carrying its sign-in.
+
+    Held to \a capability for \a scope, the account (`mail.read` for this
+    mailbox), and to \a hosts, the provider's own servers. \a bearer is asked
+    for the sign-in only once every other check has passed, so a refused
+    request never even fetches one, and it goes only in the Authorization
+    header. A POST carries \a form, such as a sign-in code being exchanged, and
+    is sent at most once. A redirect is refused, never followed.
+
+    Raises `NetError` with a reason written for the person, and `ValueError`
+    for a request that could never be right. Every outcome goes into \a audit,
+    without the sign-in, the form or the query string.
+    """
+    method = str(method).upper()
+    if method not in CALL_METHODS:
+        raise ValueError(f"a signed-in request is GET or POST, not {method}")
+    if not hosts:
+        raise ValueError(f"a request under {capability} must name the hosts it may reach")
+    if (form is not None) != (method == "POST"):
+        raise ValueError("a POST carries a form, and only a POST does")
+    allowed_hosts = frozenset(host.lower() for host in hosts)
+    started = time.monotonic()
+    try:
+        target = _target(url)
+        if target.host not in allowed_hosts:
+            raise NetError(f"{target.host} is not where {capability} sends anything, so "
+                           "nothing was sent.")
+        decision = policy.allows(capability, scope)
+        if not decision:
+            raise NetError(f"Not permitted: {decision.reason}.")
+        addresses = _checked(target)
+        headers = {"User-Agent": USER_AGENT, "Accept": accept,
+                   "Accept-Encoding": "identity", "Connection": "close"}
+        body = None
+        if form is not None:
+            body = urlencode(form).encode("ascii")
+            headers["Content-Type"] = "application/x-www-form-urlencoded"
+        if bearer is not None:
+            headers["Authorization"] = f"Bearer {bearer()}"
+        reply = _exchange(target, addresses, started + timeout_s, max_bytes, timeout_s,
+                          method=method, headers=headers, body=body)
+        if reply.location:
+            onward = redact(urljoin(target.url, reply.location))
+            raise NetError(f"{target.host} sent the request on to {onward}. A signed-in "
+                           "request is never followed elsewhere, so it stopped there.")
+        response = Response(target.url, reply.status, reply.reason, reply.content_type,
+                            reply.body, reply.truncated)
+    except NetError as exc:
+        _record_call(audit, actor, method, url, started, capability, scope, error=str(exc))
+        raise
+    _record_call(audit, actor, method, url, started, capability, scope, response=response)
+    return response

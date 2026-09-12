@@ -1,11 +1,12 @@
 """The network, through one door (C1).
 
-`fetch` is the one way Akira reaches the network. The rules every request is
+`fetch` is the one way Akira reaches the network, and `call` the one way a
+connected account's sign-in is carried there (C5). The rules every request is
 held to are in `client`, the only module allowed to import the network.
 """
 
-from .client import (MAX_BYTES, MAX_REDIRECTS, TIMEOUT_S, NetError, Response, fetch, fetchable,
-                     host_of, is_public, query_value, redact, with_query)
+from .client import (MAX_BYTES, MAX_REDIRECTS, TIMEOUT_S, NetError, Response, call, fetch,
+                     fetchable, host_of, is_public, query_value, redact, with_query)
 
-__all__ = ["MAX_BYTES", "MAX_REDIRECTS", "TIMEOUT_S", "NetError", "Response", "fetch",
+__all__ = ["MAX_BYTES", "MAX_REDIRECTS", "TIMEOUT_S", "NetError", "Response", "call", "fetch",
            "fetchable", "host_of", "is_public", "query_value", "redact", "with_query"]

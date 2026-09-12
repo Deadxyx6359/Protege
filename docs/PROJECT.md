@@ -443,9 +443,10 @@ in C++, out of sight of both checks. Every engine now refuses the network
 and on QML that imports its own connection; and pictures in replies are served
 as links, because Qt opens `file://server/…` as a file and Windows as a
 network share.
-*Still to do:* the clients C3 browser and C5 connectors. Search (C2) uses it
-under its own permission; `git push` is done under A8 with its own controls,
-since git is a process of its own.
+*Still to do:* the C3 browser. Search (C2) uses it under its own permission;
+`git push` is done under A8 with its own controls, since git is a process of
+its own. Connected accounts (C5) use `call`, the one request that carries a
+sign-in, and `loopback`, the one listener, on 127.0.0.1 for a sign-in's answer.
 
 **C2 ✅ Web search** — `core/net/search.py`, tool `web_search` in `core/tools/builtin/web.py`
 *Done:* DuckDuckGo, as the person chose: its plain HTML results page, no
@@ -471,10 +472,23 @@ nothing sent. `look_at_screen` gives an agent the text, framed as material, and
 keeps no picture; `save_screenshot` writes a new PNG only where `files.write`
 allows, after a yes. Both need `screen.capture`, now rated high risk.
 
-**C5 ○ Connectors** — `core/connect/`
+**C5 ▶ Connectors** — `core/connect/`
 Mail, calendar, messages, Canvas/LMS, cloud docs, banking. Each is a separate
 capability with its own scope, read and write independently grantable.
 **Banking is read-only, permanently.**
+*Started, the door:* the person chose Gmail and Google Calendar, on an address
+made for Akira, and agreed that the one door may carry a sign-in on these
+terms. `client.call` is the only request that carries anything of the
+person's, a connected account's sign-in: the account's own permission
+(`mail.read` for that address) is checked first, only the provider's hosts are
+reached, a redirect is refused, the sign-in is asked for only once everything
+else has passed and goes only in the Authorization header, a request with a
+body is sent at most once, and none of it reaches the activity log.
+`loopback.Receiver` listens on 127.0.0.1, and nowhere else, for the browser
+being sent back with a sign-in's one-time code; `verify_offline.py` checks it
+binds nothing else and never reaches out.
+*Next:* the Google sign-in (PKCE, the lasting sign-in sealed with DPAPI), then
+reading mail and the calendar.
 
 **C6 ▶ Monitoring agent** — `core/agents/monitor.py`, bridge `ui/bridge/monitor.py`
 Watch a page, folder, inbox or feed for change; run on the scheduler; notify or
@@ -576,11 +590,12 @@ and resumable.
 | C | C7 Location and time | ✅ |
 | C | C4 Screen capture | ✅ |
 | C | C2 Web search | ✅ |
-| C | C3, C5, C8 Reach | ○ |
+| C | C5 Connectors | ▶ the signed-in door and the sign-in's return; Google next |
+| C | C3, C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1808 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 1831 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

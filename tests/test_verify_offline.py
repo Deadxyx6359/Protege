@@ -132,8 +132,29 @@ def test_the_exemptions_are_the_guards_and_the_chokepoint():
         "akira.security.netguard": frozenset({"socket"}),
         "akira.core.net.client": frozenset({"socket", "ssl", "http.client", "urllib.parse"}),
         "akira.security.qtguard": frozenset({"PySide6.QtNetwork"}),
+        "akira.core.net.loopback": frozenset({"socket"}),
     }
     assert vo.SOURCE_EXEMPT == frozenset(vo.EXEMPT_IMPORTS)
+
+
+def test_the_sign_ins_return_listens_on_this_computer_only():
+    where = vo.REPO_ROOT / "loopback.py"
+    listens = _parse('import socket\nHOST = "127.0.0.1"\ns = socket.socket()\n'
+                     's.bind((HOST, 0))\ns.listen(1)\ns.accept()\n')
+    assert not vo._exempt_findings(listens, vo.LOOPBACK, where)
+    anywhere = _parse('import socket\ns = socket.socket()\ns.bind(("0.0.0.0", 0))\n')
+    assert "other than 127.0.0.1" in vo._exempt_findings(anywhere, vo.LOOPBACK, where)[0].detail
+    reaches = _parse('import socket\ns = socket.socket()\ns.connect(("8.8.8.8", 53))\n')
+    assert "never reach out" in vo._exempt_findings(reaches, vo.LOOPBACK, where)[0].detail
+    looks_up = _parse('import socket\nsocket.getaddrinfo("example.com", 443)\n')
+    assert vo._exempt_findings(looks_up, vo.LOOPBACK, where)
+    a_client = _parse("import socket\nimport ssl\n")
+    assert vo._exempt_findings(a_client, vo.LOOPBACK, where), "the listener may import only socket"
+
+
+def test_the_real_listener_keeps_to_it():
+    path = vo.REPO_ROOT / "akira" / "core" / "net" / "loopback.py"
+    assert not vo._exempt_findings(_parse(path.read_text(encoding="utf-8")), vo.LOOPBACK, path)
 
 
 def test_the_chokepoint_may_not_import_a_client_library():
