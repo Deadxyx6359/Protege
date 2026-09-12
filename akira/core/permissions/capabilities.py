@@ -116,9 +116,11 @@ CATALOGUE: dict[str, Capability] = {
         _c("shell.run", "Run commands",
            "Run programs and scripts on this computer.",
            Direction.WRITE, Risk.HIGH, ScopeKind.PATH, irreversible=True),
-        _c("screen.capture", "Take screenshots",
-           "Capture what is on screen.",
-           Direction.READ, Risk.MEDIUM),
+        # High, though it only reads: a screenshot shows whatever is open, and
+        # that can be a password being typed or a bank balance.
+        _c("screen.capture", "See your screen",
+           "Take screenshots and read the words on them: everything that is open.",
+           Direction.READ, Risk.HIGH),
         _c("clipboard.read", "Read the clipboard",
            "Read whatever you last copied.",
            Direction.READ, Risk.MEDIUM),

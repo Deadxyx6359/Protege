@@ -90,7 +90,7 @@ measured benchmarks, not from optimism.
 |---|---|---|
 | Web search | Fine | C2 |
 | Full computer use — forms, posting, reservations, scraping without APIs, job applications, product testing | Fine — Playwright drives a real browser | C3 |
-| Screenshots | Fine | C4 |
+| Screenshots | **Done**: agents read the words on screen; the person can save a capture where writing is allowed | C4 |
 | Email, calendar, text, Canvas, docs | Fine, per-connector permissions | C5 |
 | Banking | **Read-only, permanently** | C5 |
 | Monitoring agent — watch for changes | **Folders, pages and feeds done**: changes wake scheduled jobs, which can put up notices or set an agent to work. Inboxes after C5 | C6 |
@@ -444,7 +444,12 @@ Playwright driving a real browser: navigate, read, fill, click, scrape without
 APIs. **Every irreversible interaction confirms** — submit, post, purchase,
 apply. Job applications stage a draft and stop.
 
-**C4 ○ Screen capture** — `core/tools/builtin/screen.py`
+**C4 ✅ Screen capture** — `core/screen.py`, tools in `core/tools/builtin/screen.py`
+*Done:* the whole screen captured with GDI and encoded as PNG with zlib, and
+its words read by Windows' own OCR through PowerShell: nothing installed,
+nothing sent. `look_at_screen` gives an agent the text, framed as material, and
+keeps no picture; `save_screenshot` writes a new PNG only where `files.write`
+allows, after a yes. Both need `screen.capture`, now rated high risk.
 
 **C5 ○ Connectors** — `core/connect/`
 Mail, calendar, messages, Canvas/LMS, cloud docs, banking. Each is a separate
@@ -549,11 +554,12 @@ and resumable.
 | C | C1 Network chokepoint | ✅ |
 | C | C6 Monitoring agent | ▶ folders, pages and feeds done; inboxes wait for C5 |
 | C | C7 Location and time | ✅ |
-| C | C2–C5, C8 Reach | ○ |
+| C | C4 Screen capture | ✅ |
+| C | C2, C3, C5, C8 Reach | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1777 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 1784 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---
