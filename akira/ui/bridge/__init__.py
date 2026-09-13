@@ -8,6 +8,7 @@ No decisions live at this layer — if a rule is being applied, it belongs in
 from .accounts import AccountsBridge
 from .agents import AgentsBridge
 from .chat import ChatBridge, MessageListModel
+from .documents import DocumentsBridge
 from .graph import GraphBridge
 from .memory import MemoryBridge
 from .monitor import MonitorBridge
@@ -23,4 +24,5 @@ __all__ = [
     "PermissionsBridge", "ConfirmBridge", "ScheduleBridge",
     "TraceBridge", "TraceListModel", "AgentsBridge", "MemoryBridge",
     "ProjectsBridge", "GraphBridge", "MonitorBridge", "PlaceBridge", "AccountsBridge",
+    "DocumentsBridge",
 ]

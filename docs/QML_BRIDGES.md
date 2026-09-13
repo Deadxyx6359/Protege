@@ -57,6 +57,7 @@ before changing it.
 | `Monitor` | `MonitorBridge` | Watched folders, and the notices jobs put up |
 | `Place` | `PlaceBridge` | Where the person is, and the hemisphere the scenes turn their seasons by |
 | `Accounts` | `AccountsBridge` | Connected Google addresses: the client file, signing in, disconnecting |
+| `Documents` | `DocumentsBridge` | Local folder rows, document text previews and content search |
 
 Registered in `akira/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
@@ -491,6 +492,48 @@ stage are new:
   link, `\![alt](address)`, so it is shown and never loaded (see rule 5). The
   saved conversation keeps the words as written. An error's text is plain;
   show it plain.
+
+## Documents
+
+Implemented by Codex after the coordination handoff dated 2026-09-12 (19).
+This is a read-only presentation adapter over `read_file`, `read_document`
+and `search_documents`; parsing, indexing and permission decisions stay in
+the existing backend. It uses the current project's effective policy.
+
+- Properties, all notified by `changed`: `folder`, `entries`, `selected`,
+  `preview`, `query`, `passages`, `busy`, `operation`, `error`, `limited`,
+  `canGoUp`, `roots`.
+- `openFolder(pathOrLocalUrl)` lists supported documents and subfolders under
+  `files.read`. Rows have `path`, `name`, `folder`, `kind`, `size`, `modified`,
+  `capability`. Folders sort first; dot entries, lock files, links and junctions
+  are skipped. Listing caps: 400 displayed items / 4,000 scanned entries.
+- `previewFile(pathOrLocalUrl)` calls `read_file` for Markdown/text under
+  `files.read`; Office/PDF previews call `read_document` under `docs.read`.
+  Text previews cap at 200 KB before reading. Office reader limits apply.
+  The preview removes the reader's exact known path/line-number envelope for
+  display only, falling back to the complete response if its format changes.
+  All headings, tables, cell references and truncation notices are plain text.
+- `search(query)` searches the open folder and its subfolders through the
+  existing local index. Requires `docs.read` for that folder and also
+  `files.read` for text/Markdown. Returned passage maps retain the tool fields
+  (`cite`, `rel`, `section`, `text`, `score`, `complete`) plus `path`, `name`.
+  Empty query clears search. Search can update the existing local index.
+- `refresh()`, `goUp()`, `clearPreview()` and `cancel()` manage the current view.
+  `copyPath()` copies the selected file's path, or the folder path, after a
+  fresh permission check; returns empty string on success or an explanation.
+- `invalidate()` cancels pending publication and clears displayed content.
+  Shell connects this to global/project grants and current-project changes.
+  A one-second timer also detects expiring read grants. Permissions are checked
+  on use, inside the tools and before publishing results. Search passages are
+  checked individually again on arrival. Superseded results are discarded.
+- One background daemon worker processes requests serially with one replaceable
+  pending request. Cancel discards its results; an already running parser may
+  finish. `AppContext.close()` closes this adapter, and parsing cannot keep the
+  window's process alive on its own.
+- The local picker never grants access. Remote URLs, UNC paths and linked
+  locations are refused. Refusals are visible and audited; the UI opens the
+  existing permission sheet for changes. No document edit, external app launch,
+  upload, model call or automatic scan is performed by this workspace.
 
 ## Not reachable yet
 

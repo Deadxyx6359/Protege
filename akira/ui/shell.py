@@ -38,6 +38,7 @@ from akira.ui.bridge import (
     AgentsBridge,
     ChatBridge,
     ConfirmBridge,
+    DocumentsBridge,
     GraphBridge,
     MemoryBridge,
     MonitorBridge,
@@ -80,6 +81,7 @@ class AppContext:
     monitor: MonitorBridge | None = None
     place: PlaceBridge | None = None
     accounts: AccountsBridge | None = None
+    documents: DocumentsBridge | None = None
     scheduler: Scheduler | None = None
     service: SchedulerService | None = None
     monitor_service: MonitorService | None = None
@@ -97,7 +99,7 @@ class AppContext:
                           ("Agents", self.agents), ("Memory", self.memory),
                           ("Projects", self.projects), ("Graph", self.graph),
                           ("Monitor", self.monitor), ("Place", self.place),
-                          ("Accounts", self.accounts)):
+                          ("Accounts", self.accounts), ("Documents", self.documents)):
             if obj is not None:
                 exposed[name] = obj
         return exposed
@@ -123,6 +125,8 @@ class AppContext:
             self.weather_service.start()
 
     def close(self) -> None:
+        if self.documents is not None:
+            self.documents.close()
         # A worker blocked waiting for a confirmation would otherwise hold the
         # scheduler thread past shutdown, so it is woken with a refusal first.
         if self.agents is not None:
@@ -193,6 +197,11 @@ def build_context(*, persist: bool = True) -> AppContext:
     # Work started from the interface also gets the open project's own grants.
     def working_policy() -> Policy:
         return projects.effective(permissions.policy)
+
+    documents = DocumentsBridge(policy=working_policy, audit=audit, secrets=secret_store)
+    permissions.grantsChanged.connect(documents.invalidate)
+    projects.grantsChanged.connect(documents.invalidate)
+    projects.currentChanged.connect(documents.invalidate)
 
     # The weather is read in the background, like a scheduled job, so under the
     # global grants: location.read, and net.http for its site.
@@ -268,6 +277,7 @@ def build_context(*, persist: bool = True) -> AppContext:
         monitor=monitor,
         place=place,
         accounts=accounts,
+        documents=documents,
         housekeeping=sweep_indexes,
     )
 

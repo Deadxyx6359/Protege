@@ -30,6 +30,7 @@ Window {
     // Views that fill the page themselves: no transcript, no composer.
     readonly property bool fullPage: currentNav === "agents" || currentNav === "watching"
                                      || currentNav === "schedule" || currentNav === "memory"
+                                     || currentNav === "documents"
 
     function selectWorkspace(id) {
         const views = { "chat-1": "chats", "code-1": "code", "research-1": "research" };
@@ -297,6 +298,13 @@ Window {
                     objectName: "memoryView"
                     anchors.fill: parent
                     visible: win.currentNav === "memory"
+                }
+
+                DocumentsView {
+                    objectName: "documentsView"
+                    anchors.fill: parent
+                    visible: win.currentNav === "documents"
+                    onPermissionsRequested: permissionsSheet.open()
                 }
 
                 ChatView {
