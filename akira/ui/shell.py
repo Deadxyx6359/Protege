@@ -21,7 +21,7 @@ from akira.core.brain import embed
 from akira.core.brain.distil import PendingStore, register_distil_action, vault_of
 from akira.core.brain.index import anywhere, sweep
 from akira.core.brain.recall import ContextAssembler
-from akira.core.config import AppConfig, autoconfigure, migrate_config
+from akira.core.config import AppConfig, autoconfigure, migrate_config, config_dir
 from akira.core.connect.inbox import GmailInbox
 from akira.core.context.place import PlaceStore
 from akira.core.context.weather import Weather, WeatherService
@@ -52,6 +52,7 @@ from akira.ui.bridge import (
 )
 
 from .engine import QML_ROOT, QmlError, build_engine, configure_application, load
+from .run_archive import RunArchive
 
 MAIN_QML = QML_ROOT / "Main.qml"
 ICON = Path(__file__).parent / "assets" / "akira.ico"
@@ -240,9 +241,19 @@ def build_context(*, persist: bool = True) -> AppContext:
                            secret_store=secret_store, on_review=schedule.on_review,
                            projects=projects.store.policies)
     register_agent_actions(actions, router=router, registry=default_registry())
+    def model_for(route: str) -> dict:
+        resolved = router.resolve(Route.parse(route))
+        return {"route": resolved.value, "label": router.status(resolved).label}
+
     agents = AgentsBridge(router, default_registry(), policy=working_policy,
                           audit=audit, secret_store=secret_store, trace=trace,
-                          confirm=confirm.ask)
+                          confirm=confirm.ask,
+                          project=lambda: {"id": projects.currentId, "name": projects.currentName},
+                          model_for=model_for,
+                          archive=RunArchive(config_dir() / "investigations.json" if persist else None))
+    permissions.grantsChanged.connect(agents.invalidateSources)
+    projects.grantsChanged.connect(agents.invalidateSources)
+    projects.currentChanged.connect(agents.invalidateSources)
     pending = PendingStore()
     memory = MemoryBridge(scheduler, policy=live_policy, audit=audit, pending=pending)
     register_distil_action(actions, router=router, pending=pending, projects=projects.store,

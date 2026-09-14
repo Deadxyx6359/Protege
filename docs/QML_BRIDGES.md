@@ -135,6 +135,66 @@ jobs appear as agents named `schedule:<job name>`.
 
 The model keeps the newest 500 events; older ones fall off the front.
 
+## `Agents` — interactive investigations and task history
+
+Additive presentation seam implemented by Codex after coordination handoff 25
+(2026-09-14). Existing `runTeam(team, task, folder)`, `runAgent(role, task, folder)`,
+`stop()`, `busy`, `running`, `answer`, `ok`, `stopped` and `finished` remain compatible.
+
+- `runs` (QVariantList, `runsChanged`) contains at most 60 newest interactive
+  run summaries: `id`, `kind` (team/agent), `name`, `task`, `projectId`,
+  `projectName`, `status`, `started`. Scheduled jobs are not in this archive.
+- `currentRun` and `record(id)` return a detailed map: summary fields plus
+  `answer`, `folder`, `ended`, `stopped`, ordered `members`, `states`, `models`,
+  `sources`, `events`. `models` maps members to resolved route and model label
+  at start; it does not claim every member reached generation. Answers are
+  passed through `inert_markdown`, including after loading from disk.
+- Status is `running`, `complete`, `stopped`, `incomplete` or `interrupted`.
+  A running record found on startup becomes interrupted, never complete.
+  Member states reflect actual trace events. Events retain only the last 80
+  tool/handoff/failure labels; no arguments or intermediate model messages.
+- Each interactive worker has its own Trace and forwards its events to the
+  existing shared Trace. Unrelated scheduled events cannot enter its record.
+  `AgentTrace` remains the global activity stream; its API is unchanged.
+- `sourcePreview` (QVariantMap, `previewChanged`) is transient plain text:
+  `title`, `locator`, `kind`, `tool`, `body`, `truncated`, `id`.
+  `previewSource(runId, sourceId)` returns empty string or a visible explanation.
+  `clearSource()` dismisses its content. No browser navigation or new read occurs.
+- Structured successful results are observed after the original registry runs
+  `web_search`, `fetch_page`, `browse_page` (when available), `read_file`,
+  `read_document`, `search_notes`, `search_documents`, `search_conversations`.
+  Labels distinguish search snippets, pages read, files read and local excerpts.
+  They are gathered material, not inferred citations or source verification.
+- A run retains up to 32 source labels; bodies cap at 30,000 characters each.
+  Bodies for up to four recent runs remain in memory. Preview use checks the
+  original project's identity and current permissions. Redirect destination
+  and browser-reported sites are included in page-preview checks. A one-second
+  timer clears an open preview when its grant expires.
+- Shell connects `invalidateSources()` to global/project grant changes and
+  project switches. It clears transient content and rejects later source bodies
+  from runs started before that invalidation. Existing task/result history is
+  retained, like saved conversations; answers can themselves quote source text.
+- `deleteRun(id)` removes the saved task/result/references off the GUI thread.
+  Active runs must be stopped first. `archiveBusy` prevents overlapping deletes;
+  `historyError` reports save/load/delete failures. A failed save keeps the result
+  in this session. The UI asks once before removing a result. This affects no
+  underlying project file, agent output artifact or audit entry.
+- `ui/run_archive.py` is a UI-owned bounded JSON archive at
+  `config_dir()/investigations.json`: version 1, 60 records, 12 MB load/write cap,
+  4,000-character task and 60,000-character answer caps. Only whitelisted fields
+  are saved. Writes are atomic and serialized on workers, with bounded retry for
+  Windows sharing violations. An unreadable existing file is preserved and
+  further writes refused with a visible error. `build_context(persist=False)`
+  uses an in-memory archive. No model, scheduler, tool or permission rule changed.
+
+UI: Research keeps local conversation and adds Investigations with editable
+question, explicit start/stop, project-filtered results, member progress and
+gathered-source previews. Code has a software-history button; Agents has Task
+history with optional all-project viewing. Both show original task ownership,
+model assignments and results. Research source text is always plain; answers
+alone use the existing guarded Markdown renderer. The normal launcher loads
+these changes from source when Akira is reopened.
+
 ## `Schedule` — jobs and the security review
 
 | Member | Kind | Notes |

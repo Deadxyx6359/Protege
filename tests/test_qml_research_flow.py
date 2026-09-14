@@ -83,22 +83,21 @@ assert ctx.projects.create('Ocean research', str(folder)) == ''
 composer.setProperty('text', 'Compare the evidence for deep sea migrations.')
 before = ctx.trace.events.count
 press(research.findChild(QObject, 'prepareResearchTeam'))
-assert win.property('currentNav') == 'agents'
-assert agents.property('chosen') == 'team:research'
-assert agents.property('taskDraft') == 'Compare the evidence for deep sea migrations.'
-assert agents.property('folder') == str(folder.resolve())
+assert win.property('currentNav') == 'research'
+assert research.property('investigating')
+inquiry = win.findChild(QObject, 'researchInvestigations')
+assert inquiry.property('taskDraft') == 'Compare the evidence for deep sea migrations.'
+assert inquiry.property('folder') == str(folder.resolve())
+assert not composer.property('visible')
 assert not ctx.agents.busy and ctx.trace.events.count == before
 assert not ctx.permissions.policy.granted('docs.read')
 for mode in ['dark', 'light']:
     ctx.theme.mode = mode
     capture(mode + '-prepared-research-task')
-task = win.findChild(QObject, 'agentTask')
+task = win.findChild(QObject, 'investigationTask')
 assert task.mapToScene(QPointF(0, 0)).y() >= 68
-assert win.findChild(QObject, 'agentStart').mapToScene(QPointF(0, 34)).y() <= 600
-assert not win.findChild(QObject, 'agentPipeline').property('visible')
-agents.setProperty('showTeamDetails', True); QTest.qWait(30)
-assert win.findChild(QObject, 'agentPipeline').property('visible')
-agents.setProperty('showTeamDetails', False)
+assert win.findChild(QObject, 'investigationStart').mapToScene(QPointF(0, 34)).y() <= 600
+assert win.findChild(QObject, 'investigationStages').property('visible')
 
 win.setProperty('currentNav', 'code')
 composer.setProperty('text', 'Build a local expedition notebook.')
@@ -107,7 +106,7 @@ press(win.findChild(QObject, 'codeView').findChild(QObject, 'workspacePrimaryAct
 assert agents.property('chosen') == 'team:software'
 assert agents.property('taskDraft') == 'Build a local expedition notebook.'
 assert not ctx.agents.busy
-task.setProperty('text', 'x' * 4001)
+win.findChild(QObject, 'agentTask').setProperty('text', 'x' * 4001)
 assert not win.findChild(QObject, 'agentStart').property('enabled')
 assert not warnings, '\n'.join(warnings)
 ctx.close(); win.close()

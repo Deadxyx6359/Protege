@@ -31,6 +31,9 @@ ActionButton 1.0 ActionButton.qml
 ConfirmDialog 1.0 ConfirmDialog.qml
 PermissionsSheet 1.0 PermissionsSheet.qml
 AgentsView 1.0 AgentsView.qml
+InvestigationsView 1.0 InvestigationsView.qml
+ResearchSourceSheet 1.0 ResearchSourceSheet.qml
+RunHistorySheet 1.0 RunHistorySheet.qml
 PlaceSheet 1.0 PlaceSheet.qml
 WatchView 1.0 WatchView.qml
 NoticeBanner 1.0 NoticeBanner.qml

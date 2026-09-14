@@ -2,8 +2,7 @@ import QtQuick
 import QtQuick.Controls as C
 import QtQuick.Layouts
 
-/* Research shares the live Chat bridge. There is deliberately no simulated
-   source list or agent trace: those require the backend research toolchain. */
+/* Local discussion and explicitly started investigations share one workspace. */
 Item {
     id: root
     property var model: null
@@ -11,6 +10,8 @@ Item {
     property string busyStage: "Thinking"
     property var sources: []
     property string contextNote: ""
+    property bool investigating: false
+    property alias investigation: investigations
     readonly property int count: model ? model.count : 0
     readonly property var starters: [
         { label: "Explore a topic", icon: "search",
@@ -24,6 +25,13 @@ Item {
     signal promptSelected(string prompt)
     signal newInquiryRequested()
     signal researchTeamRequested()
+    signal sourceRequested(string error)
+    signal permissionsRequested()
+
+    function prepareInvestigation(text) {
+        investigating = true;
+        investigations.prepare(text);
+    }
 
     // Also useful to keyboard-driven callers; only prepares a draft.
     function chooseStarter(index) {
@@ -36,27 +44,28 @@ Item {
         anchors.top: parent.top
         anchors.topMargin: Theme.space.lg
         anchors.horizontalCenter: parent.horizontalCenter
-        width: Math.min(720, parent.width - Theme.space.xxl * 2)
+        width: Math.min(900, parent.width - 48)
         height: 32
-        visible: root.count > 0
         spacing: Theme.space.sm
 
-        Icon { name: "search"; size: 17; color: Theme.accent }
-        Text { text: "Research"; font: Theme.type.bodyStrong; color: Theme.textPrimary }
-        Text {
-            Layout.fillWidth: true
-            text: "Local conversation"
-            font: Theme.type.caption
-            color: Theme.textTertiary
-            elide: Text.ElideRight
+        Segmented {
+            objectName: "researchModes"
+            Layout.preferredWidth: 280
+            Layout.preferredHeight: 32
+            options: [{id: "conversation", label: "Conversation"}, {id: "investigations", label: "Investigations"}]
+            current: root.investigating ? "investigations" : "conversation"
+            onSelected: function (id) { root.investigating = id === "investigations"; }
         }
+        Item { Layout.fillWidth: true }
         ActionButton {
+            visible: root.count > 0 && !root.investigating && root.width > 700
             text: "Research team"
             enabled: !root.busy
             onClicked: root.researchTeamRequested()
         }
         C.AbstractButton {
             id: fresh
+            visible: root.count > 0 && !root.investigating
             objectName: "newResearchInquiry"
             text: "New inquiry"
             enabled: !root.busy
@@ -82,6 +91,7 @@ Item {
     }
 
     ChatView {
+        visible: !root.investigating
         anchors.fill: parent
         anchors.topMargin: heading.height + Theme.space.xl
         model: root.model
@@ -90,6 +100,16 @@ Item {
         sources: root.sources
         contextNote: root.contextNote
         showGreeting: false
+    }
+
+    InvestigationsView {
+        id: investigations
+        objectName: "researchInvestigations"
+        anchors.fill: parent
+        anchors.topMargin: heading.height + Theme.space.xl + Theme.space.md
+        visible: root.investigating
+        onSourceRequested: function (error) { root.sourceRequested(error); }
+        onPermissionsRequested: root.permissionsRequested()
     }
 
     // Fixed reading width, with a shorter stack on the smallest supported
@@ -101,7 +121,7 @@ Item {
         width: Math.min(410, parent.width - 48)
         height: content.implicitHeight + 32
         radius: Theme.radius.lg
-        visible: root.count === 0
+        visible: root.count === 0 && !root.investigating
         // Light text surfaces need more opacity over the near-black abyss;
         // otherwise the small supporting copy becomes grey on grey.
         fillColor: Qt.rgba(Theme.canvas.r, Theme.canvas.g, Theme.canvas.b, Theme.isDark ? 0.88 : 0.94)

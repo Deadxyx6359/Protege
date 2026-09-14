@@ -13,6 +13,7 @@ Item {
     signal teamRequested()
     signal reviewRequested()
     signal projectRequested()
+    signal historyRequested()
 
     RowLayout {
         id: toolbar
@@ -63,6 +64,12 @@ Item {
             enabled: !Coding.busy
             Accessible.name: "Open project folder in VS Code"
             onClicked: Coding.openEditor(root.folder)
+        }
+        IconButton {
+            objectName: "codeHistoryButton"
+            icon: "clock"
+            label: "Software task history"
+            onClicked: root.historyRequested()
         }
         IconButton {
             visible: root.model && root.model.count > 0

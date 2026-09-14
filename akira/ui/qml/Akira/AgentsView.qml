@@ -39,6 +39,7 @@ Item {
     property string lastRunName: "Previous task"
     property string lastRunProject: ""
     property alias taskDraft: taskInput.text
+    signal historyRequested()
 
     function prepareTeam(name, task, folder) {
         if (Agents.busy) return "An agent run is already in progress. Finish or stop it before preparing another.";
@@ -161,6 +162,7 @@ Item {
                         font: Theme.type.title3
                         color: Theme.textPrimary
                     }
+                    ActionButton { objectName: "agentHistoryButton"; text: "Task history"; onClicked: root.historyRequested() }
                 }
 
                 Text {

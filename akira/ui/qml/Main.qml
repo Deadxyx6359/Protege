@@ -46,6 +46,7 @@ Window {
     readonly property bool fullPage: currentNav === "agents" || currentNav === "watching"
                                      || currentNav === "schedule" || currentNav === "memory"
                                      || currentNav === "documents"
+                                     || (currentNav === "research" && researchPage.investigating)
 
     function selectWorkspace(id) {
         const views = { "chat-1": "chats", "code-1": "code", "research-1": "research" };
@@ -63,6 +64,11 @@ Window {
     }
 
     function prepareTeam(name) {
+        if (name === "research") {
+            researchPage.prepareInvestigation(composer.text);
+            win.selectWorkspace("research");
+            return;
+        }
         const project = Projects.projects.find(function (p) { return p.current; });
         const why = agentsPage.prepareTeam(name, composer.text, project ? project.folder : "");
         if (why) banners.show("Task could not open", why, false);
@@ -176,6 +182,9 @@ Window {
         objectName: "accountsSheet"
         z: 11
     }
+
+    ResearchSourceSheet { id: researchSource; objectName: "researchSourceSheet"; z: 50 }
+    RunHistorySheet { id: runHistory; objectName: "runHistorySheet"; z: 12 }
 
     CodeReviewSheet {
         id: codeReview
@@ -313,7 +322,7 @@ Window {
                     objectName: "workspaceScene"
                     anchors.fill: parent
                     // A full page sits in the coding world, kept quiet behind its cards.
-                    view: win.fullPage ? "code" : win.currentNav
+                    view: win.currentNav === "research" ? "research" : win.fullPage ? "code" : win.currentNav
                     quiet: win.fullPage || Chat.messages.count > 0
                     // The real weather where the person is, once it has been read,
                     // and the seasons turned the right way round for their hemisphere.
@@ -323,6 +332,7 @@ Window {
                 }
 
                 AgentsView {
+                    onHistoryRequested: runHistory.present("")
                     id: agentsPage
                     objectName: "agentsView"
                     anchors.fill: parent
@@ -383,6 +393,7 @@ Window {
                     contextNote: Chat.lastContextNote
                     onTeamRequested: win.prepareTeam("software")
                     onReviewRequested: codeReview.present()
+                    onHistoryRequested: runHistory.present("software")
                     onProjectRequested: {
                         if (Projects.currentId) projectSheet.manage(Projects.currentId);
                         else projectSheet.openNew();
@@ -390,11 +401,12 @@ Window {
                 }
 
                 ResearchView {
+                    id: researchPage
                     objectName: "researchView"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
-                    anchors.bottom: composer.top
+                    anchors.bottom: researchPage.investigating ? parent.bottom : composer.top
                     visible: win.currentNav === "research"
                     model: Chat.messages
                     busy: Chat.busy
@@ -402,6 +414,8 @@ Window {
                     sources: Chat.lastSources
                     contextNote: Chat.lastContextNote
                     onResearchTeamRequested: win.prepareTeam("research")
+                    onSourceRequested: function (error) { researchSource.present(error); }
+                    onPermissionsRequested: permissionsSheet.open()
                     onPromptSelected: function (prompt) {
                         // A starter prepares an editable draft; it never sends.
                         composer.text = composer.hasText ? composer.text + "\n\n" + prompt : prompt;
