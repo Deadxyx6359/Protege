@@ -31,6 +31,7 @@ Sheet {
     property string folder: ""
     property string notice: ""
     property bool armed: false
+    property bool canSwitch: true
 
     title: project !== null ? project.name : "New project"
     subtitle: project === null ? "Conversations and permissions that belong together"
@@ -57,6 +58,7 @@ Sheet {
 
     /*! Make the project and open it. Returns "" or why not. */
     function makeProject() {
+        if (!root.canSwitch) return root.notice = "Finish or stop the current work before switching projects.";
         var why = Projects.create(root.name.trim(), root.folder);
         root.notice = why;
         if (why === "")
@@ -86,6 +88,7 @@ Sheet {
     }
 
     function leave() {
+        if (!root.canSwitch) return root.notice = "Finish or stop the current work before switching projects.";
         var why = Projects.openProject("");
         root.notice = why;
         if (why === "")
@@ -95,6 +98,7 @@ Sheet {
 
     /*! The first press arms; the second forgets. */
     function forget() {
+        if (!root.canSwitch) return root.notice = "Finish or stop the current work before changing projects.";
         if (!root.armed) {
             root.armed = true;
             return "";
@@ -295,6 +299,14 @@ Sheet {
             color: Theme.danger
             wrapMode: Text.Wrap
         }
+        Text {
+            Layout.fillWidth: true
+            visible: !root.canSwitch
+            text: "Finish or stop the current work to switch, create or forget a project."
+            font: Theme.type.caption
+            color: Theme.textSecondary
+            wrapMode: Text.Wrap
+        }
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.space.sm
@@ -302,17 +314,20 @@ Sheet {
                 visible: root.project !== null
                 text: root.armed ? "Forget it" : "Forget project"
                 kind: "danger"
+                enabled: root.canSwitch
                 onClicked: root.forget()
             }
             Item { Layout.fillWidth: true }
             ActionButton {
                 visible: root.isOpen
                 text: "Leave project"
+                enabled: root.canSwitch
                 onClicked: root.leave()
             }
             ActionButton {
                 visible: root.project !== null && !root.isOpen
                 text: "Open it"
+                enabled: root.canSwitch
                 kind: "primary"
                 onClicked: {
                     root.notice = Projects.openProject(root.projectId);
@@ -325,7 +340,7 @@ Sheet {
                 objectName: "projectCreate"
                 text: "Create"
                 kind: "primary"
-                enabled: root.name.trim() !== ""
+                enabled: root.canSwitch && root.name.trim() !== ""
                 onClicked: root.makeProject()
             }
         }

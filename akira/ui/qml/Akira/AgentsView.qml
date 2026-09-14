@@ -34,6 +34,22 @@ Item {
 
     property string notice: ""
     property string folder: ""
+    property bool showTeamDetails: false
+    property bool showRecord: false
+    property string lastRunName: "Previous task"
+    property string lastRunProject: ""
+    property alias taskDraft: taskInput.text
+
+    function prepareTeam(name, task, folder) {
+        if (Agents.busy) return "An agent run is already in progress. Finish or stop it before preparing another.";
+        if (!Agents.teams.some(function (team) { return team.name === name; })) return "That team is unavailable.";
+        root.chosen = "team:" + name;
+        taskInput.text = task;
+        root.folder = folder || "";
+        root.notice = "";
+        Qt.callLater(function () { taskInput.forceActiveFocus(); scroller.contentItem.contentY = 0; });
+        return "";
+    }
 
     // What the record says, redrawn whenever it grows.
     property var status: ({})
@@ -69,6 +85,7 @@ Item {
 
     function start() {
         var task = taskInput.text.trim();
+        if (Agents.busy || !task || task.length > 4000) return;
         AgentTrace.clear();
         root.refresh();
         root.notice = root.isTeam ? Agents.runTeam(root.chosenName, task, root.folder)
@@ -78,6 +95,15 @@ Item {
     Connections {
         target: AgentTrace.events
         function onCountChanged() { root.refresh() }
+    }
+    Connections {
+        target: Agents
+        function onBusyChanged() {
+            if (Agents.busy) {
+                root.lastRunName = Agents.running;
+                root.lastRunProject = Projects.currentName || "Personal workspace";
+            }
+        }
     }
     Component.onCompleted: refresh()
 
@@ -110,41 +136,6 @@ Item {
         }
     }
 
-    component Chip: Rectangle {
-        id: chip
-        property string label: ""
-        property string icon: ""
-        property bool selected: false
-        signal picked()
-        radius: Theme.radius.full
-        color: selected ? Theme.accentSubtle : (chipHover.hovered ? Theme.surfaceHover : Theme.surface)
-        border.width: 1
-        border.color: selected ? Theme.accent : Theme.separatorStrong
-        implicitHeight: 30
-        implicitWidth: chipRow.implicitWidth + Theme.space.md * 2
-        Row {
-            id: chipRow
-            anchors.centerIn: parent
-            spacing: Theme.space.xs
-            Icon {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: chip.icon !== ""
-                name: chip.icon === "" ? "dot" : chip.icon
-                size: 14
-                color: chip.selected ? Theme.accent : Theme.textSecondary
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: chip.label
-                textFormat: Text.PlainText
-                font: chip.selected ? Theme.type.captionStrong : Theme.type.caption
-                color: chip.selected ? Theme.textPrimary : Theme.textSecondary
-            }
-        }
-        HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: chip.picked() }
-    }
-
     // -- the page --------------------------------------------------------------------
 
     C.ScrollView {
@@ -174,41 +165,37 @@ Item {
 
                 Text {
                     Layout.fillWidth: true
-                    text: "A team works in order, each member handing its work to the next. One agent works alone. Either reaches only what you have allowed."
+                    text: "Give the work a clear goal. Choose a team to collaborate, or one agent to focus."
                     font: Theme.type.caption
                     color: Theme.textSecondary
                     wrapMode: Text.Wrap
                 }
 
-                Flow {
+                RowLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.space.xs
-                    Repeater {
-                        model: Agents.teams
-                        Chip {
-                            required property var modelData
-                            label: root.titled(modelData.name) + " team"
-                            icon: "team"
-                            selected: root.chosen === "team:" + modelData.name
-                            onPicked: root.chosen = "team:" + modelData.name
-                        }
+                    Select {
+                        objectName: "agentTeamPicker"
+                        Layout.fillWidth: true
+                        enabled: !Agents.busy
+                        label: "Team or agent"
+                        current: root.chosen
+                        options: Agents.teams.map(function (t) {
+                            return {value: "team:" + t.name, label: root.titled(t.name) + " team", detail: t.members.length + " agents"};
+                        }).concat(Agents.roles.map(function (a) {
+                            return {value: "agent:" + a.name, label: root.titled(a.name), detail: "Individual"};
+                        }))
+                        onPicked: function (value) { root.chosen = value }
                     }
-                    Repeater {
-                        model: Agents.roles
-                        Chip {
-                            required property var modelData
-                            label: root.titled(modelData.name)
-                            icon: "user"
-                            selected: root.chosen === "agent:" + modelData.name
-                            onPicked: root.chosen = "agent:" + modelData.name
-                        }
+                    ActionButton {
+                        text: root.showTeamDetails ? "Hide details" : "Team details"
+                        onClicked: root.showTeamDetails = !root.showTeamDetails
                     }
                 }
 
                 Text {
                     Layout.fillWidth: true
-                    visible: root.isTeam && root.team !== null
-                    text: root.team ? root.team.purpose : ""
+                    text: root.isTeam ? (root.team ? root.team.purpose : "") : (root.role(root.chosenName) || {}).summary || ""
+                    visible: text !== ""
                     textFormat: Text.PlainText
                     font: Theme.type.callout
                     color: Theme.textPrimary
@@ -216,9 +203,119 @@ Item {
                 }
             }
 
+            // -- the task ------------------------------------------------------------
+            Card {
+                id: taskCard
+                objectName: "agentTaskCard"
+                RowLayout {
+                    Layout.fillWidth: true
+                    Text { Layout.fillWidth: true; text: "The task"; font: Theme.type.headline; color: Theme.textPrimary }
+                    Text {
+                        text: taskInput.text.length + " / 4000"
+                        textFormat: Text.PlainText
+                        font: Theme.type.caption
+                        color: taskInput.text.length > 4000 ? Theme.danger : Theme.textTertiary
+                    }
+                }
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 96
+                    radius: Theme.radius.sm
+                    color: Theme.inset
+                    border.width: 1
+                    border.color: taskInput.activeFocus ? Theme.accent : Theme.separator
+                    C.ScrollView {
+                        anchors.fill: parent
+                        anchors.margins: Theme.space.sm
+                        C.TextArea {
+                            id: taskInput
+                            objectName: "agentTask"
+                            placeholderText: root.isTeam ? "What should the team work on?"
+                                                         : "What should this agent do?"
+                            placeholderTextColor: Theme.textTertiary
+                            font: Theme.type.body
+                            color: Theme.textPrimary
+                            wrapMode: TextEdit.Wrap
+                            textFormat: TextEdit.PlainText
+                            readOnly: Agents.busy
+                            Accessible.name: "Agent task"
+                            selectByMouse: true
+                            background: null
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.space.sm
+                    ActionButton {
+                        text: root.folder === "" ? "Choose a folder…" : "Change folder…"
+                        enabled: !Agents.busy
+                        onClicked: folderPicker.open()
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: root.folder === "" ? "No folder: they work where the task points them."
+                                                 : root.folder
+                        textFormat: Text.PlainText
+                        font: root.folder === "" ? Theme.type.caption : Theme.type.monoSmall
+                        color: Theme.textTertiary
+                        elide: Text.ElideMiddle
+                    }
+                    ActionButton {
+                        visible: Agents.busy
+                        text: "Stop"
+                        onClicked: Agents.stop()
+                    }
+                    ActionButton {
+                        objectName: "agentStart"
+                        visible: !Agents.busy
+                        text: "Start task"
+                        kind: "primary"
+                        enabled: taskInput.text.trim() !== "" && taskInput.text.length <= 4000
+                        onClicked: root.start()
+                    }
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    visible: root.notice !== "" || Agents.busy
+                    text: Agents.busy ? Agents.running + " is working." : root.notice
+                    textFormat: Text.PlainText
+                    font: Theme.type.callout
+                    color: Agents.busy ? Theme.textSecondary : Theme.danger
+                    wrapMode: Text.Wrap
+                }
+            }
+
+            // -- the answer ----------------------------------------------------------
+            Card {
+                visible: !Agents.busy && Agents.answer !== ""
+                Text {
+                    text: Agents.ok ? "Result" : ({cancelled: "Stopped", budget: "Budget reached", failed: "Couldn’t finish"})[Agents.stopped] || "Stopped"
+                    textFormat: Text.PlainText
+                    font: Theme.type.headline
+                    color: Agents.ok ? Theme.textPrimary : Theme.danger
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: root.lastRunName + (root.lastRunProject ? " · " + root.lastRunProject : "")
+                    textFormat: Text.PlainText
+                    font: Theme.type.caption
+                    color: Theme.textSecondary
+                    wrapMode: Text.Wrap
+                }
+                MessageBody {
+                    Layout.fillWidth: true
+                    content: Agents.answer
+                    isError: !Agents.ok
+                }
+            }
+
             // -- the line of members -------------------------------------------------
             Card {
                 objectName: "agentPipeline"
+                visible: root.showTeamDetails || Agents.busy
 
                 Item {
                     Layout.fillWidth: true
@@ -359,97 +456,14 @@ Item {
                 }
             }
 
-            // -- the task ------------------------------------------------------------
-            Card {
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 96
-                    radius: Theme.radius.sm
-                    color: Theme.inset
-                    border.width: 1
-                    border.color: taskInput.activeFocus ? Theme.accent : Theme.separator
-                    C.ScrollView {
-                        anchors.fill: parent
-                        anchors.margins: Theme.space.sm
-                        C.TextArea {
-                            id: taskInput
-                            objectName: "agentTask"
-                            placeholderText: root.isTeam ? "What should the team work on?"
-                                                         : "What should this agent do?"
-                            placeholderTextColor: Theme.textTertiary
-                            font: Theme.type.body
-                            color: Theme.textPrimary
-                            wrapMode: TextEdit.Wrap
-                            selectByMouse: true
-                            background: null
-                        }
-                    }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: Theme.space.sm
-                    ActionButton {
-                        text: root.folder === "" ? "Choose a folder…" : "Change folder…"
-                        onClicked: folderPicker.open()
-                    }
-                    Text {
-                        Layout.fillWidth: true
-                        text: root.folder === "" ? "No folder: they work where the task points them."
-                                                 : root.folder
-                        textFormat: Text.PlainText
-                        font: root.folder === "" ? Theme.type.caption : Theme.type.monoSmall
-                        color: Theme.textTertiary
-                        elide: Text.ElideMiddle
-                    }
-                    ActionButton {
-                        visible: Agents.busy
-                        text: "Stop"
-                        onClicked: Agents.stop()
-                    }
-                    ActionButton {
-                        objectName: "agentStart"
-                        visible: !Agents.busy
-                        text: "Start"
-                        kind: "primary"
-                        enabled: taskInput.text.trim() !== ""
-                        onClicked: root.start()
-                    }
-                }
-
-                Text {
-                    Layout.fillWidth: true
-                    visible: root.notice !== "" || Agents.busy
-                    text: Agents.busy ? Agents.running + " is working." : root.notice
-                    textFormat: Text.PlainText
-                    font: Theme.type.callout
-                    color: Agents.busy ? Theme.textSecondary : Theme.danger
-                    wrapMode: Text.Wrap
-                }
-            }
-
-            // -- the answer ----------------------------------------------------------
-            Card {
-                visible: !Agents.busy && Agents.answer !== ""
-                Text {
-                    text: Agents.ok ? "Answer" : "Stopped: " + Agents.stopped
-                    textFormat: Text.PlainText
-                    font: Theme.type.headline
-                    color: Agents.ok ? Theme.textPrimary : Theme.danger
-                }
-                MessageBody {
-                    Layout.fillWidth: true
-                    content: Agents.answer
-                    isError: !Agents.ok
-                }
-            }
-
             // -- the record ----------------------------------------------------------
             Card {
                 objectName: "agentRecord"
+                visible: AgentTrace.events.count > 0
                 RowLayout {
                     Layout.fillWidth: true
-                    SectionLabel { Layout.fillWidth: true; text: "What happened" }
+                    SectionLabel { Layout.fillWidth: true; text: "Activity · " + AgentTrace.events.count }
+                    ActionButton { text: root.showRecord ? "Hide" : "Show"; onClicked: root.showRecord = !root.showRecord }
                     ActionButton {
                         visible: AgentTrace.events.count > 0 && !Agents.busy
                         text: "Clear"
@@ -457,13 +471,13 @@ Item {
                     }
                 }
                 Text {
-                    visible: AgentTrace.events.count === 0
+                    visible: root.showRecord && AgentTrace.events.count === 0
                     text: "Nothing yet. Every step of a run appears here as it happens."
                     font: Theme.type.caption
                     color: Theme.textTertiary
                 }
                 Repeater {
-                    model: AgentTrace.events
+                    model: root.showRecord ? AgentTrace.events : null
                     RowLayout {
                         id: step
                         required property var model

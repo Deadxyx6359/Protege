@@ -33,6 +33,12 @@ Item {
         whole scene to fix one paragraph throws away the reason it is there. */
     property bool onScene: false
     property bool showGreeting: true
+    property string greetingTitle: "How can I help?"
+    property string greetingSubtitle: "Your conversations stay on this machine."
+    property string actionLabel: ""
+    signal primaryActionRequested()
+    property var sources: []
+    property string contextNote: ""
 
     readonly property int columnWidth: 720
     readonly property int count: model ? model.count : 0
@@ -77,16 +83,26 @@ Item {
 
         Text {
             Layout.alignment: Qt.AlignHCenter
-            text: "How can I help?"
+            text: root.greetingTitle
+            textFormat: Text.PlainText
             font: Theme.type.title1
             color: Theme.textPrimary
         }
 
         Text {
             Layout.alignment: Qt.AlignHCenter
-            text: "Your conversations stay on this machine."
+            text: root.greetingSubtitle
+            textFormat: Text.PlainText
             font: Theme.type.callout
             color: Theme.textSecondary
+        }
+        ActionButton {
+            objectName: "workspacePrimaryAction"
+            Layout.alignment: Qt.AlignHCenter
+            visible: !!root.actionLabel
+            text: root.actionLabel
+            enabled: !root.busy
+            onClicked: root.primaryActionRequested()
         }
     }
 
@@ -95,6 +111,7 @@ Item {
     ListView {
         id: list
         anchors.fill: parent
+        anchors.bottomMargin: contextSources.visible ? contextSources.height + Theme.space.sm * 2 : 0
         visible: root.count > 0
         clip: true
         spacing: Theme.space.xl
@@ -241,5 +258,18 @@ Item {
                 }
             }
         }
+    }
+
+    ContextSources {
+        id: contextSources
+        objectName: "contextSources"
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: Theme.space.sm
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: Math.min(root.columnWidth, root.width - Theme.space.xxl * 2)
+        height: implicitHeight
+        maximumHeight: Math.max(80, root.height * 0.35)
+        sources: root.count > 0 ? root.sources : []
+        note: root.count > 0 ? root.contextNote : ""
     }
 }

@@ -27,9 +27,15 @@ Item {
     property string currentNav: ""
     property string currentProject: ""
     property string currentRecent: ""
+    property bool newChatEnabled: true
     property alias searchText: search.text
     readonly property string query: searchText.trim().toLowerCase()
     readonly property bool searching: query.length > 0
+    readonly property var navGroups: {
+        var names = [];
+        navModel.forEach(function (d) { if (names.indexOf(d.group || "Workspaces") < 0) names.push(d.group || "Workspaces"); });
+        return names;
+    }
     readonly property var filteredProjects: searching ? projectModel.filter(function (p) {
         return String(p.name || "").toLowerCase().indexOf(root.query) !== -1;
     }) : projectModel
@@ -129,6 +135,7 @@ Item {
             Layout.rightMargin: Theme.space.sm
             Layout.preferredHeight: 36
             text: "New chat"
+            enabled: root.newChatEnabled
             icon: "plus"
             kind: "primary"
             onClicked: root.newChatRequested()
@@ -147,25 +154,33 @@ Item {
                 width: root.width
                 spacing: 0
 
-                SectionLabel {
-                    Layout.leftMargin: Theme.space.md
-                    Layout.bottomMargin: Theme.space.xs
-                    text: "Workspace"
-                    visible: !root.searching
-                }
-
                 Repeater {
-                    model: root.searching ? [] : root.navModel
-
-                    NavRow {
-                        required property var modelData
+                    model: root.searching ? [] : root.navGroups
+                    ColumnLayout {
+                        id: group
+                        required property string modelData
+                        required property int index
                         Layout.fillWidth: true
-                        Layout.leftMargin: Theme.space.sm
-                        Layout.rightMargin: Theme.space.sm
-                        icon: modelData.icon
-                        label: modelData.label
-                        selected: root.currentNav === modelData.id
-                        onClicked: root.navSelected(modelData.id)
+                        Layout.topMargin: index ? 18 : 0
+                        spacing: 0
+                        SectionLabel {
+                            Layout.leftMargin: Theme.space.md
+                            Layout.bottomMargin: Theme.space.xs
+                            text: group.modelData
+                        }
+                        Repeater {
+                            model: root.navModel.filter(function (d) { return (d.group || "Workspaces") === group.modelData; })
+                            NavRow {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                Layout.leftMargin: Theme.space.sm
+                                Layout.rightMargin: Theme.space.sm
+                                icon: modelData.icon
+                                label: modelData.label
+                                selected: root.currentNav === modelData.id
+                                onClicked: root.navSelected(modelData.id)
+                            }
+                        }
                     }
                 }
 
@@ -174,11 +189,11 @@ Item {
                     Layout.topMargin: Theme.space.lg
                     Layout.bottomMargin: Theme.space.xs
                     text: "Projects"
-                    visible: !root.searching || root.filteredProjects.length > 0
+                    visible: root.searching && root.filteredProjects.length > 0
                 }
 
                 Repeater {
-                    model: root.filteredProjects
+                    model: root.searching ? root.filteredProjects : []
 
                     NavRow {
                         required property var modelData
@@ -192,21 +207,11 @@ Item {
                     }
                 }
 
-                NavRow {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: Theme.space.sm
-                    Layout.rightMargin: Theme.space.sm
-                    icon: "plus"
-                    label: "New project"
-                    visible: !root.searching
-                    onClicked: root.newProjectRequested()
-                }
-
                 SectionLabel {
                     Layout.leftMargin: Theme.space.md
                     Layout.topMargin: Theme.space.lg
                     Layout.bottomMargin: Theme.space.xs
-                    text: "Recent"
+                    text: "All recent chats"
                     visible: root.filteredRecents.length > 0
                 }
 
@@ -252,48 +257,14 @@ Item {
             color: Theme.separator
         }
 
-        RowLayout {
+        NavRow {
             Layout.fillWidth: true
-            Layout.preferredHeight: 52
-            Layout.leftMargin: Theme.space.md
+            Layout.preferredHeight: 44
+            Layout.leftMargin: Theme.space.sm
             Layout.rightMargin: Theme.space.sm
-            spacing: Theme.space.sm
-
-            Rectangle {
-                Layout.preferredWidth: 26
-                Layout.preferredHeight: 26
-                radius: 13
-                color: Theme.accentSubtle
-
-                Icon {
-                    anchors.centerIn: parent
-                    name: "user"
-                    size: 15
-                    color: Theme.accent
-                }
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 0
-
-                Text {
-                    text: "Local"
-                    font: Theme.type.captionStrong
-                    color: Theme.textPrimary
-                }
-                Text {
-                    text: "On this machine"
-                    font: Theme.type.caption
-                    color: Theme.textTertiary
-                }
-            }
-
-            IconButton {
-                icon: "settings"
-                iconSize: 17
-                onClicked: root.settingsRequested()
-            }
+            icon: "settings"
+            label: "Settings & connections"
+            onClicked: root.settingsRequested()
         }
     }
 }

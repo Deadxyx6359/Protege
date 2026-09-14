@@ -252,6 +252,7 @@ Sheet {
             }
             Toggle {
                 objectName: "allowLocation"
+                label: "Allow location context"
                 checked: root.located
                 onToggled: function (value) {
                     root.setLocated(value);

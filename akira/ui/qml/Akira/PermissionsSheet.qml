@@ -243,6 +243,7 @@ Sheet {
 
             Toggle {
                 objectName: "grant:" + row.modelData.id
+                label: row.modelData.title
                 visible: !row.scoped
                 checked: row.held
                 onToggled: function (value) {

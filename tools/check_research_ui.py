@@ -7,6 +7,7 @@ Run separately from pytest, whose legacy suite owns a QCoreApplication.
 from __future__ import annotations
 
 import argparse
+import os
 from contextlib import contextmanager
 from pathlib import Path
 import sys
@@ -26,6 +27,7 @@ from akira.design import ThemeController
 from akira.models.base import GenerationResult
 from akira.ui.bridge import ChatBridge, SettingsBridge
 from akira.ui.engine import build_engine, configure_application, load
+from akira.ui.shell import build_context
 from preview_scenes import settle
 
 
@@ -61,6 +63,9 @@ def main():
     configure_application(app)
     with TemporaryDirectory(prefix="akira-research-ui-") as directory:
         temporary = Path(directory)
+        os.environ['AKIRA_CONFIG_DIR'] = str(temporary / 'config')
+        os.environ.pop('PROTEGE_CONFIG_DIR', None)
+        context = build_context(persist=False)
         placeholder = temporary / "scripted.gguf"
         placeholder.write_bytes(b"fixture-only")
         config = AppConfig(models={"chat": ModelConfig(path=str(placeholder))})
@@ -76,7 +81,9 @@ def main():
         chat = ChatBridge(router, config, store)
         settings = SettingsBridge(config, router)
         theme = ThemeController(mode="dark", reduce_motion=True)
-        engine, theme = build_engine(theme=theme, context={"Chat": chat, "Settings": settings})
+        exposed = context.as_context()
+        exposed.update(Chat=chat, Settings=settings)
+        engine, theme = build_engine(theme=theme, context=exposed)
         warnings = []
         engine.warnings.connect(lambda errors: warnings.extend(e.toString() for e in errors))
         window = load(engine, REPO / "akira/ui/qml/Main.qml")
@@ -100,14 +107,14 @@ def main():
                 assert window.grabWindow().save(str(args.out_dir / f"{name}.png"))
 
         sidebar = named("workspaceSidebar")
-        tabs = named("workspaceTabs")
+        header = named("workspaceHeader")
         composer = named("workspaceComposer")
         research = named("researchView")
         scene = named("workspaceScene")
         sidebar.navSelected.emit("research")
         settle(window)
         assert research.property("visible")
-        assert window.property("currentTab") == "research-1"
+        assert header.property("currentView") == "research"
         assert scene.property("view") == "research"
         assert composer.property("placeholder") == "What would you like to investigate?"
 
@@ -131,11 +138,11 @@ def main():
         draft = composer.property("text")
         assert draft.startswith("Notes to keep.\n\nHelp me explore")
         assert chat.messages.count == 0, "Starter sent a turn without a submit"
-        tabs.selected.emit("code-1")
+        header.viewSelected.emit("code")
         settle(window, 40)
         assert window.property("currentNav") == "code" and not research.property("visible")
         assert composer.property("text") == draft, "Switching workspace lost the draft"
-        tabs.selected.emit("research-1")
+        header.viewSelected.emit("research")
         settle(window, 40)
         assert window.property("currentNav") == "research"
 
@@ -172,11 +179,12 @@ def main():
         assert not scene.property("quiet")
         assert window.property("currentNav") == "research"
         assert not warnings, "\n".join(warnings)
-        print("PASS Research: sidebar/tabs, editable starters, preserved drafts, keyboard send,")
+        print("PASS Research: sidebar/header, editable starters, preserved drafts, keyboard send,")
         print("     streamed local reply, quiet scene, new inquiry saves previous work,")
         print("     dark/light at 1440x900 and 900x600; no QML warnings.")
         window.close()
         router.close()
+        context.close()
     return 0
 
 

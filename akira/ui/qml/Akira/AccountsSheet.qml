@@ -229,6 +229,7 @@ Sheet {
                     }
                 }
                 Toggle {
+                    label: offer.modelData.title
                     checked: root.has(offer.modelData.id)
                     onToggled: function (value) {
                         root.setChosen(offer.modelData.id, value);

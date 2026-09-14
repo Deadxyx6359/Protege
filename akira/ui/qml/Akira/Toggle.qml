@@ -10,7 +10,19 @@ Item {
     id: root
 
     property bool checked: false
+    property string label: "Toggle option"
     signal toggled(bool value)
+    activeFocusOnTab: enabled
+    Accessible.role: Accessible.CheckBox
+    Accessible.name: label
+    Accessible.checkable: true
+    Accessible.checked: checked
+    Accessible.onToggleAction: root.activate()
+    opacity: enabled ? 1 : 0.45
+    function activate() { if (enabled) root.toggled(!root.checked); }
+    Keys.onSpacePressed: root.activate()
+    Keys.onReturnPressed: root.activate()
+    Keys.onEnterPressed: root.activate()
 
     implicitWidth: 42
     implicitHeight: 24
@@ -44,11 +56,18 @@ Item {
         }
     }
 
+    Rectangle {
+        anchors.fill: parent
+        anchors.margins: -3
+        radius: height / 2
+        color: "transparent"
+        border.color: Theme.accent
+        border.width: 2
+        visible: root.activeFocus
+    }
+
     HoverHandler { cursorShape: Qt.PointingHandCursor }
     TapHandler {
-        onTapped: {
-            root.checked = !root.checked;
-            root.toggled(root.checked);
-        }
+        onTapped: root.activate()
     }
 }

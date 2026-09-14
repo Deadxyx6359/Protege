@@ -25,8 +25,22 @@ Window {
     // -- sample state -------------------------------------------------------
 
     property string currentNav: "chats"
-    readonly property string currentTab: ({ chats: "chat-1", code: "code-1", research: "research-1" })[currentNav] || ""
     property bool sidebarOpen: true
+    property string observedProject: ""
+    property var projectDrafts: ({})
+    property bool restoringConversation: false
+    property bool pendingProjectReset: false
+    Component.onCompleted: observedProject = Projects.currentId
+    readonly property var destinations: [
+        { id: "chats", icon: "chat", label: "Everyday", group: "Workspaces" },
+        { id: "code", icon: "code", label: "Code", group: "Workspaces" },
+        { id: "research", icon: "search", label: "Research", group: "Workspaces" },
+        { id: "documents", icon: "document", label: "Documents", group: "Library" },
+        { id: "memory", icon: "clock", label: "Memory", group: "Library" },
+        { id: "agents", icon: "team", label: "Agents", group: "Tools" },
+        { id: "watching", icon: "eye", label: "Watching", group: "Tools" },
+        { id: "schedule", icon: "calendar", label: "Schedule", group: "Tools" }
+    ]
     // Views that fill the page themselves: no transcript, no composer.
     readonly property bool fullPage: currentNav === "agents" || currentNav === "watching"
                                      || currentNav === "schedule" || currentNav === "memory"
@@ -35,6 +49,74 @@ Window {
     function selectWorkspace(id) {
         const views = { "chat-1": "chats", "code-1": "code", "research-1": "research" };
         currentNav = views[id] || id;
+    }
+
+    function selectProject(id) {
+        if (id === Projects.currentId) return;
+        if (Chat.busy || Agents.busy) {
+            banners.show("Work is still running", "Finish or stop the current work before switching projects.", false);
+            return;
+        }
+        const why = Projects.openProject(id);
+        if (why) banners.show("Project could not open", why, false);
+    }
+
+    function prepareTeam(name) {
+        const project = Projects.projects.find(function (p) { return p.current; });
+        const why = agentsPage.prepareTeam(name, composer.text, project ? project.folder : "");
+        if (why) banners.show("Task could not open", why, false);
+        else win.selectWorkspace("agents");
+    }
+
+    function finishProjectSwitch() {
+        pendingProjectReset = false;
+        Chat.newChat();
+        composer.text = projectDrafts[Projects.currentId] || "";
+    }
+
+    function projectChanged() {
+        const next = Projects.currentId;
+        if (next === observedProject) return;
+        const drafts = Object.assign({}, projectDrafts);
+        drafts[observedProject] = composer.text;
+        projectDrafts = drafts;
+        observedProject = next;
+        if (restoringConversation) return;
+        // UI project controls are disabled while work runs. If another caller
+        // switches anyway, wait for the old stream to unwind before resetting.
+        if (Chat.busy) { pendingProjectReset = true; Chat.stop(); }
+        else finishProjectSwitch();
+    }
+
+    function openRecent(id) {
+        if (Chat.busy || Agents.busy) {
+            banners.show("Work is still running", "Finish or stop the current work before opening another conversation.", false);
+            return;
+        }
+        restoringConversation = true;
+        Chat.openConversation(id);
+        if (Chat.conversationId !== id) {
+            restoringConversation = false;
+            banners.show("Conversation could not open", "The saved conversation is unavailable. Your current work is still here.", false);
+            return;
+        }
+        const saved = Chat.conversationProject;
+        const exists = !saved || Projects.projects.some(function (p) { return p.id === saved; });
+        const why = Projects.openProject(exists ? saved : "");
+        restoringConversation = false;
+        if (why) {
+            Chat.newChat(); // Do not leave a saved chat under another project's context.
+            banners.show("Project could not open", why, false);
+        }
+        else if (!exists) banners.show("Original project is unavailable", "This conversation will use personal workspace context for its next turn.", false);
+        if (win.fullPage) win.selectWorkspace("chats");
+        composer.text = "";
+    }
+
+    Connections { target: Projects; function onCurrentChanged() { win.projectChanged() } }
+    Connections {
+        target: Chat
+        function onBusyChanged() { if (!Chat.busy && win.pendingProjectReset) win.finishProjectSwitch(); }
     }
 
     // A project keeps its colour when another is removed: it comes from the id.
@@ -53,6 +135,7 @@ Window {
     // modal over is not a modal.
     SettingsSheet {
         id: settingsSheet
+        objectName: "settingsSheet"
         z: 10
         onPermissionsRequested: {
             settingsSheet.close();
@@ -84,6 +167,7 @@ Window {
         id: projectSheet
         objectName: "projectSheet"
         z: 11
+        canSwitch: !Chat.busy && !Agents.busy
     }
 
     AccountsSheet {
@@ -154,17 +238,9 @@ Window {
             currentNav: win.currentNav
             currentProject: Projects.currentId
             currentRecent: Chat.conversationId
+            newChatEnabled: !Chat.busy
 
-            navModel: [
-                { id: "chats", icon: "chat", label: "Everyday" },
-                { id: "code", icon: "code", label: "Code" },
-                { id: "research", icon: "search", label: "Research" },
-                { id: "agents", icon: "team", label: "Agents" },
-                { id: "watching", icon: "eye", label: "Watching" },
-                { id: "schedule", icon: "calendar", label: "Schedule" },
-                { id: "documents", icon: "document", label: "Documents" },
-                { id: "memory", icon: "clock", label: "Memory" }
-            ]
+            navModel: win.destinations
 
             projectModel: Projects.projects.map(function (p) {
                 return { id: p.id, name: p.name, color: win.projectColor(p.id) };
@@ -173,24 +249,16 @@ Window {
             recentModel: Chat.recents
 
             onNavSelected: function (id) { win.selectWorkspace(id) }
-            onRecentSelected: function (id) {
-                if (win.fullPage || win.currentNav === "documents")
-                    win.selectWorkspace("chats");
-                Chat.openConversation(id);
-            }
-            // Another project opens; the open one shows itself.
-            onProjectSelected: function (id) {
-                if (id === Projects.currentId)
-                    projectSheet.manage(id);
-                else
-                    Projects.openProject(id);
-            }
+            onRecentSelected: function (id) { win.openRecent(id) }
+            onProjectSelected: function (id) { win.selectProject(id) }
             onNewProjectRequested: projectSheet.openNew()
             onCollapseRequested: win.sidebarOpen = false
             onNewChatRequested: {
+                if (Chat.busy) return;
                 if (win.fullPage || win.currentNav === "documents")
                     win.selectWorkspace("chats");
                 Chat.newChat();
+                composer.text = "";
                 composer.focusInput();
             }
             onSettingsRequested: settingsSheet.open()
@@ -201,57 +269,25 @@ Window {
             Layout.fillHeight: true
             spacing: 0
 
-            // -- tabs -------------------------------------------------------
-
-            Item {
+            WorkspaceHeader {
+                objectName: "workspaceHeader"
+                z: 1
                 Layout.fillWidth: true
-                Layout.preferredHeight: 44
-
-                TabStrip {
-                    objectName: "workspaceTabs"
-                    allowNewTab: false // Fixed modes; no tab-creation flow exists yet.
-                    anchors.fill: parent
-                    currentId: win.currentTab
-                    model: [
-                        { id: "chat-1", title: "Everyday", icon: "chat", closable: false },
-                        { id: "code-1", title: "Code", icon: "code", closable: false },
-                        { id: "research-1", title: "Research", icon: "search", closable: false }
-                    ]
-                    onSelected: function (id) { win.selectWorkspace(id) }
-                }
-
-                RowLayout {
-                    anchors.right: parent.right
-                    anchors.rightMargin: Theme.space.sm
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: Theme.space.xxs
-
-                    IconButton {
-                        visible: !win.sidebarOpen
-                        icon: "sidebar"
-                        iconSize: 17
-                        onClicked: win.sidebarOpen = true
-                    }
-
-                    IconButton {
-                        objectName: "openPermissions"
-                        icon: "shield"
-                        iconSize: 17
-                        onClicked: permissionsSheet.open()
-                    }
-
-                    IconButton {
-                        icon: Theme.isDark ? "sun" : "moon"
-                        iconSize: 17
-                        onClicked: ThemeBridge.toggle()
-                    }
-
-                    IconButton {
-                        icon: "settings"
-                        iconSize: 17
-                        onClicked: settingsSheet.open()
-                    }
-                }
+                Layout.preferredHeight: implicitHeight
+                destinations: win.destinations
+                projects: Projects.projects
+                currentView: win.currentNav
+                currentProject: Projects.currentId
+                sidebarOpen: win.sidebarOpen
+                projectSwitchingEnabled: !Chat.busy && !Agents.busy
+                onViewSelected: function (id) { win.selectWorkspace(id) }
+                onProjectSelected: function (id) { win.selectProject(id) }
+                onNewProjectRequested: projectSheet.openNew()
+                onManageProjectRequested: projectSheet.manage(Projects.currentId)
+                onSidebarRequested: win.sidebarOpen = true
+                onPermissionsRequested: permissionsSheet.open()
+                onAppearanceRequested: ThemeBridge.toggle()
+                onSettingsRequested: settingsSheet.open()
             }
 
             // -- content ----------------------------------------------------
@@ -259,6 +295,7 @@ Window {
             Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                clip: true
 
                 // Behind everything: the world for whichever view this is.
                 // It retreats to nothing the moment there is text to read.
@@ -276,6 +313,7 @@ Window {
                 }
 
                 AgentsView {
+                    id: agentsPage
                     objectName: "agentsView"
                     anchors.fill: parent
                     visible: win.currentNav === "agents"
@@ -316,7 +354,13 @@ Window {
                     model: Chat.messages
                     busy: Chat.busy
                     busyStage: Chat.stage
+                    sources: Chat.lastSources
+                    contextNote: Chat.lastContextNote
                     onScene: win.currentNav === "chats" || win.currentNav === "code"
+                    greetingTitle: win.currentNav === "code" ? "Make something useful." : "How can I help?"
+                    greetingSubtitle: win.currentNav === "code" ? "Plan here. Build with the software team." : "Your conversations stay on this machine."
+                    actionLabel: win.currentNav === "code" ? "Work with the software team" : ""
+                    onPrimaryActionRequested: win.prepareTeam("software")
                 }
 
                 ResearchView {
@@ -329,6 +373,9 @@ Window {
                     model: Chat.messages
                     busy: Chat.busy
                     busyStage: Chat.stage
+                    sources: Chat.lastSources
+                    contextNote: Chat.lastContextNote
+                    onResearchTeamRequested: win.prepareTeam("research")
                     onPromptSelected: function (prompt) {
                         // A starter prepares an editable draft; it never sends.
                         composer.text = composer.hasText ? composer.text + "\n\n" + prompt : prompt;

@@ -76,7 +76,7 @@ QMetaObject.invokeMethod(hide, 'forceActiveFocus', Qt.DirectConnection)
 QTest.keyClick(root, Qt.Key_Space)
 out['sidebarOpen'] = root.property('sidebarOpen')
 out['attachments'] = root.findChild(QObject, 'workspaceComposer').property('attachmentsAvailable')
-out['newTab'] = root.findChild(QObject, 'workspaceTabs').property('allowNewTab')
+out['newTab'] = root.findChild(QObject, 'workspaceTabs') is not None
 
 # A long outgoing message must be reviewable at the minimum window size.
 root.setWidth(900)

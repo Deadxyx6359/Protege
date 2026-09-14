@@ -477,6 +477,7 @@ stage are new:
 |---|---|---|
 | `lastSources` | Property, notifies `sourcesChanged` | What the last turn drew on: `source` (`notes`, `documents` or `conversations`) and `cite`, where to find it. Empty when nothing was used |
 | `lastContextNote` | Property, notifies `sourcesChanged` | What the search found and what it could not search, in a sentence. Also carries the reason when looking failed |
+| `conversationProject` | Property, notifies `titleChanged` | Stored project ID of the loaded conversation; empty for personal/new unsent chats. QML uses it to restore the project when opening a recent chat |
 | `stage` | Existing property | Now also `Looking through your notes` before the model starts |
 
 - Before each turn, passages are gathered from the sources the person has
@@ -486,6 +487,12 @@ stage are new:
   conversation. A source that is not granted is not searched.
 - Show `lastSources` under the answer, as the citations the model was asked
   to give. A turn that used nothing shows nothing.
+- New chat, successful conversation open, and deletion of the open chat clear
+  both retrieval properties. Failed opens keep the current chat and its labels.
+- The shell now starts a fresh conversation on project switches, keeping unsent
+  drafts per project in memory. Opening a saved conversation restores its stored
+  project (or explains personal context if the original project is gone). UI
+  project switches are disabled while chat/agent work runs. No grant is added.
 - If gathering fails, the turn still answers without it, and
   `lastContextNote` says why.
 - **Message text is served for Markdown.** A picture in a reply arrives as a

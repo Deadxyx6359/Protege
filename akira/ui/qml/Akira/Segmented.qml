@@ -15,6 +15,13 @@ Item {
     property string current: ""
 
     signal selected(string id)
+    function pick(index) {
+        if (!root.enabled || !root.options.length) return;
+        const next = (index + root.options.length) % root.options.length;
+        root.selected(root.options[next].id);
+        segments.itemAt(next).forceActiveFocus();
+    }
+    opacity: enabled ? 1 : 0.45
 
     implicitWidth: 240
     implicitHeight: 30
@@ -55,6 +62,7 @@ Item {
         anchors.fill: parent
 
         Repeater {
+            id: segments
             model: root.options
 
             Item {
@@ -62,9 +70,39 @@ Item {
                 required property int index
                 width: root._slot
                 height: root.height
+                activeFocusOnTab: root.enabled && root._index === index
+                Accessible.role: Accessible.RadioButton
+                Accessible.name: modelData.label
+                Accessible.checkable: true
+                Accessible.checked: root._index === index
+                Accessible.onPressAction: root.pick(index)
+                Keys.onSpacePressed: root.pick(index)
+                Keys.onReturnPressed: root.pick(index)
+                Keys.onEnterPressed: root.pick(index)
+                Keys.onLeftPressed: root.pick(index - 1)
+                Keys.onRightPressed: root.pick(index + 1)
+                Keys.onPressed: function (event) {
+                    if (event.key === Qt.Key_Home || event.key === Qt.Key_End) {
+                        root.pick(event.key === Qt.Key_Home ? 0 : root.options.length - 1);
+                        event.accepted = true;
+                    }
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    radius: Theme.radius.sm
+                    color: "transparent"
+                    border.color: Theme.accent
+                    border.width: 2
+                    visible: parent.activeFocus
+                }
 
                 Text {
                     anchors.centerIn: parent
+                    width: parent.width - 12
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
                     text: parent.modelData.label
                     textFormat: Text.PlainText
                     font: root._index === parent.index ? Theme.type.captionStrong
@@ -78,7 +116,7 @@ Item {
                 }
 
                 HoverHandler { cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.selected(parent.modelData.id) }
+                TapHandler { onTapped: root.pick(parent.index) }
             }
         }
     }

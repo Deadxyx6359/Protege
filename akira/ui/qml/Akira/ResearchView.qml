@@ -9,6 +9,8 @@ Item {
     property var model: null
     property bool busy: false
     property string busyStage: "Thinking"
+    property var sources: []
+    property string contextNote: ""
     readonly property int count: model ? model.count : 0
     readonly property var starters: [
         { label: "Explore a topic", icon: "search",
@@ -21,6 +23,7 @@ Item {
 
     signal promptSelected(string prompt)
     signal newInquiryRequested()
+    signal researchTeamRequested()
 
     // Also useful to keyboard-driven callers; only prepares a draft.
     function chooseStarter(index) {
@@ -42,10 +45,15 @@ Item {
         Text { text: "Research"; font: Theme.type.bodyStrong; color: Theme.textPrimary }
         Text {
             Layout.fillWidth: true
-            text: "Local conversation · Web research is in Agents"
+            text: "Local conversation"
             font: Theme.type.caption
             color: Theme.textTertiary
             elide: Text.ElideRight
+        }
+        ActionButton {
+            text: "Research team"
+            enabled: !root.busy
+            onClicked: root.researchTeamRequested()
         }
         C.AbstractButton {
             id: fresh
@@ -79,6 +87,8 @@ Item {
         model: root.model
         busy: root.busy
         busyStage: root.busyStage
+        sources: root.sources
+        contextNote: root.contextNote
         showGreeting: false
     }
 
@@ -87,7 +97,7 @@ Item {
     Squircle {
         id: welcome
         anchors.centerIn: parent
-        anchors.verticalCenterOffset: parent.height > 560 ? -72 : -40
+        anchors.verticalCenterOffset: parent.height > 560 ? -72 : -20
         width: Math.min(410, parent.width - 48)
         height: content.implicitHeight + 32
         radius: Theme.radius.lg
@@ -163,10 +173,17 @@ Item {
                     }
                 }
             }
+            ActionButton {
+                objectName: "prepareResearchTeam"
+                Layout.fillWidth: true
+                text: "Research with a team"
+                enabled: !root.busy
+                onClicked: root.researchTeamRequested()
+            }
             Text {
                 Layout.fillWidth: true
                 Layout.topMargin: 2
-                text: "Your current conversation, using your local model.\nFor web research, choose the Research team in Agents."
+                text: "Explore in local chat, or prepare a research task.\nYour permissions decide which sources the team can reach."
                 font: Theme.type.caption
                 color: Theme.textTertiary
                 horizontalAlignment: Text.AlignHCenter

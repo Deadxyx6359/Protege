@@ -211,6 +211,11 @@ class ChatBridge(QObject):
     def conversationId(self) -> str:
         return self._conversation.id
 
+    @Property(str, notify=titleChanged)
+    def conversationProject(self) -> str:
+        """The project this conversation was filed under, empty for personal."""
+        return self._conversation.project
+
     @Property("QVariantList", notify=sourcesChanged)
     def lastSources(self) -> list:
         """What the last turn drew on: `source` (`notes`, `documents` or
@@ -242,6 +247,7 @@ class ChatBridge(QObject):
             return
 
         self._model.reset(self._conversation.messages)
+        self._set_sources([], "")
         self.titleChanged.emit()
         self._refresh_recents()
 
@@ -251,6 +257,7 @@ class ChatBridge(QObject):
         if conversation_id == self._conversation.id:
             self._conversation = Conversation()
             self._model.reset(self._conversation.messages)
+            self._set_sources([], "")
             self.titleChanged.emit()
         self._refresh_recents()
 
@@ -320,6 +327,7 @@ class ChatBridge(QObject):
         self._persist()
         self._conversation = Conversation()
         self._model.reset(self._conversation.messages)
+        self._set_sources([], "")
         self.titleChanged.emit()
         self._refresh_recents()
 

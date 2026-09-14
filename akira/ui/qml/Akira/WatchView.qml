@@ -574,6 +574,7 @@ Item {
                         }
                     }
                     Toggle {
+                        label: "Notify me"
                         checked: root.tell
                         onToggled: function (value) {
                             root.tell = value;

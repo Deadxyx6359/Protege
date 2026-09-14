@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls as C
+import QtQuick.Window
 import QtQuick.Layouts
 
 /*!
@@ -25,6 +26,7 @@ Item {
     /*! Waiting questions, oldest first: { token, summary }. */
     property var queue: []
     readonly property var current: queue.length > 0 ? queue[0] : null
+    property var returnFocus: null
 
     function _drop(token) {
         queue = queue.filter(function (request) { return request.token !== token; });
@@ -39,8 +41,13 @@ Item {
     }
 
     onCurrentChanged: if (current) {
+        if (!returnFocus && root.Window.window) returnFocus = root.Window.window.activeFocusItem;
         summaryScroll.contentItem.contentY = 0;
         refuse.forceActiveFocus();
+    } else if (returnFocus) {
+        const target = returnFocus;
+        returnFocus = null;
+        if (target.visible && target.enabled) target.forceActiveFocus();
     }
 
     Connections {

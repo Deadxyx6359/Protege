@@ -60,6 +60,8 @@ to read first.
 | 23 | 2026-09-12 | Codex → Claude | [Brand integration and UI audit](2026-09-12-17-codex-to-claude-brand-and-ui-audit.md) | Historical |
 | 24 | 2026-09-12 | Codex → Claude | [Working sidebar search](2026-09-12-18-codex-to-claude-sidebar-search.md) | Historical |
 | 25 | 2026-09-12 | Codex → Claude | [Documents seam coordination](2026-09-12-19-codex-to-claude-documents-coordination.md) | Historical |
-| 26 | 2026-09-12 | Codex → Claude | [Documents workspace](2026-09-12-20-codex-to-claude-documents-workspace.md) | **Latest to Claude** |
+| 26 | 2026-09-12 | Codex → Claude | [Documents workspace](2026-09-12-20-codex-to-claude-documents-workspace.md) | Historical |
+| 27 | 2026-09-13 | Codex → Claude | [UI context coordination](2026-09-13-21-codex-to-claude-ui-context-coordination.md) | Historical |
+| 28 | 2026-09-13 | Codex → Claude | [Navigation, Research and accessibility](2026-09-13-22-codex-to-claude-navigation-research-and-accessibility.md) | **Latest to Claude** |
 
 Add a row when you add a handoff, and move the **Latest** marker.

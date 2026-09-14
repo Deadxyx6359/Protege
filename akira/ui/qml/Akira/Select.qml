@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls as C
+import QtQuick.Layouts
 
 /*!
     A dropdown, restyled from Quick Controls' Basic ComboBox.
@@ -15,11 +16,13 @@ Item {
     property var options: []
     property string current: ""
     property string placeholder: "Not set"
+    property string label: ""
 
     signal picked(string value)
 
     implicitWidth: 260
     implicitHeight: 32
+    opacity: enabled ? 1 : 0.45
 
     readonly property int _index: {
         for (var i = 0; i < options.length; i++)
@@ -36,6 +39,7 @@ Item {
         valueRole: "value"
         currentIndex: root._index
         font: Theme.type.callout
+        Accessible.name: root.label || root.placeholder
 
         onActivated: function (index) {
             root.picked(root.options[index].value);
@@ -100,6 +104,7 @@ Item {
 
             width: box.width - 8
             height: 32
+            Accessible.name: option.modelData.label
 
             background: Rectangle {
                 radius: Theme.radius.xs
@@ -107,12 +112,11 @@ Item {
                                                              : "transparent"
             }
 
-            contentItem: Row {
+            contentItem: RowLayout {
                 spacing: Theme.space.sm
 
                 Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: Math.min(implicitWidth, box.width - 110)
+                    Layout.fillWidth: true
                     text: option.modelData.label
                     textFormat: Text.PlainText
                     font: Theme.type.callout
@@ -120,12 +124,13 @@ Item {
                     elide: Text.ElideRight
                 }
                 Text {
-                    anchors.verticalCenter: parent.verticalCenter
+                    Layout.maximumWidth: Math.min(100, box.width * 0.33)
                     visible: text !== ""
                     text: option.modelData.detail || ""
                     textFormat: Text.PlainText
                     font: Theme.type.caption
                     color: Theme.textTertiary
+                    elide: Text.ElideRight
                 }
             }
         }

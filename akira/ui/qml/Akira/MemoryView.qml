@@ -265,6 +265,7 @@ Item {
                     }
                     Toggle {
                         objectName: "allowRemembering"
+                        label: "Remember conversations"
                         checked: root.remembers
                         onToggled: function (value) {
                             root.setRemembering(value);

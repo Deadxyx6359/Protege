@@ -202,6 +202,8 @@ Sheet {
             }
 
             Toggle {
+                objectName: "reduceMotionToggle"
+                label: "Reduce motion"
                 checked: ThemeBridge.reduceMotion
                 onToggled: function (value) { ThemeBridge.reduceMotion = value }
             }

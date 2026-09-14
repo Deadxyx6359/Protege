@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls as C
+import QtQuick.Window
 
 /*!
     A modal panel over the window.
@@ -31,6 +32,30 @@ Item {
     default property alias content: body.data
 
     property bool _open: false
+    property var returnFocus: null
+    readonly property bool ownsFocus: containsFocus(root.Window.window ? root.Window.window.activeFocusItem : null)
+
+    function containsFocus(item) {
+        while (item) {
+            if (item === panel) return true;
+            item = item.parent;
+        }
+        return false;
+    }
+
+    function moveFocus(forward) {
+        var item = root.Window.window.activeFocusItem || closeControl;
+        const start = item;
+        for (var i = 0; i < 1000; i++) {
+            item = item.nextItemInFocusChain(forward);
+            if (!item || item === start) break;
+            if (root.containsFocus(item) && item.visible && item.enabled && item.activeFocusOnTab) {
+                item.forceActiveFocus();
+                return;
+            }
+        }
+        closeControl.forceActiveFocus();
+    }
 
     anchors.fill: parent
     visible: opacity > 0
@@ -42,8 +67,20 @@ Item {
         NumberAnimation { duration: Theme.duration.fast }
     }
 
-    function open() { root._open = true; panel.forceActiveFocus(); }
-    function close() { root._open = false; }
+    function open() {
+        if (!root._open) root.returnFocus = root.Window.window ? root.Window.window.activeFocusItem : null;
+        root._open = true;
+        closeControl.forceActiveFocus();
+    }
+    function close() {
+        root._open = false;
+        const target = root.returnFocus;
+        root.returnFocus = null;
+        if (target && target.visible && target.enabled) target.forceActiveFocus();
+    }
+
+    Shortcut { sequence: "Tab"; enabled: root._open && root.ownsFocus; onActivated: root.moveFocus(true) }
+    Shortcut { sequence: "Shift+Tab"; enabled: root._open && root.ownsFocus; onActivated: root.moveFocus(false) }
 
     // -- scrim --------------------------------------------------------------
 
@@ -54,6 +91,7 @@ Item {
         // Swallows every click that misses the panel, both to dismiss and to
         // stop presses landing on the window underneath.
         TapHandler { onTapped: root.close() }
+        WheelHandler {}
     }
 
     // -- panel --------------------------------------------------------------
@@ -102,16 +140,22 @@ Item {
             Column {
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.space.xl
+                anchors.right: closeControl.left
+                anchors.rightMargin: Theme.space.md
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 2
 
                 Text {
+                    width: parent.width
+                    elide: Text.ElideRight
                     text: root.title
                     textFormat: Text.PlainText
                     font: Theme.type.title3
                     color: Theme.textPrimary
                 }
                 Text {
+                    width: parent.width
+                    elide: Text.ElideRight
                     visible: root.subtitle !== ""
                     text: root.subtitle
                     textFormat: Text.PlainText
@@ -121,10 +165,13 @@ Item {
             }
 
             IconButton {
+                id: closeControl
+                objectName: "sheetClose"
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.space.md
                 anchors.verticalCenter: parent.verticalCenter
                 icon: "close"
+                label: "Close " + root.title
                 iconSize: 16
                 onClicked: root.close()
             }
