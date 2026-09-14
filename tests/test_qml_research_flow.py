@@ -103,7 +103,7 @@ agents.setProperty('showTeamDetails', False)
 win.setProperty('currentNav', 'code')
 composer.setProperty('text', 'Build a local expedition notebook.')
 capture('code-team-entry')
-press(win.findChild(QObject, 'workspacePrimaryAction'))
+press(win.findChild(QObject, 'codeView').findChild(QObject, 'workspacePrimaryAction'))
 assert agents.property('chosen') == 'team:software'
 assert agents.property('taskDraft') == 'Build a local expedition notebook.'
 assert not ctx.agents.busy

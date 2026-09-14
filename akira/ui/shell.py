@@ -37,6 +37,7 @@ from akira.ui.bridge import (
     AccountsBridge,
     AgentsBridge,
     ChatBridge,
+    CodingBridge,
     ConfirmBridge,
     DocumentsBridge,
     GraphBridge,
@@ -82,6 +83,7 @@ class AppContext:
     place: PlaceBridge | None = None
     accounts: AccountsBridge | None = None
     documents: DocumentsBridge | None = None
+    coding: CodingBridge | None = None
     scheduler: Scheduler | None = None
     service: SchedulerService | None = None
     monitor_service: MonitorService | None = None
@@ -99,7 +101,8 @@ class AppContext:
                           ("Agents", self.agents), ("Memory", self.memory),
                           ("Projects", self.projects), ("Graph", self.graph),
                           ("Monitor", self.monitor), ("Place", self.place),
-                          ("Accounts", self.accounts), ("Documents", self.documents)):
+                          ("Accounts", self.accounts), ("Documents", self.documents),
+                          ("Coding", self.coding)):
             if obj is not None:
                 exposed[name] = obj
         return exposed
@@ -127,6 +130,8 @@ class AppContext:
     def close(self) -> None:
         if self.documents is not None:
             self.documents.close()
+        if self.coding is not None:
+            self.coding.close()
         # A worker blocked waiting for a confirmation would otherwise hold the
         # scheduler thread past shutdown, so it is woken with a refusal first.
         if self.agents is not None:
@@ -203,6 +208,11 @@ def build_context(*, persist: bool = True) -> AppContext:
     projects.grantsChanged.connect(documents.invalidate)
     projects.currentChanged.connect(documents.invalidate)
 
+    coding = CodingBridge(policy=working_policy, audit=audit, secrets=secret_store)
+    permissions.grantsChanged.connect(coding.invalidate)
+    projects.grantsChanged.connect(coding.invalidate)
+    projects.currentChanged.connect(coding.invalidate)
+
     # The weather is read in the background, like a scheduled job, so under the
     # global grants: location.read, and net.http for its site.
     place_store = PlaceStore()
@@ -278,6 +288,7 @@ def build_context(*, persist: bool = True) -> AppContext:
         place=place,
         accounts=accounts,
         documents=documents,
+        coding=coding,
         housekeeping=sweep_indexes,
     )
 

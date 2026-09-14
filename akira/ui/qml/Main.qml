@@ -36,11 +36,12 @@ Window {
         { id: "code", icon: "code", label: "Code", group: "Workspaces" },
         { id: "research", icon: "search", label: "Research", group: "Workspaces" },
         { id: "documents", icon: "document", label: "Documents", group: "Library" },
-        { id: "memory", icon: "clock", label: "Memory", group: "Library" },
+        { id: "memory", icon: "clock", label: "Memory", group: "Library", countLabel: "pending note" },
         { id: "agents", icon: "team", label: "Agents", group: "Tools" },
-        { id: "watching", icon: "eye", label: "Watching", group: "Tools" },
-        { id: "schedule", icon: "calendar", label: "Schedule", group: "Tools" }
+        { id: "watching", icon: "eye", label: "Watching", group: "Tools", countLabel: "saved notice" },
+        { id: "schedule", icon: "calendar", label: "Schedule", group: "Tools", countLabel: "critical finding" }
     ]
+    readonly property var navCounts: ({memory: Memory.pendingCount, watching: Monitor.notices.length, schedule: Schedule.criticalCount})
     // Views that fill the page themselves: no transcript, no composer.
     readonly property bool fullPage: currentNav === "agents" || currentNav === "watching"
                                      || currentNav === "schedule" || currentNav === "memory"
@@ -176,6 +177,13 @@ Window {
         z: 11
     }
 
+    CodeReviewSheet {
+        id: codeReview
+        objectName: "codeReviewSheet"
+        z: 10
+        onPermissionsRequested: { codeReview.close(); permissionsSheet.open(); }
+    }
+
     // Above everything, sheets included: an irreversible action waits on it.
     ConfirmDialog {
         objectName: "confirmDialog"
@@ -199,7 +207,7 @@ Window {
 
     Connections {
         target: Monitor
-        function onNoticed(title, text) { banners.show(title, text, false) }
+        function onNoticed(title, text) { banners.show(title, text, false, "notices") }
     }
 
     Connections {
@@ -241,6 +249,7 @@ Window {
             newChatEnabled: !Chat.busy
 
             navModel: win.destinations
+            navCounts: win.navCounts
 
             projectModel: Projects.projects.map(function (p) {
                 return { id: p.id, name: p.name, color: win.projectColor(p.id) };
@@ -275,6 +284,7 @@ Window {
                 Layout.fillWidth: true
                 Layout.preferredHeight: implicitHeight
                 destinations: win.destinations
+                counts: win.navCounts
                 projects: Projects.projects
                 currentView: win.currentNav
                 currentProject: Projects.currentId
@@ -346,7 +356,7 @@ Window {
                 }
 
                 ChatView {
-                    visible: win.currentNav !== "research" && !win.fullPage
+                    visible: win.currentNav === "chats"
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
@@ -357,10 +367,26 @@ Window {
                     sources: Chat.lastSources
                     contextNote: Chat.lastContextNote
                     onScene: win.currentNav === "chats" || win.currentNav === "code"
-                    greetingTitle: win.currentNav === "code" ? "Make something useful." : "How can I help?"
-                    greetingSubtitle: win.currentNav === "code" ? "Plan here. Build with the software team." : "Your conversations stay on this machine."
-                    actionLabel: win.currentNav === "code" ? "Work with the software team" : ""
-                    onPrimaryActionRequested: win.prepareTeam("software")
+                }
+
+                CodeView {
+                    objectName: "codeView"
+                    visible: win.currentNav === "code"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: composer.top
+                    model: Chat.messages
+                    busy: Chat.busy
+                    busyStage: Chat.stage
+                    sources: Chat.lastSources
+                    contextNote: Chat.lastContextNote
+                    onTeamRequested: win.prepareTeam("software")
+                    onReviewRequested: codeReview.present()
+                    onProjectRequested: {
+                        if (Projects.currentId) projectSheet.manage(Projects.currentId);
+                        else projectSheet.openNew();
+                    }
                 }
 
                 ResearchView {
@@ -397,7 +423,8 @@ Window {
                     width: Math.min(720, parent.width - Theme.space.xxl * 2)
 
                     busy: Chat.busy
-                    placeholder: win.currentNav === "research" ? "What would you like to investigate?" : "Ask anything"
+                    placeholder: win.currentNav === "research" ? "What would you like to investigate?"
+                               : win.currentNav === "code" ? "Describe what you want to build or change" : "Ask anything"
                     footnote: Chat.routeLabel
 
                     onSubmitted: function (text) { Chat.send(text) }

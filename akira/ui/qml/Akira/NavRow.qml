@@ -27,6 +27,8 @@ Item {
 
     /*! Trailing text: a count, a shortcut, a timestamp. */
     property string detail: ""
+    property string detailDescription: ""
+    property color detailColor: Theme.textTertiary
 
     /*! Indents the row. Used for children of a project. */
     property int depth: 0
@@ -39,7 +41,7 @@ Item {
     implicitHeight: 34
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
-    Accessible.name: root.label
+    Accessible.name: root.label + (root.detail ? ", " + (root.detailDescription || root.detail) : "")
     Accessible.selected: root.selected
     Accessible.onPressAction: root.clicked()
     Keys.onReturnPressed: root.clicked()
@@ -116,7 +118,7 @@ Item {
             text: root.detail
             textFormat: Text.PlainText
             font: Theme.type.caption
-            color: Theme.textTertiary
+            color: root.detailColor
         }
     }
 

@@ -45,6 +45,7 @@ for modifiers in [Qt.NoModifier, Qt.ShiftModifier]:
         seen.add(id(win.activeFocusItem()))
 assert len(seen) >= 5, 'Focus did not move among form controls'
 
+sheet.setProperty('section', 'appearance'); QTest.qWait(30)
 toggle = win.findChild(QObject, 'reduceMotionToggle')
 QMetaObject.invokeMethod(toggle, 'forceActiveFocus', Qt.DirectConnection)
 QTest.keyClick(win, Qt.Key_Space)
@@ -52,7 +53,7 @@ assert not ctx.theme.reduceMotion and not toggle.property('checked')
 ctx.theme.reduceMotion = True
 assert toggle.property('checked'), 'Keyboard activation broke the model binding'
 
-segment = next(o for o in sheet.findChildren(QObject) if o.metaObject().className().startswith('Segmented_'))
+segment = sheet.findChild(QObject, 'appearanceModes')
 choices = segment.property('options').toVariant()
 selected = segment.property('_index')
 control = next(i for i in walk(segment) if i.property('index') == selected)

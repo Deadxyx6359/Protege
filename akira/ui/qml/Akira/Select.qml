@@ -11,6 +11,7 @@ import QtQuick.Layouts
 */
 Item {
     id: root
+    property int minimumPopupWidth: 0
 
     /*! [{ value, label, detail }] */
     property var options: []
@@ -75,7 +76,7 @@ Item {
 
         popup: C.Popup {
             y: box.height + Theme.space.xxs
-            width: box.width
+            width: Math.max(box.width, root.minimumPopupWidth)
             implicitHeight: Math.min(contentItem.implicitHeight + 8, 280)
             padding: 4
 
@@ -102,9 +103,9 @@ Item {
             required property var modelData
             required property int index
 
-            width: box.width - 8
+            width: box.popup.width - 8
             height: 32
-            Accessible.name: option.modelData.label
+            Accessible.name: option.modelData.label + (option.modelData.detail ? ", " + option.modelData.detail : "")
 
             background: Rectangle {
                 radius: Theme.radius.xs
@@ -124,7 +125,7 @@ Item {
                     elide: Text.ElideRight
                 }
                 Text {
-                    Layout.maximumWidth: Math.min(100, box.width * 0.33)
+                    Layout.maximumWidth: Math.min(150, box.popup.width * 0.46)
                     visible: text !== ""
                     text: option.modelData.detail || ""
                     textFormat: Text.PlainText

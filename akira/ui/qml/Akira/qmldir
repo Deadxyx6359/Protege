@@ -16,6 +16,9 @@ TabStrip 1.0 TabStrip.qml
 Composer 1.0 Composer.qml
 ChatView 1.0 ChatView.qml
 ContextSources 1.0 ContextSources.qml
+CodeView 1.0 CodeView.qml
+CodeReviewSheet 1.0 CodeReviewSheet.qml
+FormRow 1.0 FormRow.qml
 ResearchView 1.0 ResearchView.qml
 CodeBlock 1.0 CodeBlock.qml
 MessageBody 1.0 MessageBody.qml

@@ -6,6 +6,7 @@ import QtQuick.Layouts
 Rectangle {
     id: root
     property var destinations: []
+    property var counts: ({})
     property var projects: []
     property string currentView: "chats"
     property string currentProject: ""
@@ -56,8 +57,12 @@ Rectangle {
                 Layout.preferredWidth: 156
                 visible: !root.sidebarOpen
                 label: "Workspace"
+                minimumPopupWidth: 290
                 current: root.currentView
-                options: root.destinations.map(function (d) { return {value: d.id, label: d.label}; })
+                options: root.destinations.map(function (d) {
+                    const count = root.counts[d.id] || 0;
+                    return {value: d.id, label: d.label, detail: count ? count + " " + (d.countLabel || "item") + (count === 1 ? "" : "s") : ""};
+                })
                 onPicked: function (value) { root.viewSelected(value) }
             }
             Text {

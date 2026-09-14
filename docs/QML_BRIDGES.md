@@ -542,6 +542,52 @@ the existing backend. It uses the current project's effective policy.
   existing permission sheet for changes. No document edit, external app launch,
   upload, model call or automatic scan is performed by this workspace.
 
+## Coding
+
+Implemented by Codex after coordination handoff 23 (2026-09-13). A presentation
+adapter for the Code workspace, using the current project's effective policy.
+It registers only the existing `git_status`, `git_diff`, `git_log` and
+`open_in_editor` tools; the registry still authorizes and audits each invocation.
+
+- Properties, all notified by `changed`: `busy`, `operation` (`review`,
+  `editor`, or empty), `folder`, `status`, `preview`, `mode`, `changes`,
+  `checked`, `error`, `notice`.
+- `inspect(folderOrLocalUrl, mode)` accepts `working`, `staged`, `history`.
+  It obtains Git status and then the corresponding patch or last 12 commits.
+  Requires `vcs.read` over the repository root. Core tools reject a child
+  folder whose Git scope would extend beyond the allowed directory. Git's
+  existing timeout, output limits, hook restrictions and local-only environment
+  remain in effect. This adapter never adds Git command arguments of its own.
+- `status` and `preview` are complete tool responses, displayed as selectable
+  plain text. No paths, links, navigation or write actions are derived from
+  them. `changes` is the status tool's entry count, not a recursive file count;
+  untracked directories may be grouped, and untracked content is not a patch.
+  `checked` is the local completion time for this snapshot, not a live monitor.
+- `openEditor(folderOrLocalUrl)` invokes `open_in_editor` under `files.read`
+  after an explicit click. The QML target is the active project's stored
+  folder. Editor launch is independent of Git permission. Missing VS Code or
+  denied access is shown verbatim. No editor process is launched on navigation.
+- Requests use one serial daemon worker and one replaceable pending request.
+  `cancel()` discards pending publication; `invalidate()` also clears displayed
+  data. The shell invalidates on global/project grant and project changes; a
+  one-second timer also detects expiry. Tools consult a live policy and results
+  are checked again on arrival. A process already launched cannot be unlaunched
+  by cancelling a later UI request. `AppContext.close()` stops this adapter.
+- Local-path validation is shared with Documents. No UNC, remote URL or linked
+  path is accepted. No new grant, staging, commit, push, code execution, model
+  run or repository mutation is introduced by the review panel.
+
+UI notes: Code still shares Chat's conversation/composer and prepares an
+editable software-team task in Agents. Settings now groups General, Appearance
+and Models; model assignment uses original paths, with display-only name cleanup
+and exact paths in File details. Model selectors are disabled during Chat/Agents
+work. These are UI safeguards, not changes to the router or agent engine.
+
+Navigation counts use existing `Memory.pendingCount`, `Monitor.notices.length`
+and `Schedule.criticalCount`. These mean pending notes, saved notices and the
+latest review's critical findings. They are not unread counts. Clearing a notice
+or resolving a proposal updates the UI through the existing bridge signals.
+
 ## Not reachable yet
 
 - **Tools in the conversation.** `Chat` does not call tools on the model's

@@ -62,6 +62,8 @@ to read first.
 | 25 | 2026-09-12 | Codex → Claude | [Documents seam coordination](2026-09-12-19-codex-to-claude-documents-coordination.md) | Historical |
 | 26 | 2026-09-12 | Codex → Claude | [Documents workspace](2026-09-12-20-codex-to-claude-documents-workspace.md) | Historical |
 | 27 | 2026-09-13 | Codex → Claude | [UI context coordination](2026-09-13-21-codex-to-claude-ui-context-coordination.md) | Historical |
-| 28 | 2026-09-13 | Codex → Claude | [Navigation, Research and accessibility](2026-09-13-22-codex-to-claude-navigation-research-and-accessibility.md) | **Latest to Claude** |
+| 28 | 2026-09-13 | Codex → Claude | [Navigation, Research and accessibility](2026-09-13-22-codex-to-claude-navigation-research-and-accessibility.md) | Historical |
+| 29 | 2026-09-13 | Codex → Claude | [Code review coordination](2026-09-13-23-codex-to-claude-code-review-coordination.md) | Historical |
+| 30 | 2026-09-13 | Codex → Claude | [Code workspace, Settings and navigation feedback](2026-09-13-24-codex-to-claude-code-workspace-settings-and-navigation.md) | **Latest to Claude** |
 
 Add a row when you add a handoff, and move the **Latest** marker.

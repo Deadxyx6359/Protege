@@ -16,6 +16,7 @@ import QtQuick.Layouts
 */
 Item {
     id: root
+    property var navCounts: ({})
 
     /*! [{ id, icon, label }] — the fixed destinations. */
     property var navModel: []
@@ -172,11 +173,16 @@ Item {
                             model: root.navModel.filter(function (d) { return (d.group || "Workspaces") === group.modelData; })
                             NavRow {
                                 required property var modelData
+                                readonly property int count: root.navCounts[modelData.id] || 0
+                                objectName: "nav_" + modelData.id
                                 Layout.fillWidth: true
                                 Layout.leftMargin: Theme.space.sm
                                 Layout.rightMargin: Theme.space.sm
                                 icon: modelData.icon
                                 label: modelData.label
+                                detail: count > 0 ? (count > 99 ? "99+" : String(count)) : ""
+                                detailDescription: count + " " + (modelData.countLabel || "item") + (count === 1 ? "" : "s")
+                                detailColor: modelData.id === "schedule" ? Theme.danger : Theme.textSecondary
                                 selected: root.currentNav === modelData.id
                                 onClicked: root.navSelected(modelData.id)
                             }

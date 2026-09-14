@@ -1,342 +1,240 @@
 import QtQuick
 import QtQuick.Layouts
+import "modelnames.js" as ModelNames
 
-/*!
-    Settings.
-
-    Two sections, because there are currently two things worth deciding: how it
-    looks, and what runs. Everything else the application does is either not a
-    choice or belongs where it is used.
-*/
 Sheet {
     id: root
-
     title: "Settings"
-    subtitle: "Permissions, appearance and models"
-    sheetWidth: 680
-
-    /*! The person wants to review what Akira may do. */
+    subtitle: "Make Akira yours"
+    sheetWidth: 700
+    property string section: "general"
+    property bool modelDetails: false
+    readonly property int availableRoutes: Settings.routes.filter(function (r) { return r.usable; }).length
     signal permissionsRequested()
-
-    /*! The person wants to say where they are. */
     signal placeRequested()
-
-    /*! The person wants to connect or manage a Google address. */
     signal accountsRequested()
-
-    // -- permissions --------------------------------------------------------
-
-    ColumnLayout {
-        width: parent.width
-        spacing: Theme.space.md
-
-        SectionLabel { text: "Permissions" }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Theme.space.md
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 1
-                Text {
-                    text: "What Akira may do"
-                    font: Theme.type.body
-                    color: Theme.textPrimary
-                }
-                Text {
-                    Layout.fillWidth: true
-                    text: "Nothing is allowed until you allow it: folders, sites, accounts, and a record of what was done with them."
-                    font: Theme.type.caption
-                    color: Theme.textTertiary
-                    wrapMode: Text.Wrap
-                }
-            }
-
-            ActionButton {
-                objectName: "reviewPermissions"
-                text: "Review"
-                onClicked: root.permissionsRequested()
-            }
-        }
-    }
-
-    // -- where you are ------------------------------------------------------
+    onOpenedChanged: { if (opened) Settings.refresh(); }
 
     ColumnLayout {
         width: parent.width
-        spacing: Theme.space.md
-
-        SectionLabel { text: "Where you are" }
-
-        RowLayout {
+        spacing: 18
+        Segmented {
+            objectName: "settingsSections"
             Layout.fillWidth: true
-            spacing: Theme.space.md
-
-            ColumnLayout {
+            Layout.preferredHeight: 36
+            current: root.section
+            options: [{id: "general", label: "General"}, {id: "appearance", label: "Appearance"}, {id: "models", label: "Models"}]
+            onSelected: function (id) { root.section = id; }
+        }
+        ColumnLayout {
+            objectName: "settingsGeneral"
+            visible: root.section === "general"
+            Layout.fillWidth: true
+            spacing: 0
+            Squircle {
                 Layout.fillWidth: true
-                spacing: 1
-                Text {
-                    text: Place.name !== "" ? Place.name : "Not set"
-                    textFormat: Text.PlainText
-                    font: Theme.type.body
-                    color: Theme.textPrimary
-                }
-                Text {
-                    Layout.fillWidth: true
-                    text: Place.weatherSummary !== "" ? Place.weatherSummary
-                          : "For the seasons, the time zone and the weather."
-                    textFormat: Text.PlainText
-                    font: Theme.type.caption
-                    color: Theme.textTertiary
-                    wrapMode: Text.Wrap
+                Layout.preferredHeight: overview.implicitHeight + 28
+                Layout.bottomMargin: 8
+                radius: Theme.radius.md
+                fillColor: Theme.inset
+                borderColor: Theme.separator
+                RowLayout {
+                    id: overview
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 14
+                    BrandMark { size: 44 }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        Text {
+                            Layout.fillWidth: true
+                            text: root.availableRoutes ? "Your local workspace" : "Set up your first model"
+                            textFormat: Text.PlainText
+                            font: Theme.type.headline
+                            color: Theme.textPrimary
+                            wrapMode: Text.Wrap
+                        }
+                        Text {
+                            objectName: "settingsModelStatus"
+                            Layout.fillWidth: true
+                            text: root.availableRoutes ? root.availableRoutes + " of " + Settings.routes.length + " model assignments have a local file."
+                                : "Choose a local model to start a conversation."
+                            textFormat: Text.PlainText
+                            font: Theme.type.caption
+                            color: Theme.textSecondary
+                            wrapMode: Text.Wrap
+                        }
+                    }
+                    ActionButton {
+                        objectName: "setupModels"
+                        text: root.availableRoutes ? "Models" : "Set up"
+                        onClicked: root.section = "models"
+                    }
                 }
             }
-
-            ActionButton {
-                objectName: "setPlace"
-                text: Place.name !== "" ? "Change" : "Set"
-                onClicked: root.placeRequested()
-            }
-        }
-    }
-
-    // -- accounts -------------------------------------------------------------
-
-    ColumnLayout {
-        width: parent.width
-        spacing: Theme.space.md
-
-        SectionLabel { text: "Accounts" }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Theme.space.md
-
-            ColumnLayout {
+            FormRow {
                 Layout.fillWidth: true
-                spacing: 1
-                Text {
-                    Layout.fillWidth: true
-                    text: Accounts.accounts.length > 0
-                          ? Accounts.accounts.map(function (a) { return a.address; }).join(", ")
-                          : "Google"
-                    textFormat: Text.PlainText
-                    font: Theme.type.body
-                    color: Theme.textPrimary
-                    elide: Text.ElideRight
-                }
-                Text {
-                    Layout.fillWidth: true
-                    text: "Gmail and Google Calendar, once you connect an address. Sending asks you every time."
-                    font: Theme.type.caption
-                    color: Theme.textTertiary
-                    wrapMode: Text.Wrap
-                }
+                title: "Permissions"
+                description: Permissions.grants.length + " global grants. Project grants are managed separately."
+                ActionButton { objectName: "reviewPermissions"; text: "Review"; onClicked: root.permissionsRequested() }
             }
-
-            ActionButton {
-                objectName: "openAccounts"
-                text: Accounts.accounts.length > 0 ? "Manage" : "Connect"
-                onClicked: root.accountsRequested()
-            }
-        }
-    }
-
-    // -- appearance ---------------------------------------------------------
-
-    ColumnLayout {
-        width: parent.width
-        spacing: Theme.space.md
-
-        SectionLabel { text: "Appearance" }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Theme.space.md
-
-            ColumnLayout {
+            FormRow {
                 Layout.fillWidth: true
-                spacing: 1
-                Text {
-                    text: "Theme"
-                    font: Theme.type.body
-                    color: Theme.textPrimary
-                }
-                Text {
-                    text: "Auto follows Windows."
-                    font: Theme.type.caption
-                    color: Theme.textTertiary
-                }
+                title: Place.name || "Location & weather"
+                description: Place.name ? (Place.weatherSummary || "Location saved. Weather follows its permissions.")
+                                        : "Set your location for local seasons and weather."
+                ActionButton { objectName: "setPlace"; text: Place.name ? "Change" : "Set"; onClicked: root.placeRequested() }
             }
-
-            Segmented {
-                Layout.preferredWidth: 210
-                current: ThemeBridge.mode
-                options: [
-                    { id: "auto", label: "Auto" },
-                    { id: "light", label: "Light" },
-                    { id: "dark", label: "Dark" }
-                ]
-                onSelected: function (id) { ThemeBridge.mode = id }
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Theme.space.md
-
-            ColumnLayout {
+            FormRow {
                 Layout.fillWidth: true
-                spacing: 1
-                Text {
-                    text: "Reduce motion"
-                    font: Theme.type.body
-                    color: Theme.textPrimary
-                }
-                Text {
-                    text: "Transitions still happen, but instantly."
-                    font: Theme.type.caption
-                    color: Theme.textTertiary
-                }
-            }
-
-            Toggle {
-                objectName: "reduceMotionToggle"
-                label: "Reduce motion"
-                checked: ThemeBridge.reduceMotion
-                onToggled: function (value) { ThemeBridge.reduceMotion = value }
+                divider: false
+                title: "Connected accounts"
+                description: Accounts.accounts.length ? Accounts.accounts.length + " Google account" + (Accounts.accounts.length === 1 ? "" : "s") + " connected."
+                    : "Gmail and Google Calendar. Connect only what you need."
+                ActionButton { objectName: "openAccounts"; text: Accounts.accounts.length ? "Manage" : "Connect"; onClicked: root.accountsRequested() }
             }
         }
-    }
-
-    // -- models -------------------------------------------------------------
-
-    ColumnLayout {
-        width: parent.width
-        spacing: Theme.space.md
-
-        RowLayout {
+        ColumnLayout {
+            objectName: "settingsAppearance"
+            visible: root.section === "appearance"
             Layout.fillWidth: true
-            SectionLabel { Layout.fillWidth: true; text: "Models" }
-            IconButton {
-                icon: "refresh"
-                size: 24
-                iconSize: 14
-                flat: true
-                onClicked: Settings.refresh()
+            spacing: 0
+            FormRow {
+                Layout.fillWidth: true
+                title: "Appearance"
+                description: "Auto follows Windows."
+                Segmented {
+                    objectName: "appearanceModes"
+                    Layout.preferredWidth: 210
+                    current: ThemeBridge.mode
+                    options: [{id: "auto", label: "Auto"}, {id: "light", label: "Light"}, {id: "dark", label: "Dark"}]
+                    onSelected: function (id) { ThemeBridge.mode = id; }
+                }
+            }
+            FormRow {
+                Layout.fillWidth: true
+                divider: false
+                title: "Reduce motion"
+                description: "Still scenes and instant transitions."
+                Toggle {
+                    objectName: "reduceMotionToggle"
+                    label: "Reduce motion"
+                    checked: ThemeBridge.reduceMotion
+                    onToggled: function (value) { ThemeBridge.reduceMotion = value; }
+                }
             }
         }
-
-        Repeater {
-            model: Settings.routes
-
+        ColumnLayout {
+            objectName: "settingsModels"
+            visible: root.section === "models"
+            Layout.fillWidth: true
+            spacing: 14
             RowLayout {
-                id: routeRow
-                required property var modelData
-
                 Layout.fillWidth: true
-                spacing: Theme.space.md
-
                 ColumnLayout {
                     Layout.fillWidth: true
-                    // Without a minimum the blurb's implicit width wins the
-                    // layout negotiation and shoves the dropdown off the right
-                    // edge — which is why these rows were ragged.
-                    Layout.minimumWidth: 120
-                    spacing: 1
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Theme.space.sm
-
-                        Text {
-                            text: routeRow.modelData.label
-                            textFormat: Text.PlainText
-                            font: Theme.type.body
-                            color: Theme.textPrimary
-                        }
-
-                        // Only shown while a model is actually resident, so
-                        // the dot always means "in memory right now".
-                        Rectangle {
-                            visible: routeRow.modelData.loaded
-                            width: 6; height: 6; radius: 3
-                            color: Theme.success
-                        }
-
-                        Item { Layout.fillWidth: true }
-                    }
-
+                    spacing: 4
+                    Text { text: "Local models"; font: Theme.type.headline; color: Theme.textPrimary }
                     Text {
                         Layout.fillWidth: true
-                        text: routeRow.modelData.blurb
+                        text: Settings.availableModels.length ? "Choose a model for each kind of work." : "No model files found in the model folder."
                         textFormat: Text.PlainText
                         font: Theme.type.caption
-                        color: Theme.textTertiary
-                        elide: Text.ElideRight
+                        color: Theme.textSecondary
+                        wrapMode: Text.Wrap
                     }
                 }
-
-                Select {
-                    Layout.preferredWidth: 320
-                    Layout.alignment: Qt.AlignVCenter
-                    current: routeRow.modelData.path
-                    placeholder: "Not set"
-                    options: Settings.availableModels.map(function (m) {
-                        return { value: m.path, label: m.name, detail: m.size };
-                    })
-                    onPicked: function (value) {
-                        Settings.assign(routeRow.modelData.id, value);
+                ActionButton { text: root.modelDetails ? "Hide details" : "File details"; onClicked: root.modelDetails = !root.modelDetails }
+                IconButton { icon: "refresh"; label: "Refresh local models"; onClicked: Settings.refresh() }
+            }
+            Text {
+                Layout.fillWidth: true
+                visible: Chat.busy || Agents.busy
+                text: "Model choices unlock when the current work finishes."
+                font: Theme.type.caption
+                color: Theme.textSecondary
+                wrapMode: Text.Wrap
+            }
+            Repeater {
+                model: Settings.routes
+                ColumnLayout {
+                    id: routeRow
+                    required property var modelData
+                    Layout.fillWidth: true
+                    spacing: 7
+                    RowLayout {
+                        Layout.fillWidth: true
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                Layout.fillWidth: true
+                                text: routeRow.modelData.label === "Chat" ? "Everyday" : routeRow.modelData.label
+                                textFormat: Text.PlainText
+                                font: Theme.type.bodyStrong
+                                color: Theme.textPrimary
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: routeRow.modelData.blurb
+                                textFormat: Text.PlainText
+                                font: Theme.type.caption
+                                color: Theme.textSecondary
+                                wrapMode: Text.Wrap
+                            }
+                        }
+                        Text {
+                            text: routeRow.modelData.loaded ? "Loaded" : routeRow.modelData.usable ? "File available" : routeRow.modelData.path ? "File missing" : "Not assigned"
+                            textFormat: Text.PlainText
+                            font: Theme.type.captionStrong
+                            color: routeRow.modelData.usable ? Theme.success : Theme.textSecondary
+                        }
                     }
+                    Select {
+                        objectName: "modelChoice_" + routeRow.modelData.id
+                        Layout.fillWidth: true
+                        label: "Model for " + routeRow.modelData.label
+                        current: routeRow.modelData.path
+                        placeholder: "Choose a local model"
+                        enabled: !Chat.busy && !Agents.busy
+                        options: {
+                            const found = Settings.availableModels.map(function (m) {
+                                return {value: m.path, label: ModelNames.display(m.name), detail: ModelNames.detail(m.name, m.size)};
+                            });
+                            if (routeRow.modelData.path && !found.some(function (m) { return m.value === routeRow.modelData.path; }))
+                                found.unshift({value: routeRow.modelData.path, label: ModelNames.display(routeRow.modelData.name), detail: routeRow.modelData.usable ? "Assigned" : "Missing"});
+                            return [{value: "", label: "Not assigned"}].concat(found);
+                        }
+                        onPicked: function (value) { Settings.assign(routeRow.modelData.id, value); }
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        visible: root.modelDetails
+                        text: (routeRow.modelData.path || "No file assigned") + "\nContext: " + routeRow.modelData.contextTokens
+                            + " · Maximum reply: " + routeRow.modelData.maxTokens + " tokens"
+                        textFormat: Text.PlainText
+                        font: Theme.type.monoSmall
+                        color: Theme.textSecondary
+                        wrapMode: Text.WrapAnywhere
+                    }
+                    Rectangle { Layout.fillWidth: true; Layout.topMargin: 3; height: 1; color: Theme.separator }
                 }
             }
-        }
-
-        // -- where models come from -----------------------------------------
-
-        Squircle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: hint.implicitHeight + Theme.space.lg * 2
-            radius: Theme.radius.sm
-            fillColor: Theme.inset
-            borderColor: Theme.separator
-
-            ColumnLayout {
-                id: hint
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.margins: Theme.space.lg
-                spacing: Theme.space.xs
-
-                Text {
-                    Layout.fillWidth: true
-                    text: Settings.availableModels.length === 0
-                          ? "No models found."
-                          : Settings.availableModels.length + " model"
-                            + (Settings.availableModels.length === 1 ? "" : "s") + " found."
-                    textFormat: Text.PlainText
-                    font: Theme.type.bodyStrong
-                    color: Theme.textPrimary
-                }
-
-                Text {
-                    Layout.fillWidth: true
-                    text: "Put .gguf files here, then press refresh:"
-                    font: Theme.type.caption
-                    color: Theme.textSecondary
-                    wrapMode: Text.Wrap
-                }
-
-                Text {
-                    Layout.fillWidth: true
-                    text: Settings.modelsDirectory
-                    textFormat: Text.PlainText
-                    font: Theme.type.monoSmall
-                    color: Theme.textTertiary
-                    wrapMode: Text.WrapAnywhere
-                }
+            Text {
+                Layout.fillWidth: true
+                text: "To add a model, place a .gguf file in this folder, then refresh. File availability does not verify that a model will load."
+                font: Theme.type.caption
+                color: Theme.textSecondary
+                wrapMode: Text.Wrap
+            }
+            Text {
+                Layout.fillWidth: true
+                text: Settings.modelsDirectory
+                textFormat: Text.PlainText
+                font: Theme.type.monoSmall
+                color: Theme.textSecondary
+                wrapMode: Text.WrapAnywhere
             }
         }
     }

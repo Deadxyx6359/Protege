@@ -30,8 +30,9 @@ Item {
     ListModel { id: shown }
 
     /*! Put something on screen, newest at the top; at most four at once. */
-    function show(heading, body, critical) {
-        shown.insert(0, { heading: String(heading), body: String(body), critical: critical === true });
+    function show(heading, body, critical, destination) {
+        shown.insert(0, { heading: String(heading), body: String(body), critical: critical === true,
+                         destination: critical ? "review" : destination === "notices" ? "notices" : "" });
         while (shown.count > 4)
             shown.remove(shown.count - 1);
         root.recount();
@@ -65,6 +66,7 @@ Item {
                 required property string heading
                 required property string body
                 required property bool critical
+                required property string destination
 
                 width: stack.width
                 height: content.implicitHeight + Theme.space.md * 2
@@ -78,7 +80,7 @@ Item {
                 HoverHandler { id: hover }
 
                 Timer {
-                    running: !banner.critical && !hover.hovered
+                    running: !banner.critical && !hover.hovered && !noticeAction.activeFocus && !dismissControl.activeFocus
                     interval: root.lingerMs
                     onTriggered: root.dismiss(banner.index)
                 }
@@ -121,10 +123,13 @@ Item {
                             elide: Text.ElideRight
                         }
                         ActionButton {
+                            id: noticeAction
+                            objectName: "noticeDestination"
+                            visible: banner.destination !== ""
                             Layout.topMargin: Theme.space.xs
-                            text: banner.critical ? "See what it found" : "See all notices"
+                            text: banner.destination === "review" ? "See what it found" : "See all notices"
                             onClicked: {
-                                if (banner.critical)
+                                if (banner.destination === "review")
                                     root.reviewRequested();
                                 else
                                     root.noticesRequested();
@@ -134,6 +139,7 @@ Item {
                     }
 
                     IconButton {
+                        id: dismissControl
                         Layout.alignment: Qt.AlignTop
                         icon: "close"
                         iconSize: 14
