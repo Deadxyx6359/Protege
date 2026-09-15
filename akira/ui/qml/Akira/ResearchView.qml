@@ -27,6 +27,7 @@ Item {
     signal researchTeamRequested()
     signal sourceRequested(string error)
     signal permissionsRequested()
+    signal artifactRequested(var artifact)
 
     function prepareInvestigation(text) {
         investigating = true;
@@ -110,6 +111,7 @@ Item {
         visible: root.investigating
         onSourceRequested: function (error) { root.sourceRequested(error); }
         onPermissionsRequested: root.permissionsRequested()
+        onArtifactRequested: function (artifact) { root.artifactRequested(artifact); }
     }
 
     // Fixed reading width, with a shorter stack on the smallest supported

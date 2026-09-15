@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import threading
+import re
 from typing import Callable
 
 from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
@@ -17,6 +18,7 @@ from akira.core.tools.builtin.coding import git_diff, git_log, git_status, open_
 from akira.core.tools.registry import ToolRegistry
 from akira.core.tools.schema import ToolContext
 from .documents import local_path
+from akira.ui.diff_view import sections, DiffHighlighter
 
 
 class _CurrentPolicy(Policy):
@@ -52,6 +54,9 @@ class CodingBridge(QObject):
         self._error = self._notice = ''
         self._changes = 0
         self._mode = 'working'
+        self._sections = []
+        self._selected_patch = ''
+        self._highlighters = {}
         self._fingerprint = self._grants_key()
         self._done.connect(self._receive)
         self._expiry = QTimer(self)
@@ -91,6 +96,39 @@ class CodingBridge(QObject):
     @Property(str, notify=changed)
     def notice(self): return self._notice
 
+    @Property('QVariantList', notify=changed)
+    def patches(self):
+        return [{k: v for k, v in row.items() if k != 'text'} for row in self._sections]
+
+    @Property(str, notify=changed)
+    def selectedPatch(self): return self._selected_patch
+
+    @Property(str, notify=changed)
+    def displayedPatch(self):
+        return next((row['text'] for row in self._sections if row['id'] == self._selected_patch), self._preview)
+
+    @Property(bool, notify=changed)
+    def patchLimited(self): return bool(re.search(r'^\[\.\.\. cut at \d+ characters \.\.\.\]$', self._preview, re.MULTILINE))
+
+    @Slot(str)
+    def selectPatch(self, ident):
+        if ident and not any(row['id'] == ident for row in self._sections): return
+        self._check_expiry()
+        self._selected_patch = ident if self._sections else ''
+        self.changed.emit()
+
+    @Slot(QObject, str, str, str, str, bool)
+    def highlight(self, document, added, removed, heading, muted, enabled):
+        if document is None: return
+        key = id(document)
+        if key not in self._highlighters:
+            # Keep the QQuickTextDocument wrapper alive with its highlighter.
+            # A transient PySide wrapper can otherwise invalidate the borrowed
+            # QTextDocument when QML/Python hand it back across the boundary.
+            self._highlighters[key] = (document, DiffHighlighter(document.textDocument()))
+            document.destroyed.connect(lambda: self._highlighters.pop(key, None))
+        self._highlighters[key][1].configure(added, removed, heading, muted, enabled)
+
     def _grants_key(self):
         return tuple((g.capability, g.scopes, g.expires, g.granted)
                      for g in self._policy().active() if g.capability in {'vcs.read', 'files.read'})
@@ -118,6 +156,7 @@ class CodingBridge(QObject):
         self._folder = self._status = self._preview = self._checked = ''
         self._error = self._notice = ''
         self._changes = 0
+        self._sections, self._selected_patch = [], ''
         self._fingerprint = self._grants_key()
         self.changed.emit()
 
@@ -143,6 +182,7 @@ class CodingBridge(QObject):
         if operation == 'review':
             self._folder = self._status = self._preview = self._checked = ''
             self._changes, self._mode = 0, mode
+            self._sections, self._selected_patch = [], ''
         self.changed.emit()
         with self._condition:
             self._pending = (self._serial, self._cancelled, operation, folder, mode)
@@ -162,8 +202,9 @@ class CodingBridge(QObject):
         payload = {'operation': operation}
         try:
             path = local_path(folder)
-            if not path.is_dir():
-                raise ValueError('Set an existing project folder before opening the coding workspace.')
+            if not (path.is_dir() or (operation == 'editor' and path.is_file())):
+                raise ValueError('This file or folder is no longer available on this device.' if operation == 'editor'
+                                 else 'Set an existing project folder before opening the coding workspace.')
             payload.update(path=str(path), capability='files.read' if operation == 'editor' else 'vcs.read')
             if operation == 'editor':
                 result = self._registry.invoke('open_in_editor', {'path': str(path)}, context)
@@ -179,6 +220,7 @@ class CodingBridge(QObject):
                 if not result.ok: raise ValueError(result.content)
                 payload.update(status=status.content, changes=status.data.get('changes', 0),
                                preview=result.content, mode=mode,
+                               sections=[] if mode == 'history' else sections(result.content),
                                checked=datetime.now().strftime('%b %d, %H:%M:%S'))
         except Exception as exc:
             payload['error'] = str(exc) or 'The coding workspace could not finish this request.'
@@ -200,6 +242,7 @@ class CodingBridge(QObject):
             self._folder, self._mode = payload['path'], payload['mode']
             self._status, self._preview = payload['status'], payload['preview']
             self._changes, self._checked = payload['changes'], payload['checked']
+            self._sections = payload['sections']
         self.changed.emit()
 
     def close(self):

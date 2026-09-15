@@ -51,9 +51,10 @@ def gathered_sources(name, arguments, result, registry):
 
 class ObservedRegistry:
     """Delegate permission filtering/execution unchanged to the original registry."""
-    def __init__(self, registry: ToolRegistry, publish):
+    def __init__(self, registry: ToolRegistry, publish, publish_artifact=None):
         self.registry = registry
         self.publish = publish
+        self.publish_artifact = publish_artifact
 
     def available(self, *args, **kwargs):
         return self.registry.available(*args, **kwargs)
@@ -64,6 +65,13 @@ class ObservedRegistry:
         try:
             for source in gathered_sources(name, arguments, result, self.registry):
                 self.publish(source)
+            if self.publish_artifact and result.ok and name in ('write_file', 'create_document', 'edit_document', 'update_spreadsheet'):
+                cleaned = self.registry.get(name).validate(arguments)
+                data = result.data if isinstance(result.data, dict) else {}
+                path = data.get('path') if name in ('write_file', 'create_document') else cleaned.get('path')
+                if isinstance(path, str) and Path(path).is_absolute():
+                    self.publish_artifact({'id': sha256(path.encode()).hexdigest()[:24],
+                                           'path': path, 'name': Path(path).name, 'tool': name})
         except (ValueError, TypeError, KeyError, AttributeError):
             pass
         return result

@@ -12,7 +12,16 @@ Sheet {
     readonly property string folder: project.folder || ""
     property string reviewMode: "working"
     property bool showStatus: false
+    readonly property string diffPalette: [Theme.accent, Theme.danger, Theme.textPrimary, Theme.textSecondary].join("|")
     signal permissionsRequested()
+
+    function updateHighlight() {
+        Coding.highlight(patchText.textDocument, String(Theme.accent), String(Theme.danger),
+                         String(Theme.textPrimary), String(Theme.textSecondary), root.reviewMode !== "history");
+    }
+    onDiffPaletteChanged: Qt.callLater(updateHighlight)
+    onReviewModeChanged: Qt.callLater(updateHighlight)
+    Component.onCompleted: updateHighlight()
 
     function inspect() {
         if (root.folder) Coding.inspect(root.folder, root.reviewMode);
@@ -126,6 +135,25 @@ Sheet {
             code: Coding.status
             lang: "text"
         }
+        Select {
+            objectName: "codePatchPicker"
+            Layout.fillWidth: true
+            visible: root.reviewMode !== "history" && Coding.patches.length > 0
+            current: Coding.selectedPatch
+            label: "File patches in this snapshot"
+            options: [{value: "", label: "All file patches", detail: Coding.patches.length + " in this snapshot"}].concat(Coding.patches.map(function (p) {
+                return {value: p.id, label: p.label, detail: p.kind + " · +" + p.added + " / −" + p.removed};
+            }))
+            onPicked: function (id) { Coding.selectPatch(id); }
+        }
+        Text {
+            Layout.fillWidth: true
+            visible: Coding.patchLimited
+            text: "This snapshot was shortened by the Git output limit. Some changes may be missing."
+            font: Theme.type.caption
+            color: Theme.textSecondary
+            wrapMode: Text.Wrap
+        }
         Squircle {
             Layout.fillWidth: true
             Layout.preferredHeight: Math.max(160, Math.min(440, root.sheetMaxHeight - 300))
@@ -138,8 +166,10 @@ Sheet {
                 anchors.margins: 10
                 clip: true
                 TextEdit {
+                    id: patchText
                     objectName: "codeReviewText"
-                    text: Coding.preview
+                    text: Coding.displayedPatch
+                    onTextChanged: { cursorPosition = 0; }
                     readOnly: true
                     selectByMouse: true
                     activeFocusOnTab: true

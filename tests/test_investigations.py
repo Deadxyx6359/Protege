@@ -227,3 +227,26 @@ def test_model_assignment_snapshot_is_retained_when_settings_change(system):
     model["label"] = "Another model"
     assert bridge.record(ident)["models"]["gatherer"]["label"] == "Local-7B-Q4_K_M"
     assert build().record(ident)["models"]["writer"]["route"] == "chat"
+
+
+@pytest.mark.parametrize('approved', [True, False])
+def test_artifacts_come_from_confirmed_successful_writes_and_survive_restart(system, tmp_path, approved):
+    app, policy, _, _, build = system
+    path = tmp_path / 'report.md'
+    content = 'Private output body; not separately archived.'
+    call = '<tool_call>' + json.dumps({'name': 'write_file', 'arguments': {'path': str(path), 'content': content}}) + '</tool_call>'
+    bridge = build([call, 'Finished the task.'])
+    policy.grant('files.write', (str(tmp_path),))
+    confirmations = []
+    bridge._confirm = lambda summary: confirmations.append(summary) or approved
+    bridge.runAgent('implementer', 'Write a report', str(tmp_path))
+    wait(app, lambda: not bridge.busy)
+    assert len(confirmations) == 1
+    run = bridge.currentRun
+    assert len(run['artifacts']) == (1 if approved else 0)
+    assert path.exists() == approved
+    if approved:
+        assert run['artifacts'][0]['path'] == str(path.resolve())
+        assert build().record(run['id'])['artifacts'] == run['artifacts']
+        assert content not in (tmp_path / 'runs.json').read_text(encoding='utf-8')
+    assert not policy.granted('files.read'), 'Writing does not grant read access'

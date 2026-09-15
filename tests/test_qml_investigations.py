@@ -138,7 +138,11 @@ settle_until(lambda: not ctx.agents.archiveBusy)
 assert not ctx.agents.record(ident) and not view.property('hasRun')
 
 # Code and Agents can recover the same archived result without re-running it.
-ctx.agents._router = Router(['Plan', 'Implementation', 'Review of the local project.'])
+output = folder / 'Expedition report.md'
+write = '<tool_call>' + json.dumps({'name': 'write_file', 'arguments': {'path': str(output), 'content': 'Written report.\n' + literal}}) + '</tool_call>'
+ctx.permissions.policy.grant('files.write', (str(folder),))
+ctx.agents._confirm = lambda summary: True  # Approves only this isolated fixture write.
+ctx.agents._router = Router(['Plan', write, 'Implementation', 'Review of the local project.'])
 ctx.agents.runTeam('software', 'Build a local expedition notebook.', str(folder))
 settle_until(lambda: not ctx.agents.busy)
 software_id = ctx.agents.currentRun['id']
@@ -146,10 +150,30 @@ win.setProperty('currentNav', 'code'); QTest.qWait(30)
 history = win.findChild(QObject, 'runHistorySheet')
 press(win.findChild(QObject, 'codeHistoryButton'))
 assert history.property('opened') and history.property('selectedId') == software_id
+assert ctx.agents.currentRun['artifacts'][0]['path'] == str(output)
 assert win.findChild(QObject, 'taskHistoryAnswer').property('content') == 'Review of the local project.'
 for mode in ['dark', 'light']:
     ctx.theme.mode = mode; win.setWidth(900); win.setHeight(600)
     capture(mode + '-software-history-compact')
+# Reading the output has its own grant, even after a successful write.
+ctx.permissions.revoke('files.read')
+press(find('runArtifact0'))
+artifact = win.findChild(QObject, 'artifactSheet')
+assert artifact.property('opened') and not ctx.documents.busy
+press(win.findChild(QObject, 'artifactPreview'))
+settle_until(lambda: not ctx.documents.busy)
+assert ctx.documents.error and not ctx.documents.preview
+assert ctx.permissions.grant('files.read', [str(folder)]) == ''
+press(win.findChild(QObject, 'artifactPreview'))
+settle_until(lambda: not ctx.documents.busy)
+text = win.findChild(QObject, 'artifactPreviewText')
+assert literal in text.property('text')
+expression = QQmlExpression(engine.rootContext(), text, 'textFormat === 0')
+assert expression.evaluate()[0]
+capture('output-preview-compact')
+QTest.keyClick(win, Qt.Key_Escape); QTest.qWait(30)
+assert not artifact.property('opened') and not ctx.documents.preview
+assert history.property('opened')
 QTest.keyClick(win, Qt.Key_Escape); QTest.qWait(30)
 win.setProperty('currentNav', 'agents'); QTest.qWait(30)
 press(win.findChild(QObject, 'agentHistoryButton'))

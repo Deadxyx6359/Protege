@@ -637,6 +637,45 @@ It registers only the existing `git_status`, `git_diff`, `git_log` and
   path is accepted. No new grant, staging, commit, push, code execution, model
   run or repository mutation is introduced by the review panel.
 
+### File sections and task output access — 2026-09-15
+
+After coordination handoff 27, `Coding` adds `patches`, `selectedPatch`,
+`displayedPatch`, `patchLimited` (all `changed`) and `selectPatch(id)`.
+`patches` contains display-only `id`, `label`, `kind`, `added`, `removed` maps
+from the existing diff snapshot. Selecting a section performs no Git command
+or file access. Empty id restores the full response. Labels handle Git quoting,
+spaces, Unicode, renames and deleted files; unknown headers get a neutral label.
+No path or filesystem action is derived from them. Counts describe visible hunk
+lines, not a complete repository when the backend output cap is reached.
+
+`highlight(document, added, removed, heading, muted, enabled)` attaches a Qt
+syntax highlighter to the review's existing plain-text document. It changes
+formatting only; source text, selection and the inert text format are preserved.
+The QQuickTextDocument wrapper is retained alongside the highlighter to avoid
+PySide invalidating a borrowed document. Theme changes reapply colors, and
+history disables diff formatting. `openEditor(pathOrLocalUrl)` now also accepts
+an existing file, through the same validated local path and `open_in_editor`
+tool. Core decides the VS Code CLI/line arguments; the bridge constructs none.
+
+Interactive run records now have `artifacts` (up to 24): `id`, `path`, `name`,
+`tool`. The existing presentation observer records only successful `write_file`
+and `create_document` paths returned as structured data, or successful
+`edit_document`/`update_spreadsheet` absolute paths from validated arguments.
+Repeated writes to the same path update its entry. No artifact is inferred from
+answer prose, and declined/failed writes produce no entry. Archive version 1
+remains compatible: older records default to an empty list. No file bodies are
+separately stored and a saved reference does not guarantee the file still exists.
+
+`RunArtifacts` appears in Research and the shared task-history sheet. It labels
+files as current versions and disables actions when viewing another project's
+run. `ArtifactSheet` offers an explicit document/text preview through Documents,
+or an explicit VS Code file launch through Coding; neither action is automatic
+on opening the reference. Read grants are independent of the original write
+grant. Closing cancels pending preview publication; project changes close the
+sheet and existing adapters invalidate on grant changes/expiry. Unsupported
+document types follow the editor path. No shell execution or new native Office
+launcher was added.
+
 UI notes: Code still shares Chat's conversation/composer and prepares an
 editable software-team task in Agents. Settings now groups General, Appearance
 and Models; model assignment uses original paths, with display-only name cleanup

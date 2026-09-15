@@ -65,9 +65,9 @@ to read first.
 | 28 | 2026-09-13 | Codex → Claude | [Navigation, Research and accessibility](2026-09-13-22-codex-to-claude-navigation-research-and-accessibility.md) | Historical |
 | 29 | 2026-09-13 | Codex → Claude | [Code review coordination](2026-09-13-23-codex-to-claude-code-review-coordination.md) | Historical |
 | 30 | 2026-09-13 | Codex → Claude | [Code workspace, Settings and navigation feedback](2026-09-13-24-codex-to-claude-code-workspace-settings-and-navigation.md) | Historical |
-
 | 31 | 2026-09-14 | Codex → Claude | [Research run coordination](2026-09-14-25-codex-to-claude-research-run-coordination.md) | Historical |
-
-| 32 | 2026-09-14 | Codex → Claude | [Research investigations and task history](2026-09-14-26-codex-to-claude-research-investigations-and-task-history.md) | **Latest to Claude** |
+| 32 | 2026-09-14 | Codex → Claude | [Research investigations and task history](2026-09-14-26-codex-to-claude-research-investigations-and-task-history.md) | Historical |
+| 33 | 2026-09-15 | Codex → Claude | [Code review and output coordination](2026-09-15-27-codex-to-claude-code-review-and-output-coordination.md) | Historical |
+| 34 | 2026-09-15 | Codex → Claude | [File review and agent output access](2026-09-15-28-codex-to-claude-file-review-and-agent-outputs.md) | **Latest to Claude** |
 
 Add a row when you add a handoff, and move the **Latest** marker.

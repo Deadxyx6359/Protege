@@ -70,9 +70,12 @@ def git(*args):
 git('init', '--initial-branch=main')
 path = folder / 'scene.py'
 path.write_text('before\n' * 80, encoding='utf-8')
-git('add', 'scene.py')
+note = folder / 'observations.txt'
+note.write_text('earlier observation\n', encoding='utf-8')
+git('add', 'scene.py', 'observations.txt')
 git('-c', 'user.name=Preview', '-c', 'user.email=ui@example.test', '-c', 'commit.gpgSign=false', 'commit', '-m', 'Compose a quiet scene')
 path.write_text('after <img src="https://example.test/private">\n' * 80 + '#' * 320, encoding='utf-8')
+note.write_text('new observation\n', encoding='utf-8')
 created = ctx.projects.create('Aurora - a long project name', str(folder))
 assert created == '', created
 assert review.property('visible')
@@ -99,6 +102,21 @@ for appearance in ['dark', 'light']:
         # Long lines stay selectable and scroll rather than widening the sheet.
         assert text.width() > win.width()
         capture(appearance + '-' + str(width) + '-patch')
+        assert len(ctx.coding.patches) == 2
+        selected = next(p['id'] for p in ctx.coding.patches if p['label'] == 'observations.txt')
+        picker = win.findChild(QObject, 'codePatchPicker')
+        picker.picked.emit(selected); QTest.qWait(40)
+        assert 'new observation' in text.property('text') and 'a/scene.py' not in text.property('text')
+        quick_document = text.property('textDocument')
+        document = quick_document.textDocument()
+        block = document.begin(); highlighted = False
+        while block.isValid():
+            if block.text() == '+new observation':
+                highlighted = bool(block.layout().formats())
+            block = block.next()
+        assert highlighted, 'plain-text additions should receive diff formatting'
+        capture(appearance + '-' + str(width) + '-selected-file')
+        picker.picked.emit(''); QTest.qWait(20)
         for i in range(25):
             QTest.keyClick(win, Qt.Key_Tab, Qt.ShiftModifier if i % 3 == 0 else Qt.NoModifier)
             assert sheet.property('ownsFocus')

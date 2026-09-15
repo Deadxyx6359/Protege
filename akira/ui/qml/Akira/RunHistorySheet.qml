@@ -15,6 +15,7 @@ Sheet {
     property var selectedRun: ({})
     property string notice: ""
     property bool confirmingDelete: false
+    signal artifactRequested(var artifact)
     readonly property var saved: Agents.runs.filter(function (r) {
         return (root.allProjects || r.projectId === Projects.currentId)
             && (!root.teamFilter || r.name === root.teamFilter || (root.teamFilter === "software" && ["architect", "implementer", "reviewer"].indexOf(r.name) >= 0));
@@ -123,6 +124,11 @@ Sheet {
             Item { Layout.fillWidth: true }
             ActionButton { visible: root.selectedRun.status === "running"; text: "Stop task"; onClicked: Agents.stop() }
             ActionButton { visible: root.selectedRun.status !== "running"; text: "Remove result"; enabled: !Agents.archiveBusy; onClicked: root.confirmingDelete = true }
+        }
+        RunArtifacts {
+            Layout.fillWidth: true
+            run: root.selectedRun
+            onArtifactRequested: function (artifact) { root.artifactRequested(artifact); }
         }
         Copy {
             visible: root.confirmingDelete

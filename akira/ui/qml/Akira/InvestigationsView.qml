@@ -29,6 +29,7 @@ Item {
     ]
     signal sourceRequested(string error)
     signal permissionsRequested()
+    signal artifactRequested(var artifact)
 
     function refresh() {
         selectedRun = selectedId ? Agents.record(selectedId) : ({});
@@ -308,6 +309,7 @@ Item {
                 Item { Layout.fillWidth: true }
                 ActionButton { visible: !root.running && !root.confirmingDelete; text: "Remove result"; enabled: !Agents.archiveBusy; onClicked: root.confirmingDelete = true }
             }
+            RunArtifacts { Layout.fillWidth: true; run: root.selectedRun; onArtifactRequested: function (artifact) { root.artifactRequested(artifact); } }
             Card {
                 visible: root.hasRun && root.showActivity
                 Copy { text: "Model assignments at start"; font: Theme.type.headline; color: Theme.textPrimary }

@@ -133,3 +133,38 @@ def test_rejects_remote_or_relative_editor_paths(workspace, path):
     app, _, _, bridge, _ = workspace
     bridge.openEditor(path); finish(app, bridge)
     assert bridge.error and not bridge.notice
+
+
+def test_file_navigation_uses_the_existing_snapshot_without_another_tool_call(workspace, monkeypatch):
+    app, folder, policy, bridge, git = workspace
+    second = folder / 'notes with spaces.txt'
+    second.write_text('before\n', encoding='utf-8'); git('add', second.name)
+    git('-c', 'user.name=Test', '-c', 'user.email=ui@example.test', '-c', 'commit.gpgSign=false', 'commit', '-m', 'Second fixture')
+    (folder / 'app.py').write_text('after\n', encoding='utf-8')
+    second.write_text('second file after\n', encoding='utf-8')
+    policy.grant('vcs.read', (str(folder),)); bridge.invalidate()
+    bridge.inspect(str(folder), 'working'); finish(app, bridge)
+    assert len(bridge.patches) == 2
+    original = bridge.preview
+    monkeypatch.setattr(bridge._registry, 'invoke', lambda *a: pytest.fail('Selecting a patch must not invoke Git'))
+    bridge.selectPatch('1')
+    assert 'second file after' in bridge.displayedPatch and 'a/app.py' not in bridge.displayedPatch
+    assert bridge.preview == original
+    bridge.selectPatch('unknown'); assert bridge.selectedPatch == '1'
+    bridge.selectPatch(''); assert bridge.displayedPatch == original
+    policy.revoke('vcs.read'); bridge.selectPatch('1')
+    assert not bridge.patches and not bridge.displayedPatch
+
+
+def test_output_file_opens_through_guarded_editor_tool(workspace, monkeypatch):
+    from akira.core.tools.builtin import coding
+    app, folder, policy, bridge, _ = workspace
+    path = folder / 'app.py'
+    launched = []
+    monkeypatch.setattr(coding, '_find_vscode', lambda: (folder / 'Code.exe', folder / 'cli.js'))
+    monkeypatch.setattr(coding, '_launch', lambda argv, env: launched.append(argv))
+    bridge.openEditor(str(path)); finish(app, bridge)
+    assert bridge.error and not launched
+    policy.grant('files.read', (str(folder),)); bridge.invalidate()
+    bridge.openEditor(str(path)); finish(app, bridge)
+    assert not bridge.error and launched[0][-1] == str(path.resolve()) + ':1'

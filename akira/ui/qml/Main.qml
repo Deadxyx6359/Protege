@@ -184,7 +184,11 @@ Window {
     }
 
     ResearchSourceSheet { id: researchSource; objectName: "researchSourceSheet"; z: 50 }
-    RunHistorySheet { id: runHistory; objectName: "runHistorySheet"; z: 12 }
+    RunHistorySheet { id: runHistory; objectName: "runHistorySheet"; z: 12; onArtifactRequested: function (artifact) { artifactSheet.present(artifact); } }
+    ArtifactSheet {
+        id: artifactSheet; objectName: "artifactSheet"; z: 13
+        onPermissionsRequested: { artifactSheet.close(); runHistory.close(); permissionsSheet.open(); }
+    }
 
     CodeReviewSheet {
         id: codeReview
@@ -415,6 +419,7 @@ Window {
                     contextNote: Chat.lastContextNote
                     onResearchTeamRequested: win.prepareTeam("research")
                     onSourceRequested: function (error) { researchSource.present(error); }
+                    onArtifactRequested: function (artifact) { artifactSheet.present(artifact); }
                     onPermissionsRequested: permissionsSheet.open()
                     onPromptSelected: function (prompt) {
                         // A starter prepares an editable draft; it never sends.

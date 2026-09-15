@@ -359,8 +359,15 @@ class AgentsBridge(QObject):
             if existing is not None or any(v["id"] == s["id"] for v in record["sources"]):
                 self._source.emit((record["id"], epoch, deepcopy(s)))
                 self._progress.emit(deepcopy(record))
+        def artifact(item):
+            existing = next((v for v in record["artifacts"] if v['id'] == item['id']), None)
+            if existing:
+                existing.update(item)
+            elif len(record["artifacts"]) < 24:
+                record["artifacts"].append(item)
+            self._progress.emit(deepcopy(record))
         try:
-            outcome = work(context, self._cancel.is_set, trace, ObservedRegistry(self._registry, source))
+            outcome = work(context, self._cancel.is_set, trace, ObservedRegistry(self._registry, source, artifact))
             result = (bool(outcome.ok), outcome.answer, outcome.stopped)
         except Exception as exc:  # noqa: BLE001 - a crashed run must still report back
             result = (False, f"{type(exc).__name__}: {exc}", "failed")

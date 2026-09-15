@@ -34,6 +34,8 @@ AgentsView 1.0 AgentsView.qml
 InvestigationsView 1.0 InvestigationsView.qml
 ResearchSourceSheet 1.0 ResearchSourceSheet.qml
 RunHistorySheet 1.0 RunHistorySheet.qml
+RunArtifacts 1.0 RunArtifacts.qml
+ArtifactSheet 1.0 ArtifactSheet.qml
 PlaceSheet 1.0 PlaceSheet.qml
 WatchView 1.0 WatchView.qml
 NoticeBanner 1.0 NoticeBanner.qml

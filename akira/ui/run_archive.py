@@ -41,6 +41,10 @@ def clean_record(value: dict) -> dict:
         {k: str(s.get(k, ""))[:limit] for k, limit in
          {"id": 80, "title": 240, "locator": 2048, "kind": 40, "tool": 80}.items()}
         for s in value.get("sources", [])[:32] if isinstance(s, dict)]
+    result["artifacts"] = [
+        {k: str(a.get(k, ""))[:limit] for k, limit in
+         {"id": 80, "path": 4096, "name": 240, "tool": 80}.items()}
+        for a in value.get("artifacts", [])[:24] if isinstance(a, dict)]
     result["events"] = [
         {**{k: str(e.get(k, ""))[:160] for k in ("kind", "agent", "tool", "to")},
          "ok": bool(e.get("ok", True))}
