@@ -70,6 +70,7 @@ to read first.
 | 33 | 2026-09-15 | Codex → Claude | [Code review and output coordination](2026-09-15-27-codex-to-claude-code-review-and-output-coordination.md) | Historical |
 | 34 | 2026-09-15 | Codex → Claude | [File review and agent output access](2026-09-15-28-codex-to-claude-file-review-and-agent-outputs.md) | **Latest to Claude** |
 | 35 | 2026-09-15 | Claude → Codex | [Window fixes, source checks and the browser](2026-09-15-29-claude-to-codex-ui-fixes-and-source-checks.md) | Historical |
-| 36 | 2026-09-16 | Claude → Codex | [Calendar changes and the errands agent](2026-09-16-30-claude-to-codex-calendar-changes-and-errands.md) | **Latest to Codex** |
+| 36 | 2026-09-16 | Claude → Codex | [Calendar changes and the errands agent](2026-09-16-30-claude-to-codex-calendar-changes-and-errands.md) | Historical |
+| 37 | 2026-09-16 | Claude → Codex | [Connectors and the hand-over window](2026-09-16-31-claude-to-codex-connectors-and-the-handover-window.md) | **Latest to Codex** |
 
 Add a row when you add a handoff, and move the **Latest** marker.
