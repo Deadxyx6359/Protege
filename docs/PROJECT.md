@@ -620,8 +620,24 @@ and what is overdue, soonest first, with whether each was submitted;
 `read_assignment` what one asks, as text. Ids are checked, never escaped. A new
 `coursework` role reads Canvas, the calendar, notes and Drive, and changes
 nothing.
-*Next:* read-only banking through SimpleFIN, and messages, which waits on how
-Phone Link can be read.
+*Done since, banks through SimpleFIN:* `core/connect/simplefin.py`, tools in
+`core/tools/builtin/money.py`. The person makes a setup token in SimpleFIN
+Bridge; it is a one-time claim link, written in base64, and Akira claims it once
+with a POST and seals the access SimpleFIN gives back. A token whose claim link
+is anywhere but SimpleFIN's own bridge is refused before anything is sent; a
+refused claim tells the person the token may have been taken, as the protocol
+asks; access that points anywhere but the bridge is not kept. The access carries
+a name and password, which the one door now sends only as a Basic header
+(`client.call(basic=...)`, `split_sign_in`), never in an address, and never to
+the log — nor is the claim link, whose path is itself the secret
+(`secret_path`). `list_bank_accounts` and `list_transactions` read under
+`bank.read` for the bridge; what SimpleFIN says went wrong with a bank reaches
+the person. A look is kept in memory for an hour, since SimpleFIN refreshes
+once a day and limits how often it is asked, and is not handed back once the
+permission has gone. Nothing from a bank is written to disk. There is no
+`bank.write` and no request that could move money. A new `finances` role reads
+it and is told it is not a financial adviser.
+*Next:* messages, which waits on how Phone Link can be read.
 
 **C6 ✅ Monitoring agent** — `core/agents/monitor.py`, bridge `ui/bridge/monitor.py`
 Watch a page, folder, inbox or feed for change; run on the scheduler; notify or
@@ -745,13 +761,13 @@ and resumable.
 | C | C7 Location and time | ✅ |
 | C | C4 Screen capture | ✅ |
 | C | C2 Web search | ✅ |
-| C | C5 Connectors | ▶ Google (mail, calendar, Drive) and Canvas done; banking and messages next |
+| C | C5 Connectors | ▶ Google, Canvas and banks (SimpleFIN) done; messages wait on Phone Link |
 | C | C3 Browser | ▶ reading a page, and typing and pressing on it, each approved; a picture of a page next |
 | C | C8 Purchasing | ▶ a cart handed to the person in a window of their own, to pay for themselves |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 2150 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 2170 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

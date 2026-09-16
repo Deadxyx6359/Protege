@@ -41,6 +41,7 @@ neither it, nor a form, nor a query string is written to the activity log.
 
 from __future__ import annotations
 
+import base64
 import http.client
 import ipaddress
 import json
@@ -50,7 +51,7 @@ import time
 import zlib
 from collections.abc import Callable
 from dataclasses import dataclass
-from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
+from urllib.parse import parse_qs, unquote, urlencode, urljoin, urlsplit
 
 from akira import __version__
 from akira.core.permissions import AuditLog
@@ -144,6 +145,27 @@ def query_value(url: str, name: str) -> str:
     except ValueError:
         return ""
     return values[0] if values else ""
+
+
+def split_sign_in(url: str) -> tuple[str, str, str]:
+    """An address with a name and password in it, as the address without them, the
+    name, and the password. Raises `NetError` for one that has none.
+
+    Here because this is the one module that may import `urllib`: a service such
+    as SimpleFIN hands out its access as one address, and an address with a
+    sign-in in it is never fetched as it is. The sign-in goes in a header.
+    """
+    try:
+        parts = urlsplit(str(url).strip())
+        host, port = (parts.hostname or "").lower(), parts.port
+    except ValueError:
+        raise NetError("That is not an address.") from None
+    if parts.scheme.lower() != "https" or not host:
+        raise NetError("Only an https address is used.")
+    if not parts.username or parts.password is None:
+        raise NetError("That address carries no sign-in.")
+    where = f"https://{host}{f':{port}' if port else ''}{parts.path.rstrip('/')}"
+    return where, unquote(parts.username), unquote(parts.password)
 
 
 def redact(url: str) -> str:
@@ -444,10 +466,13 @@ JSON = "application/json"
 
 def _record_call(audit: AuditLog | None, actor: str, method: str, url: str, started: float,
                  capability: str, scope: str, *, response: Response | None = None,
-                 error: str = "") -> None:
-    """The log's line for a signed-in request: never the sign-in, the form or the query."""
+                 error: str = "", secret_path: bool = False) -> None:
+    """The log's line for a signed-in request: never the sign-in, the form or the query,
+    and not the path either when the path is itself a secret."""
     if audit is None:
         return
+    if secret_path:
+        url = f"https://{host_of(url) or '(an address)'}/…"
     result = None
     if response is not None:
         result = {"status": response.status, "bytes": len(response.body),
@@ -460,29 +485,37 @@ def _record_call(audit: AuditLog | None, actor: str, method: str, url: str, star
 
 def call(method: str, url: str, *, policy, capability: str, scope: str, hosts: tuple[str, ...],
          audit: AuditLog | None = None, actor: str = ACTOR,
-         bearer: Callable[[], str] | None = None, form: dict[str, str] | None = None,
+         bearer: Callable[[], str] | None = None,
+         basic: Callable[[], tuple[str, str]] | None = None,
+         form: dict[str, str] | None = None,
          payload: dict | None = None, accept: str = JSON, max_bytes: int = MAX_BYTES,
-         timeout_s: float = TIMEOUT_S) -> Response:
+         timeout_s: float = TIMEOUT_S, secret_path: bool = False) -> Response:
     """A request to a connected account's servers, carrying its sign-in.
 
     Held to \a capability for \a scope, the account (`mail.read` for this
-    mailbox), and to \a hosts, the provider's own servers. \a bearer is asked
-    for the sign-in only once every other check has passed, so a refused
-    request never even fetches one, and it goes only in the Authorization
-    header. A POST carries \a form, such as a sign-in code being exchanged, or
+    mailbox), and to \a hosts, the provider's own servers. \a bearer, a token,
+    or \a basic, a name and password, is asked for the sign-in only once every
+    other check has passed, so a refused request never even fetches one, and it
+    goes only in the Authorization header. A request carries one sign-in at
+    most. A POST carries \a form, such as a sign-in code being exchanged, or
     \a payload, a JSON document such as a message to send; a PATCH carries the
     fields to change, such as an event's new time. Anything but a GET is sent at
     most once. A redirect is refused, never followed.
 
     Raises `NetError` with a reason written for the person, and `ValueError`
     for a request that could never be right. Every outcome goes into \a audit,
-    without the sign-in, the form, the payload or the query string.
+    without the sign-in, the form, the payload or the query string. When the
+    address's path is itself a secret, such as a one-time claim link, \a
+    secret_path keeps it out too, and only the site is written.
     """
     method = str(method).upper()
     if method not in CALL_METHODS:
         raise ValueError(f"a signed-in request is GET, POST, PATCH or DELETE, not {method}")
     if not hosts:
         raise ValueError(f"a request under {capability} must name the hosts it may reach")
+    if bearer is not None and basic is not None:
+        raise ValueError("a signed-in request carries one sign-in, a token or a name and "
+                         "password, not both")
     carried = (form is not None) + (payload is not None)
     if carried != (method in CARRIERS):
         raise ValueError("a POST or a PATCH carries a form or a payload, one of them, and "
@@ -509,6 +542,10 @@ def call(method: str, url: str, *, policy, capability: str, scope: str, hosts: t
             headers["Content-Type"] = "application/json; charset=utf-8"
         if bearer is not None:
             headers["Authorization"] = f"Bearer {bearer()}"
+        elif basic is not None:
+            name, password = basic()
+            pair = base64.b64encode(f"{name}:{password}".encode("utf-8")).decode("ascii")
+            headers["Authorization"] = f"Basic {pair}"
         reply = _exchange(target, addresses, started + timeout_s, max_bytes, timeout_s,
                           method=method, headers=headers, body=body, once=method != "GET")
         if reply.location:
@@ -518,9 +555,11 @@ def call(method: str, url: str, *, policy, capability: str, scope: str, hosts: t
         response = Response(target.url, reply.status, reply.reason, reply.content_type,
                             reply.body, reply.truncated)
     except NetError as exc:
-        _record_call(audit, actor, method, url, started, capability, scope, error=str(exc))
+        _record_call(audit, actor, method, url, started, capability, scope, error=str(exc),
+                     secret_path=secret_path)
         raise
-    _record_call(audit, actor, method, url, started, capability, scope, response=response)
+    _record_call(audit, actor, method, url, started, capability, scope, response=response,
+                 secret_path=secret_path)
     return response
 
 

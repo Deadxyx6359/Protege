@@ -10,6 +10,7 @@ No test touches the network. The resolver and the connection are fakes.
 
 from __future__ import annotations
 
+import base64
 import json
 
 import pytest
@@ -247,6 +248,30 @@ def test_a_patch_carries_only_what_changes_and_is_sent_once(wire, tmp_path):
     [sent] = cable.requests
     assert sent["method"] == "PATCH" and sent["body"] == json.dumps(change).encode("utf-8")
     assert "2026-09-18T16" not in (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+
+
+def test_a_name_and_password_go_in_a_header_and_a_secret_path_stays_out_of_the_log(wire,
+                                                                                  tmp_path):
+    path = "/simplefin/claim/one-time-link"
+    cable = wire({("beta-bridge.simplefin.org", path): json_reply(b"ok")})
+    policy = Policy()
+    policy.grant("bank.read", ("beta-bridge.simplefin.org",))
+    audit = AuditLog(tmp_path / "audit.jsonl")
+    net.call("POST", f"https://beta-bridge.simplefin.org{path}", policy=policy,
+             capability="bank.read", scope="beta-bridge.simplefin.org",
+             hosts=("beta-bridge.simplefin.org",), audit=audit, form={},
+             basic=lambda: ("user9", "pa:ss"), secret_path=True)
+    [sent] = cable.requests
+    assert sent["headers"]["authorization"] == "Basic " + base64.b64encode(b"user9:pa:ss").decode()
+    log = (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+    assert "one-time-link" not in log and "pa:ss" not in log and "beta-bridge.simplefin.org" in log
+
+
+def test_a_request_carries_one_sign_in_at_most():
+    with pytest.raises(ValueError, match="one sign-in"):
+        net.call("GET", f"https://gmail.googleapis.com{LIST}", policy=mailbox(ACCOUNT),
+                 capability="mail.read", scope=ACCOUNT, hosts=MAIL, bearer=lambda: "t",
+                 basic=lambda: ("a", "b"))
 
 
 @pytest.mark.parametrize("method, hosts, form, payload, reason", [

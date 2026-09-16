@@ -22,7 +22,10 @@ from PySide6.QtCore import Property, QObject, Signal, Slot
 from akira.core.connect import (SERVICES, AccountStore, ConnectError, GoogleAccounts, address_of,
                                 sign_in)
 from akira.core.connect import canvas as lms
+from akira.core.connect import simplefin as bank
 from akira.core.connect.canvas import Canvas
+from akira.core.connect.simplefin import Bank
+from akira.core.net import host_of
 from akira.core.net.loopback import Receiver
 from akira.core.permissions import AuditLog, Policy, SecretStore
 from akira.core.permissions.capabilities import CATALOGUE
@@ -57,14 +60,25 @@ class AccountsBridge(QObject):
     #: Private: from the Canvas worker to this thread.
     _canvas_done = Signal(bool, str)
 
+    bankChanged = Signal()
+
+    #: ok, message — once per SimpleFIN claim, however it ended.
+    bankFinished = Signal(bool, str)
+
+    #: Private: from the claim's worker to this thread.
+    _bank_done = Signal(bool, str)
+
     def __init__(self, *, vault: SecretStore, policy: Callable[[], Policy], audit: AuditLog,
                  store: AccountStore | None = None,
                  open_page: Callable[[str], None] = open_in_browser,
                  canvas: Canvas | None = None,
+                 banks: Bank | None = None,
                  parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._google = GoogleAccounts(vault=vault, store=store)
         self._canvas = canvas if canvas is not None else Canvas(vault=vault)
+        self._bank = banks if banks is not None else Bank(vault=vault)
+        self._bank_connecting = False
         self._policy = policy
         self._audit = audit
         self._open = open_page
@@ -73,6 +87,7 @@ class AccountsBridge(QObject):
         self._receiver: Receiver | None = None
         self._done.connect(self._on_done)
         self._canvas_done.connect(self._on_canvas_done)
+        self._bank_done.connect(self._on_bank_done)
 
     @property
     def google(self) -> GoogleAccounts:
@@ -276,4 +291,72 @@ class AccountsBridge(QObject):
         except ConnectError as exc:
             return str(exc)
         self.canvasChanged.emit()
+        return note
+
+    # -- banks, through SimpleFIN -----------------------------------------------------------
+
+    @Property(str, constant=True)
+    def bankHelp(self) -> str:
+        """Where a setup token comes from, and that money never moves."""
+        return bank.TOKEN_HELP
+
+    @Property("QVariantList", notify=bankChanged)
+    def bankConnections(self) -> list:
+        """Each connected bridge: `bridge`, `connected` (epoch seconds). Never the access."""
+        return [{"bridge": c.bridge, "connected": c.connected} for c in self._bank.connections()]
+
+    @Property(bool, notify=bankChanged)
+    def bankConnecting(self) -> bool:
+        return self._bank_connecting
+
+    @Slot(str, result=str)
+    def bankBridge(self, setup_token: str) -> str:
+        """The SimpleFIN bridge \a setup_token belongs to, or "" when it is not one."""
+        return bank.bridge_of(setup_token)
+
+    @Slot(str, result="QVariantList")
+    def bankMissing(self, bridge: str) -> list:
+        """`capability` and `title` for `bank.read` when it is not granted for \a bridge."""
+        if bridge not in bank.BRIDGES or self._policy().allows(bank.CAPABILITY, bridge):
+            return []
+        return [{"capability": bank.CAPABILITY, "title": CATALOGUE[bank.CAPABILITY].title}]
+
+    @Slot(str, result=str)
+    def connectBank(self, setup_token: str) -> str:
+        """Claim \a setup_token and seal the access. Returns "" once started, or why not."""
+        if self._bank_connecting:
+            return "Already connecting."
+        try:
+            bridge = bank.bridge_of(setup_token) or host_of(bank.claim_address(setup_token))
+        except ConnectError as exc:
+            return str(exc)
+        if self.bankMissing(bridge):
+            return f"Not permitted: allow {CATALOGUE[bank.CAPABILITY].title} for {bridge} first."
+        self._bank_connecting = True
+        self.bankChanged.emit()
+        threading.Thread(target=self._connect_bank, args=(str(setup_token),),
+                         name="simplefin-claim", daemon=True).start()
+        return ""
+
+    def _connect_bank(self, setup_token: str) -> None:
+        """Worker thread. Emits a signal; touches no Qt property."""
+        try:
+            self._bank.connect(setup_token, policy=self._policy(), audit=self._audit)
+            self._bank_done.emit(True, "Connected your banks through SimpleFIN. Akira reads "
+                                       "balances and transactions, and cannot move money.")
+        except ConnectError as exc:
+            self._bank_done.emit(False, str(exc))
+        except Exception as exc:  # noqa: BLE001 - a crashed claim must still report back
+            self._bank_done.emit(False, f"{type(exc).__name__}: {exc}")
+
+    def _on_bank_done(self, ok: bool, message: str) -> None:
+        self._bank_connecting = False
+        self.bankChanged.emit()
+        self.bankFinished.emit(ok, message)
+
+    @Slot(str, result=str)
+    def disconnectBank(self, bridge: str) -> str:
+        """Forget the access to a bridge. Returns what the person should also do there."""
+        note = self._bank.disconnect(bridge)
+        self.bankChanged.emit()
         return note

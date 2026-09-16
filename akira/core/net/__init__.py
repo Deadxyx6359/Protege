@@ -7,7 +7,9 @@ browser's connection is made (C3). The rules every request is held to are in
 """
 
 from .client import (MAX_BYTES, MAX_REDIRECTS, TIMEOUT_S, NetError, Response, call, fetch,
-                     fetchable, host_of, is_public, query_value, redact, tunnel, with_query)
+                     fetchable, host_of, is_public, query_value, redact, split_sign_in, tunnel,
+                     with_query)
 
 __all__ = ["MAX_BYTES", "MAX_REDIRECTS", "TIMEOUT_S", "NetError", "Response", "call", "fetch",
-           "fetchable", "host_of", "is_public", "query_value", "redact", "tunnel", "with_query"]
+           "fetchable", "host_of", "is_public", "query_value", "redact", "split_sign_in", "tunnel",
+           "with_query"]

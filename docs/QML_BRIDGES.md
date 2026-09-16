@@ -559,6 +559,24 @@ Schedule.addJob({
 - `lms.read` is scoped to the site. Offer it beside the site from
   `canvasMissing`, and add it to the grant rather than replacing the grant.
 
+### Banks, through SimpleFIN, on the same bridge
+
+| Member | Kind | Notes |
+|---|---|---|
+| `bankHelp` | Property, constant | Where a setup token comes from, and that nothing can move money. Show it beside the field |
+| `bankConnections` | Property, notifies `bankChanged` | Each connected bridge: `bridge`, `connected` (epoch seconds). Never the access |
+| `bankConnecting` | Property, notifies `bankChanged` | Whether a claim is under way |
+| `bankBridge(setupToken)` | Slot → string | The SimpleFIN bridge the token belongs to, or `""` when it is not a token for SimpleFIN's own bridge |
+| `bankMissing(bridge)` | Slot → list | `capability` and `title` for `bank.read` when it is not granted for that bridge |
+| `connectBank(setupToken)` | Slot → string | `""` once started, or why not, including **Not permitted** while `bankMissing` is not empty. The token is claimed once, on a worker |
+| `bankFinished(ok, message)` | Signal | Once per claim. **Show `message`**: a refused claim says the token may have been taken |
+| `disconnectBank(bridge)` | Slot → string | Forget the access. Returns a note: remove Akira in SimpleFIN Bridge too |
+
+- **The setup token is a one-time secret.** Take it in a password field, hand
+  it to `connectBank`, and clear the field straight away.
+- **Money never moves.** There is no `bank.write`, no tool and no request that
+  could. Say so; `bankHelp` does.
+
 ## `Chat` — what a turn drew on
 
 `Chat` is otherwise as it was (see `bridge/chat.py`). Two properties and a

@@ -19,7 +19,7 @@ Sheet {
     id: root
 
     title: "Accounts"
-    subtitle: "Google and Canvas"
+    subtitle: "Google, Canvas and banks"
     sheetWidth: 640
 
     property string address: ""
@@ -33,6 +33,8 @@ Sheet {
     property string canvasSite: ""
     /*! Held only until it is handed to the bridge, then cleared. */
     property string canvasToken: ""
+    /*! The SimpleFIN setup token, held only until it is handed over, then cleared. */
+    property string bankToken: ""
 
     Connections {
         target: Permissions
@@ -41,6 +43,10 @@ Sheet {
 
     Connections {
         target: Accounts
+        function onBankFinished(ok, message) {
+            root.notice = message;
+            root.good = ok;
+        }
         function onCanvasFinished(ok, message) {
             root.notice = message;
             root.good = ok;
@@ -90,6 +96,31 @@ Sheet {
     readonly property var canvasGaps: {
         void root.revision;
         return root.canvasWhere !== "" ? Accounts.canvasMissing(root.canvasWhere) : [];
+    }
+
+    readonly property string bankWhere: Accounts.bankBridge(root.bankToken)
+    readonly property var bankGaps: {
+        void root.revision;
+        return root.bankWhere !== "" ? Accounts.bankMissing(root.bankWhere) : [];
+    }
+
+    function connectBank() {
+        root.notice = Accounts.connectBank(root.bankToken);
+        root.good = false;
+        root.bankToken = "";
+        return root.notice;
+    }
+
+    /*! The first press arms; the second forgets the access. */
+    function disconnectBank(bridge) {
+        if (root.armed !== bridge) {
+            root.armed = bridge;
+            return "";
+        }
+        root.armed = "";
+        root.notice = Accounts.disconnectBank(bridge);
+        root.good = true;
+        return root.notice;
     }
 
     function connectCanvas() {
@@ -533,6 +564,119 @@ Sheet {
                     text: school.isArmed ? "Forget it" : "Disconnect"
                     kind: school.isArmed ? "danger" : "secondary"
                     onClicked: root.disconnectCanvas(school.modelData.site)
+                }
+            }
+        }
+    }
+
+    // -- banks, through SimpleFIN ------------------------------------------------------
+
+    ColumnLayout {
+        width: parent.width
+        spacing: Theme.space.md
+
+        SectionLabel { text: "Banks, through SimpleFIN" }
+
+        Text {
+            Layout.fillWidth: true
+            text: Accounts.bankHelp
+            textFormat: Text.PlainText
+            font: Theme.type.caption
+            color: Theme.textTertiary
+            wrapMode: Text.Wrap
+        }
+
+        Field {
+            objectName: "bankToken"
+            Layout.fillWidth: true
+            secret: true
+            text: root.bankToken
+            placeholder: "The setup token from SimpleFIN Bridge"
+            onEdited: function (value) { root.bankToken = value }
+        }
+
+        // What must be allowed first, beside what it allows.
+        Repeater {
+            model: root.bankGaps
+            RowLayout {
+                id: bankGap
+                required property var modelData
+                Layout.fillWidth: true
+                spacing: Theme.space.md
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 1
+                    Text {
+                        Layout.fillWidth: true
+                        text: "Allow " + bankGap.modelData.title + " through " + root.bankWhere
+                        textFormat: Text.PlainText
+                        font: Theme.type.body
+                        color: Theme.textPrimary
+                        elide: Text.ElideMiddle
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: "Lets Akira, and agents you start, read balances and transactions. Nothing can move money."
+                        font: Theme.type.caption
+                        color: Theme.textTertiary
+                        wrapMode: Text.Wrap
+                    }
+                }
+                ActionButton {
+                    text: "Allow"
+                    kind: "primary"
+                    onClicked: root.allowFor(bankGap.modelData.capability, root.bankWhere)
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.space.sm
+            Item { Layout.fillWidth: true }
+            ActionButton {
+                objectName: "connectBank"
+                text: Accounts.bankConnecting ? "Connecting…" : "Connect banks"
+                kind: "primary"
+                enabled: root.bankWhere !== "" && root.bankGaps.length === 0
+                         && !Accounts.bankConnecting
+                onClicked: root.connectBank()
+            }
+        }
+
+        Repeater {
+            model: Accounts.bankConnections
+            RowLayout {
+                id: linked
+                required property var modelData
+                readonly property bool isArmed: root.armed === linked.modelData.bridge
+                Layout.fillWidth: true
+                spacing: Theme.space.sm
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 1
+                    Text {
+                        Layout.fillWidth: true
+                        text: "SimpleFIN (" + linked.modelData.bridge + ")"
+                        textFormat: Text.PlainText
+                        font: Theme.type.bodyStrong
+                        color: Theme.textPrimary
+                        elide: Text.ElideMiddle
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: "Reading only · since "
+                              + Qt.formatDate(new Date(linked.modelData.connected * 1000), "d MMM yyyy")
+                        textFormat: Text.PlainText
+                        font: Theme.type.caption
+                        color: Theme.textSecondary
+                        wrapMode: Text.Wrap
+                    }
+                }
+                ActionButton {
+                    text: linked.isArmed ? "Forget it" : "Disconnect"
+                    kind: linked.isArmed ? "danger" : "secondary"
+                    onClicked: root.disconnectBank(linked.modelData.bridge)
                 }
             }
         }
