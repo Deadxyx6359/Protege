@@ -78,6 +78,40 @@ def test_only_the_named_site_is_looked_up(guard, monkeypatch):
     assert asked == ["Example.com"]
 
 
+def test_a_socket_pair_joins_its_own_two_ends(guard):
+    # asyncio wakes its loop with one, so Playwright needs one (C3). On Windows
+    # Python makes it by connecting to itself on 127.0.0.1.
+    left, right = socket.socketpair()
+    with left, right:
+        left.sendall(b"wake")
+        assert right.recv(4) == b"wake"
+
+
+def test_an_event_loop_runs_under_the_guard(guard):
+    import asyncio
+
+    assert asyncio.run(asyncio.sleep(0, result="ran")) == "ran"
+
+
+def test_making_a_pair_opens_nothing_else(guard, listener):
+    left, right = socket.socketpair()
+    left.close()
+    right.close()
+    assert isinstance(attempt(listener), netguard.NetworkAccessBlocked), "the door stayed open"
+
+
+def test_while_a_pair_is_made_nothing_off_this_computer_is_reached(guard, monkeypatch):
+    seen = {}
+
+    def pair(*args, **kwargs):
+        seen["far"] = attempt(("93.184.216.34", 443))
+        return "left", "right"
+
+    monkeypatch.setitem(netguard._original, "socketpair", pair)
+    assert socket.socketpair() == ("left", "right")
+    assert isinstance(seen["far"], netguard.NetworkAccessBlocked)
+
+
 def test_blocks_nest_and_restore(guard, listener):
     with netguard.admitting(addresses=(listener,)):
         with netguard.admitting(hosts=("example.com",)):

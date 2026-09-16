@@ -451,7 +451,7 @@ in C++, out of sight of both checks. Every engine now refuses the network
 and on QML that imports its own connection; and pictures in replies are served
 as links, because Qt opens `file://server/…` as a file and Windows as a
 network share.
-*Still to do:* the C3 browser. Search (C2) uses it under its own permission;
+*Also through it:* the C3 browser's tunnels. Search (C2) uses it under its own permission;
 `git push` is done under A8 with its own controls, since git is a process of
 its own. Connected accounts (C5) use `call`, the one request that carries a
 sign-in, and `loopback`, the one listener, on 127.0.0.1 for a sign-in's answer.
@@ -468,24 +468,45 @@ material; reading one is `fetch_page` under `net.http` for that site. When
 DuckDuckGo asks whether a person is searching, the answer is "try later".
 The gatherer may search.
 
-**C3 ▶ Browser and computer use** — `core/net/proxy.py`, `client.tunnel`; the session next
+**C3 ▶ Browser and computer use** — `core/net/browser.py`, `core/net/proxy.py`, `client.tunnel`; filling and clicking next
 Playwright driving a real browser: navigate, read, fill, click, scrape without
 APIs. **Every irreversible interaction confirms** — submit, post, purchase,
 apply. Job applications stage a draft and stop.
-*Started, the way out:* the browser runs in its own process, out of the
-runtime guard's sight, so it is started with every request sent to a proxy on
-127.0.0.1 inside Akira (`proxy.py`), which asks the chokepoint's `tunnel` for
-each connection: port 443 only, the open internet only, each site's addresses
+*Done, the way out:* the browser runs in its own process, out of the runtime
+guard's sight, so it is started with every request sent to a proxy on 127.0.0.1
+inside Akira (`proxy.py`), which asks the chokepoint's `tunnel` for each
+connection: port 443 only, the open internet only, each site's addresses
 checked before connecting, only what the session allows, each logged. Plain
 http and other ports are refused with the reason. The proxy is a listener like
 the sign-in's return, and `verify_offline.py` holds it to the same rules.
-Playwright 1.62.0 and its Firefox build are installed, at the person's word.
-*Found:* that Firefox build does not start on Windows. Its `mozglue.dll` keeps
-the manifest for the component `firefox.exe` depends on in resource slot 2,
-and Windows looks for a private assembly's manifest in slot 1 only, so it
-refuses to activate the program before Firefox runs, sandbox or none. The
-session waits on the choice of browser; Microsoft Edge is installed, signed and
-current.
+*Done, reading a page:* `browse_page` opens a page in Chromium, lets its
+scripts run and reads what it shows, framed as material like `fetch_page`. Each
+visit is a new browser with an empty profile — no cookies, logins or history,
+nothing kept after — with downloads, service workers, pop-ups and permissions
+off and Chromium's sandbox on. Every page it opens, in the tab or a frame,
+needs `web.browse` for its site; a page it is sent on to is read only if that
+site is allowed too. What a page loads to show itself comes from wherever the
+page says, as in any browser, but over https to the open internet only, and the
+proxy lets a connection through only to a site the page asked for or the person
+allowed, so nothing Chromium would do by itself gets out. QUIC and WebRTC's own
+path are off, since a proxy carries neither. `verify_offline.py` gained a fifth
+check for it: only `core/net/browser.py` may import Playwright, every browser it
+starts is given the proxy, and it may not attach to one already running, start
+one that listens, make a request from Playwright's own driver, or trust any
+certificate.
+*The runtime guard learned one thing:* asyncio wakes its own loop with a pair
+of joined sockets, which on Windows is made by connecting to 127.0.0.1, so
+Playwright could not start under the guard at all. A connection is let through
+inside `socket.socketpair`, on the calling thread, for that call.
+*Found:* Playwright's Firefox build does not start on Windows. Its
+`mozglue.dll` keeps the manifest for the component `firefox.exe` depends on in
+resource slot 2, and Windows looks for a private assembly's manifest in slot 1
+only, so it refuses to activate the program before Firefox runs, sandbox or
+none. The person chose Chromium; the headless build is 115 MB to download and
+270 MB on disk, and the broken Firefox can be removed with
+`python -m playwright uninstall firefox`.
+*Next:* filling in and clicking, under `web.submit`, each irreversible action
+confirmed on its own; a picture of a page for the person to look at.
 
 **C4 ✅ Screen capture** — `core/screen.py`, tools in `core/tools/builtin/screen.py`
 *Done:* the whole screen captured with GDI and encoded as PNG with zlib, and
@@ -645,12 +666,12 @@ and resumable.
 | C | C4 Screen capture | ✅ |
 | C | C2 Web search | ✅ |
 | C | C5 Connectors | ▶ Google: signed-in door, sign-in, Gmail and Calendar reading, connecting from the window; sending next |
-| C | C3 Browser | ▶ the browser's way out, a proxy through the one door; the session next |
+| C | C3 Browser | ▶ reading a page in Chromium, held to the proxy and to web.browse; filling and clicking next |
 | C | C8 Purchasing | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 1923 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 2027 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

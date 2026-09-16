@@ -159,6 +159,52 @@ def test_the_real_listeners_keep_to_it():
         assert not vo._exempt_findings(_parse(path.read_text(encoding="utf-8")), module, path)
 
 
+def test_only_the_browser_module_may_import_playwright():
+    where = vo.REPO_ROOT / "loop.py"
+    drives = _parse("from playwright.sync_api import sync_playwright\n")
+    [finding] = vo._browser_findings(drives, "akira.core.agents.loop", where)
+    assert f"only {vo.BROWSER} may" in finding.detail
+    assert not vo._browser_findings(drives, vo.BROWSER, where)
+
+
+def test_every_browser_akira_starts_goes_through_the_proxy():
+    where = vo.REPO_ROOT / "browser.py"
+    held = _parse("b = pw.chromium.launch(headless=True, proxy={'server': s})\n")
+    assert not vo._browser_findings(held, vo.BROWSER, where)
+    loose = _parse("b = pw.chromium.launch(headless=True)\n")
+    assert "without proxy=" in vo._browser_findings(loose, vo.BROWSER, where)[0].detail
+    kept = _parse("c = pw.chromium.launch_persistent_context('profile')\n")
+    assert "without proxy=" in vo._browser_findings(kept, vo.BROWSER, where)[0].detail
+    attached = _parse("b = pw.chromium.connect_over_cdp('http://127.0.0.1:9222')\n")
+    assert "attaches" in vo._browser_findings(attached, vo.BROWSER, where)[0].detail
+    serving = _parse("s = pw.chromium.launch_server(proxy={'server': s})\n")
+    assert "listens" in vo._browser_findings(serving, vo.BROWSER, where)[0].detail
+
+
+@pytest.mark.parametrize("source", [
+    "pw.request.new_context().get('https://example.com/')\n",
+    "page.request.get('https://example.com/')\n",
+    "def handle(route, asked):\n    route.fetch()\n",
+])
+def test_the_browser_module_makes_no_request_past_the_proxy(source):
+    [finding] = vo._browser_findings(_parse(source), vo.BROWSER, vo.REPO_ROOT / "browser.py")
+    assert "past the proxy" in finding.detail
+
+
+@pytest.mark.parametrize("source", [
+    "c = b.new_context(ignore_https_errors=True)\n",
+    "OPTIONS = {'ignore_https_errors': True}\n",
+])
+def test_the_browser_module_never_trusts_any_certificate(source):
+    [finding] = vo._browser_findings(_parse(source), vo.BROWSER, vo.REPO_ROOT / "browser.py")
+    assert "certificate" in finding.detail
+
+
+def test_playwright_may_read_addresses_and_nothing_more():
+    assert vo.THIRD_PARTY_ALLOWED == {"playwright": frozenset({"urllib.parse"})}
+    assert vo.THIRD_PARTY_IMPORTERS == {"playwright": vo.BROWSER}
+
+
 def test_the_browsers_proxy_is_held_to_the_same_rules():
     where = vo.REPO_ROOT / "proxy.py"
     reaches = _parse('import socket\ns = socket.socket()\ns.connect(("8.8.8.8", 443))\n')

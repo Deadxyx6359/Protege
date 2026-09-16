@@ -4,7 +4,7 @@
 Run this after every `pip install` and before every release. It exits non-zero
 and prints every offending path if anything fails.
 
-Four checks:
+Five checks:
 
 1. **Source scan.** Every module in the `akira` package plus the entry points
    is parsed and walked for imports of networking modules, and for the dynamic
@@ -34,6 +34,16 @@ Four checks:
    engine Akira makes must be given `qtguard.shut`, and no QML or JavaScript
    file under `akira/ui/qml` may import a module that brings its own
    connection, such as `QtWebSockets` or `QtWebEngine`.
+
+5. **The browser, held to the proxy.** The browser Akira drives runs in its own
+   process, out of every guard here, so what holds it is that it is started
+   with everything sent to the proxy (`akira.core.net.proxy`). Only
+   `akira.core.net.browser` may import Playwright, and every browser it starts
+   must be given `proxy=`. It may not attach to a browser already running,
+   start one that listens for others, make requests from Playwright's own
+   driver (`.request`, `route.fetch`), which the proxy never sees, or trust any
+   certificate. Playwright's own Python may import `urllib.parse`, to read
+   addresses, and nothing else from the network (`THIRD_PARTY_ALLOWED`).
 
 That distinction in check 2 is the whole point of doing this properly rather
 than with grep. `llama-cpp-python` ships `llama_cpp/server/app.py`, which
@@ -166,6 +176,38 @@ LOOPBACK_HOST = "127.0.0.1"
 OUTWARD = frozenset({"connect", "connect_ex", "create_connection", "getaddrinfo",
                      "gethostbyname", "gethostbyname_ex", "gethostbyaddr", "sendto"})
 
+#: The one module that drives a browser (C3).
+BROWSER = "akira.core.net.browser"
+
+#: Third-party packages Akira drives, and the networking modules each may import
+#: at module scope. Playwright's Python talks to its driver over pipes; it
+#: imports `urllib.parse` to read addresses and nothing else from the network.
+#: The browser it starts is a process of its own, held by the proxy.
+THIRD_PARTY_ALLOWED = {"playwright": frozenset({"urllib.parse"})}
+
+#: Who alone may import each of them.
+THIRD_PARTY_IMPORTERS = {"playwright": BROWSER}
+
+#: Starting a browser: each must be given the proxy.
+LAUNCHES = frozenset({"launch", "launch_persistent_context"})
+
+#: What the browser module must never call, and why: each is a way to or from
+#: the network that the proxy does not hold.
+UNHELD_CALLS = {
+    "connect": "attaches to a browser Akira did not start, which no proxy of Akira's holds",
+    "connect_over_cdp": "attaches to a browser Akira did not start, which no proxy of Akira's "
+                        "holds",
+    "launch_server": "starts a browser that listens for others to drive it",
+    "fetch": "sends a request from Playwright's own driver, out of the browser and past the "
+             "proxy",
+}
+
+#: Playwright's own requests (`APIRequestContext`), made by its driver, past the proxy.
+UNHELD_ATTRIBUTES = frozenset({"request"})
+
+#: Trusting any certificate: for tests alone, never in the browser module.
+UNVERIFIED = "ignore_https_errors"
+
 #: What shuts an engine's own access to the network.
 SHUT = "shut"
 
@@ -236,6 +278,9 @@ ENTRY_POINTS = (
     # The embedding model imports llama_cpp too, and is loaded from inside a
     # function, which the walk would not otherwise follow.
     "akira/models/embedding.py",
+    # The browser (C3), the one module that imports Playwright, so that
+    # Playwright's own Python is walked however the tools come to import it.
+    "akira/core/net/browser.py",
 )
 
 
@@ -486,6 +531,43 @@ def _loopback_findings(tree: ast.AST, module: str, path: Path) -> list[Finding]:
     return findings
 
 
+def _browser_findings(tree: ast.AST, module: str, path: Path) -> list[Finding]:
+    """Only the browser module drives a browser, and every one it starts uses the proxy."""
+    findings: list[Finding] = []
+    for site in _imports_in(tree):
+        owner = THIRD_PARTY_IMPORTERS.get(top_level(site.name))
+        if owner and module != owner:
+            findings.append(Finding(
+                module, path, site.line,
+                f"imports {site.name!r}, which only {owner} may: the browser it drives "
+                "must go through the proxy"))
+    if module != BROWSER:
+        return findings
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and node.attr in UNHELD_ATTRIBUTES:
+            findings.append(Finding(
+                module, path, node.lineno,
+                f"uses .{node.attr} -- Playwright's own requests come from its driver, out of "
+                "the browser and past the proxy"))
+        elif ((isinstance(node, ast.keyword) and node.arg == UNVERIFIED)
+              or (isinstance(node, ast.Constant) and node.value == UNVERIFIED)):
+            findings.append(Finding(
+                module, path, node.lineno,
+                f"names {UNVERIFIED} -- the browser verifies every site's certificate"))
+        if not isinstance(node, ast.Call):
+            continue
+        name = _called(node)
+        if name in UNHELD_CALLS:
+            findings.append(Finding(module, path, node.lineno,
+                                    f"calls {name}() -- it {UNHELD_CALLS[name]}"))
+        elif name in LAUNCHES and not any(k.arg == "proxy" for k in node.keywords):
+            findings.append(Finding(
+                module, path, node.lineno,
+                f"starts a browser with {name}() without proxy= -- every browser Akira starts "
+                "sends everything through its proxy"))
+    return findings
+
+
 def _admission_findings(tree: ast.AST, module: str, path: Path) -> list[Finding]:
     """Nothing but the chokepoint opens the guard's door."""
     if module in (GUARD, CHOKEPOINT):
@@ -601,6 +683,7 @@ def scan_source(result: ScanResult) -> None:
                 result.errors.extend(dynamic)
         result.errors.extend(_admission_findings(tree, module, path))
         result.errors.extend(_engine_findings(tree, module, path))
+        result.errors.extend(_browser_findings(tree, module, path))
 
 
 def _is_original_dispatch(node: ast.Call) -> bool:
@@ -664,6 +747,9 @@ def scan_reachable(result: ScanResult, max_modules: int = 6000) -> None:
             if is_forbidden(resolved):
                 if resolved in EXEMPT_IMPORTS.get(module, frozenset()):
                     # This module's own exemption. The stdlib is not descended into.
+                    continue
+                if resolved in THIRD_PARTY_ALLOWED.get(top_level(module), frozenset()):
+                    # Declared for the package, with the reason: THIRD_PARTY_ALLOWED.
                     continue
                 if site.module_level:
                     result.errors.append(
@@ -775,6 +861,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\nPASS: nothing but {CHOKEPOINT} can reach the network, and it only where the "
           "person allowed: sites under net.http, accounts they connected.")
     print(f"What listens ({', '.join(sorted(LISTENERS))}) listens on this computer only.")
+    print(f"The browser ({BROWSER}) is started with everything sent through {PROXY}.")
     print(f"The interface's own access to the network is shut ({QT_GUARD}).")
     print("Reminder: this is a static check of Python imports. It cannot see native code "
           "calling the OS directly. An OS firewall rule denying this binary egress is stronger.")

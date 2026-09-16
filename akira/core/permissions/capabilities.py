@@ -174,7 +174,8 @@ CATALOGUE: dict[str, Capability] = {
            "Request pages and data from sites you allow.",
            Direction.READ, Risk.MEDIUM, ScopeKind.HOST, leaves_machine=True),
         _c("web.browse", "Drive a browser",
-           "Open a real browser and click, scroll and read pages.",
+           "Open pages from sites you allow in a real browser and read them. Like any "
+           "browser, it loads what a page needs from other sites.",
            Direction.READ, Risk.HIGH, ScopeKind.HOST, leaves_machine=True),
         _c("web.submit", "Fill in and submit forms",
            "Enter information into web forms and send it.",

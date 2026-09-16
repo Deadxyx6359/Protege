@@ -19,6 +19,13 @@ length of a `with` block, and nothing else. Every other thread, and this one
 outside the block, is still refused. `verify_offline.py` proves no other module
 calls it.
 
+**A socket pair, joined to itself.** asyncio wakes its own loop with two
+sockets joined to each other, and Playwright, which drives the browser (C3),
+runs on asyncio. On Windows, Python makes the pair by listening on 127.0.0.1
+and connecting to that. So while `socket.socketpair` runs, and only on the
+thread calling it, a connection to this computer is let through. Nothing
+leaves the process, let alone the machine.
+
 Deliberately narrow. We do not delete `socket` or block the module's import --
 several innocuous stdlib paths touch `socket` for local reasons (hostname
 lookup, Tk's internals on some platforms), and breaking those would produce
@@ -97,6 +104,16 @@ def _address_admitted(address: Any) -> bool:
         return False
 
 
+#: Where `socket.socketpair` joins its two ends, on Windows.
+_PAIR_HOSTS = frozenset({"127.0.0.1", "::1"})
+
+
+def _pairing(address: Any) -> bool:
+    """Whether this is the connection `socket.socketpair` makes to join its own two ends."""
+    return (getattr(_admission, "pairing", False) and isinstance(address, tuple)
+            and bool(address) and address[0] in _PAIR_HOSTS)
+
+
 def _is_loopback(address: Any) -> bool:
     """True only for addresses that cannot leave the machine."""
     if isinstance(address, (tuple, list)) and address:
@@ -141,11 +158,21 @@ def install() -> None:
     _original["create_connection"] = socket.create_connection
     _original["getaddrinfo"] = socket.getaddrinfo
     _original["gethostbyname"] = socket.gethostbyname
+    _original["socketpair"] = socket.socketpair
 
     def guarded_connect(self: socket.socket, address: Any) -> None:
-        if _address_admitted(address):
+        if _address_admitted(address) or _pairing(address):
             return _original["connect"](self, address)
         raise _blocked("socket.connect", address)
+
+    def guarded_socketpair(*args: Any, **kwargs: Any) -> Any:
+        # Two ends joined to each other, in this process. See the module's note.
+        previous = getattr(_admission, "pairing", False)
+        _admission.pairing = True
+        try:
+            return _original["socketpair"](*args, **kwargs)
+        finally:
+            _admission.pairing = previous
 
     def guarded_connect_ex(self: socket.socket, address: Any) -> int:
         raise _blocked("socket.connect_ex", address)
@@ -179,6 +206,7 @@ def install() -> None:
     socket.create_connection = guarded_create_connection  # type: ignore[assignment]
     socket.getaddrinfo = guarded_getaddrinfo  # type: ignore[assignment]
     socket.gethostbyname = guarded_gethostbyname  # type: ignore[assignment]
+    socket.socketpair = guarded_socketpair  # type: ignore[assignment]
 
     _installed = True
 
@@ -198,6 +226,7 @@ def uninstall() -> None:
     socket.create_connection = _original["create_connection"]  # type: ignore[assignment]
     socket.getaddrinfo = _original["getaddrinfo"]  # type: ignore[assignment]
     socket.gethostbyname = _original["gethostbyname"]  # type: ignore[assignment]
+    socket.socketpair = _original["socketpair"]  # type: ignore[assignment]
     _original.clear()
     _installed = False
 

@@ -74,6 +74,27 @@ argon2-cffi==23.1.0
 # Local parsing only, no I/O.
 PyYAML==6.0.2
 
+# playwright: drives Chromium, the browser Akira reads pages with (C3). Its
+# Python talks to its own driver over pipes and makes no connection itself.
+# verify_offline.py lets only akira/core/net/browser.py import it, allows it
+# `urllib.parse`, to read addresses, and nothing else from the network, and
+# checks that every browser it starts sends everything through Akira's proxy.
+#
+# The browser is installed once, beside it, like a package (about 115 MB to
+# download, 270 MB on disk), and changes only when this is run again:
+#   python -m playwright install --only-shell chromium
+# It runs in its own process, out of the runtime guard's sight. What holds it
+# is the proxy, and the firewall rule in the README holds it harder.
+#
+# NOTE: Playwright can also make requests from its own driver
+# (APIRequestContext, route.fetch), attach to a browser started elsewhere, or
+# start one that listens for others. Each would go around the proxy, and
+# verify_offline.py refuses them all.
+playwright==1.62.0
+greenlet==3.5.5
+pyee==13.0.1
+typing_extensions==4.16.0
+
 # --- Development only (not required to run Akira) ---------------------------
 
 # pytest: test runner. Not imported by the application.
