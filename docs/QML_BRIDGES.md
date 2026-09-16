@@ -537,6 +537,28 @@ Schedule.addJob({
 - The slots are `connectAccount` and `disconnectAccount` because every QObject
   already has `connect` and `disconnect`.
 
+### Canvas, on the same bridge
+
+| Member | Kind | Notes |
+|---|---|---|
+| `canvasHelp` | Property, constant | How to make a token in Canvas, and that Akira holds itself to reading. Show it beside the fields |
+| `canvasSites` | Property, notifies `canvasChanged` | Each connected site: `site`, `name` (the person's, as Canvas has it), `connected` (epoch seconds). Never the token |
+| `canvasConnecting` | Property, notifies `canvasChanged` | The site being connected, or `""` |
+| `canvasSite(text)` | Slot → string | `text` as a Canvas site, such as `school.instructure.com`, or `""` when it is not one (plain http, an address, no dot) |
+| `canvasMissing(site)` | Slot → list | `capability` and `title` for `lms.read` when it is not granted for that site; empty otherwise |
+| `connectCanvas(site, token)` | Slot → string | `""` once started, or why not, including **Not permitted** while `canvasMissing` is not empty. Canvas is asked who the token belongs to on a worker; a token it refuses is never kept |
+| `canvasFinished(ok, message)` | Signal | Once per connection, however it ended. **Show `message`** |
+| `disconnectCanvas(site)` | Slot → string | Forget the site's token. Returns a note to show: delete the token in Canvas too |
+
+- **The token is the one secret typed here.** Take it in a password field,
+  hand it to `connectCanvas`, and clear the field straight away;
+  `AccountsSheet.qml` does. It is sealed with DPAPI the moment Canvas accepts it.
+- **Reading only.** A Canvas token can do anything the person can, and Canvas
+  offers students none that only reads, so Akira holds itself to GETs under
+  `lms.read`. Say so; `canvasHelp` does.
+- `lms.read` is scoped to the site. Offer it beside the site from
+  `canvasMissing`, and add it to the grant rather than replacing the grant.
+
 ## `Chat` — what a turn drew on
 
 `Chat` is otherwise as it was (see `bridge/chat.py`). Two properties and a

@@ -4,7 +4,8 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 
 /*!
-    Google accounts: the client file, connecting an address, and what is connected.
+    Connected accounts: Google (the client file, connecting an address, and what
+    is connected) and Canvas (a site and an access token, read only).
 
     Connecting reads only, and needs the address allowed first: Gmail
     (\c mail.read) or Google Calendar (\c calendar.read) for that address,
@@ -17,8 +18,8 @@ import QtQuick.Layouts
 Sheet {
     id: root
 
-    title: "Google accounts"
-    subtitle: "Gmail and Google Calendar"
+    title: "Accounts"
+    subtitle: "Google and Canvas"
     sheetWidth: 640
 
     property string address: ""
@@ -29,6 +30,9 @@ Sheet {
     /*! The address a first press of Disconnect armed. */
     property string armed: ""
     property int revision: 0
+    property string canvasSite: ""
+    /*! Held only until it is handed to the bridge, then cleared. */
+    property string canvasToken: ""
 
     Connections {
         target: Permissions
@@ -37,6 +41,12 @@ Sheet {
 
     Connections {
         target: Accounts
+        function onCanvasFinished(ok, message) {
+            root.notice = message;
+            root.good = ok;
+            if (ok)
+                root.canvasSite = "";
+        }
         function onFinished(ok, message) {
             root.notice = message;
             root.good = ok;
@@ -62,14 +72,42 @@ Sheet {
     }
 
     /*! Allow \a capability for the typed address, keeping every address it allows now. */
-    function allow(capability) {
+    function allow(capability) { return root.allowFor(capability, root.who); }
+
+    /*! Allow \a capability for \a scope, keeping every scope it allows now. */
+    function allowFor(capability, scope) {
         var now = Permissions.describe(capability);
         var held = now.granted ? now.scopes : [];
         var known = held.map(function (s) { return String(s).toLowerCase(); });
-        if (known.indexOf(root.who) >= 0)
+        if (known.indexOf(scope) >= 0)
             return "";
-        root.notice = Permissions.grant(capability, held.concat([root.who]));
+        root.notice = Permissions.grant(capability, held.concat([scope]));
         root.good = false;
+        return root.notice;
+    }
+
+    readonly property string canvasWhere: Accounts.canvasSite(root.canvasSite)
+    readonly property var canvasGaps: {
+        void root.revision;
+        return root.canvasWhere !== "" ? Accounts.canvasMissing(root.canvasWhere) : [];
+    }
+
+    function connectCanvas() {
+        root.notice = Accounts.connectCanvas(root.canvasSite, root.canvasToken);
+        root.good = false;
+        root.canvasToken = "";
+        return root.notice;
+    }
+
+    /*! The first press arms; the second forgets the token. */
+    function disconnectCanvas(site) {
+        if (root.armed !== site) {
+            root.armed = site;
+            return "";
+        }
+        root.armed = "";
+        root.notice = Accounts.disconnectCanvas(site);
+        root.good = true;
         return root.notice;
     }
 
@@ -121,6 +159,8 @@ Sheet {
     component Field: Rectangle {
         id: field
         property string text: ""
+        /*! Shown as dots, for a token. */
+        property bool secret: false
         property alias placeholder: input.placeholderText
         signal edited(string value)
         radius: Theme.radius.sm
@@ -143,6 +183,7 @@ Sheet {
             background: null
             padding: 0
             verticalAlignment: TextInput.AlignVCenter
+            echoMode: field.secret ? TextInput.Password : TextInput.Normal
             onTextEdited: field.edited(text)
         }
     }
@@ -169,7 +210,7 @@ Sheet {
                 }
                 Text {
                     Layout.fillWidth: true
-                    text: "In Google Cloud, signed in as the address you made for Akira: make a project, turn on the Gmail API and the Google Calendar API, set up the consent screen as External with that address as a test user, then under Credentials make an OAuth client ID of the Desktop app kind and download its file. Choose it here. Never paste it into a chat."
+                    text: "In Google Cloud, signed in as the address you made for Akira: make a project, turn on the Gmail API, the Google Calendar API and the Google Drive API, set up the consent screen as External with that address as a test user, then under Credentials make an OAuth client ID of the Desktop app kind and download its file. Choose it here. Never paste it into a chat."
                     font: Theme.type.caption
                     color: Theme.textTertiary
                     wrapMode: Text.Wrap
@@ -370,6 +411,128 @@ Sheet {
                     text: held.isArmed ? "Disconnect it" : "Disconnect"
                     kind: held.isArmed ? "danger" : "secondary"
                     onClicked: root.disconnect(held.modelData.address)
+                }
+            }
+        }
+    }
+
+    // -- Canvas -----------------------------------------------------------------------
+
+    ColumnLayout {
+        width: parent.width
+        spacing: Theme.space.md
+
+        SectionLabel { text: "Canvas" }
+
+        Text {
+            Layout.fillWidth: true
+            text: Accounts.canvasHelp
+            textFormat: Text.PlainText
+            font: Theme.type.caption
+            color: Theme.textTertiary
+            wrapMode: Text.Wrap
+        }
+
+        Field {
+            objectName: "canvasSite"
+            Layout.fillWidth: true
+            text: root.canvasSite
+            placeholder: "Your school's Canvas address, such as school.instructure.com"
+            onEdited: function (value) { root.canvasSite = value }
+        }
+
+        Field {
+            objectName: "canvasToken"
+            Layout.fillWidth: true
+            secret: true
+            text: root.canvasToken
+            placeholder: "The access token from Canvas"
+            onEdited: function (value) { root.canvasToken = value }
+        }
+
+        // What must be allowed first, beside what it allows.
+        Repeater {
+            model: root.canvasGaps
+            RowLayout {
+                id: canvasGap
+                required property var modelData
+                Layout.fillWidth: true
+                spacing: Theme.space.md
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 1
+                    Text {
+                        Layout.fillWidth: true
+                        text: "Allow " + canvasGap.modelData.title + " for " + root.canvasWhere
+                        textFormat: Text.PlainText
+                        font: Theme.type.body
+                        color: Theme.textPrimary
+                        elide: Text.ElideMiddle
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: "Lets Akira, and agents you start, read your courses there. Each request goes to that site with the token, and nowhere else."
+                        font: Theme.type.caption
+                        color: Theme.textTertiary
+                        wrapMode: Text.Wrap
+                    }
+                }
+                ActionButton {
+                    text: "Allow"
+                    kind: "primary"
+                    onClicked: root.allowFor(canvasGap.modelData.capability, root.canvasWhere)
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.space.sm
+            Item { Layout.fillWidth: true }
+            ActionButton {
+                objectName: "connectCanvas"
+                text: Accounts.canvasConnecting !== "" ? "Connecting…" : "Connect Canvas"
+                kind: "primary"
+                enabled: root.canvasWhere !== "" && root.canvasToken.length >= 20
+                         && root.canvasGaps.length === 0 && Accounts.canvasConnecting === ""
+                onClicked: root.connectCanvas()
+            }
+        }
+
+        Repeater {
+            model: Accounts.canvasSites
+            RowLayout {
+                id: school
+                required property var modelData
+                readonly property bool isArmed: root.armed === school.modelData.site
+                Layout.fillWidth: true
+                spacing: Theme.space.sm
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 1
+                    Text {
+                        Layout.fillWidth: true
+                        text: school.modelData.site
+                        textFormat: Text.PlainText
+                        font: Theme.type.bodyStrong
+                        color: Theme.textPrimary
+                        elide: Text.ElideMiddle
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: (school.modelData.name !== "" ? school.modelData.name + " · " : "")
+                              + "reading only · since "
+                              + Qt.formatDate(new Date(school.modelData.connected * 1000), "d MMM yyyy")
+                        textFormat: Text.PlainText
+                        font: Theme.type.caption
+                        color: Theme.textSecondary
+                        wrapMode: Text.Wrap
+                    }
+                }
+                ActionButton {
+                    text: school.isArmed ? "Forget it" : "Disconnect"
+                    kind: school.isArmed ? "danger" : "secondary"
+                    onClicked: root.disconnectCanvas(school.modelData.site)
                 }
             }
         }

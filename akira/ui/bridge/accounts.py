@@ -21,8 +21,11 @@ from PySide6.QtCore import Property, QObject, Signal, Slot
 
 from akira.core.connect import (SERVICES, AccountStore, ConnectError, GoogleAccounts, address_of,
                                 sign_in)
+from akira.core.connect import canvas as lms
+from akira.core.connect.canvas import Canvas
 from akira.core.net.loopback import Receiver
 from akira.core.permissions import AuditLog, Policy, SecretStore
+from akira.core.permissions.capabilities import CATALOGUE
 
 
 def open_in_browser(url: str) -> None:
@@ -46,18 +49,30 @@ class AccountsBridge(QObject):
     #: Private: from the sign-in's worker to this thread.
     _done = Signal(bool, str)
 
+    canvasChanged = Signal()
+
+    #: ok, message — once per Canvas connection, however it ended.
+    canvasFinished = Signal(bool, str)
+
+    #: Private: from the Canvas worker to this thread.
+    _canvas_done = Signal(bool, str)
+
     def __init__(self, *, vault: SecretStore, policy: Callable[[], Policy], audit: AuditLog,
                  store: AccountStore | None = None,
                  open_page: Callable[[str], None] = open_in_browser,
+                 canvas: Canvas | None = None,
                  parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._google = GoogleAccounts(vault=vault, store=store)
+        self._canvas = canvas if canvas is not None else Canvas(vault=vault)
         self._policy = policy
         self._audit = audit
         self._open = open_page
         self._connecting = ""
+        self._canvas_connecting = ""
         self._receiver: Receiver | None = None
         self._done.connect(self._on_done)
+        self._canvas_done.connect(self._on_canvas_done)
 
     @property
     def google(self) -> GoogleAccounts:
@@ -178,4 +193,87 @@ class AccountsBridge(QObject):
         """Hand the sign-in back to Google and forget it. Returns "" or a note for the person."""
         note = self._google.disconnect(address, policy=self._policy(), audit=self._audit)
         self.accountsChanged.emit()
+        return note
+
+    # -- Canvas ------------------------------------------------------------------------------
+
+    @Property(str, constant=True)
+    def canvasHelp(self) -> str:
+        """How to make a token, and what Akira does with it, for the person."""
+        return (f"{lms.TOKEN_HELP} Canvas gives students no token that only reads, so Akira "
+                "holds itself to reading: it never submits, posts or changes anything there.")
+
+    @Property("QVariantList", notify=canvasChanged)
+    def canvasSites(self) -> list:
+        """Each connected Canvas site: `site`, `name` (the person's, as Canvas has it),
+        `connected` (epoch seconds). Never the token."""
+        return [{"site": a.site, "name": a.name, "connected": a.connected}
+                for a in self._canvas.accounts()]
+
+    @Property(str, notify=canvasChanged)
+    def canvasConnecting(self) -> str:
+        """The site being connected, or ""."""
+        return self._canvas_connecting
+
+    @Slot(str, result=str)
+    def canvasSite(self, text: str) -> str:
+        """\a text as a Canvas site, or "" when it is not one."""
+        try:
+            return lms.site_of(text)
+        except ConnectError:
+            return ""
+
+    @Slot(str, result="QVariantList")
+    def canvasMissing(self, site: str) -> list:
+        """What must be allowed before \a site can be connected: `capability` and `title`."""
+        where = self.canvasSite(site)
+        if not where or self._policy().allows(lms.CAPABILITY, where):
+            return []
+        return [{"capability": lms.CAPABILITY, "title": CATALOGUE[lms.CAPABILITY].title}]
+
+    @Slot(str, str, result=str)
+    def connectCanvas(self, site: str, token: str) -> str:
+        """Check \a token with Canvas and keep it sealed. Returns "" once started, or why not."""
+        if self._canvas_connecting:
+            return f"Already connecting {self._canvas_connecting}."
+        try:
+            where = lms.site_of(site)
+        except ConnectError as exc:
+            return str(exc)
+        if not str(token).strip():
+            return f"Paste the access token. {lms.TOKEN_HELP}"
+        if self.canvasMissing(where):
+            return (f"Not permitted: allow {CATALOGUE[lms.CAPABILITY].title} for {where} "
+                    "first.")
+        self._canvas_connecting = where
+        self.canvasChanged.emit()
+        threading.Thread(target=self._connect_canvas, args=(where, str(token)),
+                         name="canvas-connect", daemon=True).start()
+        return ""
+
+    def _connect_canvas(self, site: str, token: str) -> None:
+        """Worker thread. Emits a signal; touches no Qt property."""
+        try:
+            account = self._canvas.connect(site, token, policy=self._policy(), audit=self._audit)
+            who = f" as {account.name}" if account.name else ""
+            self._canvas_done.emit(True, f"Connected {account.site}{who}. Akira reads it, and "
+                                         "never submits or posts anything there.")
+        except ConnectError as exc:
+            self._canvas_done.emit(False, str(exc))
+        except Exception as exc:  # noqa: BLE001 - a crashed connection must still report back
+            self._canvas_done.emit(False, f"{type(exc).__name__}: {exc}")
+
+    def _on_canvas_done(self, ok: bool, message: str) -> None:
+        self._canvas_connecting = ""
+        self.canvasChanged.emit()
+        self.canvasFinished.emit(ok, message)
+
+    @Slot(str, result=str)
+    def disconnectCanvas(self, site: str) -> str:
+        """Forget a site's token. Returns what the person should also do in Canvas."""
+        try:
+            note = self._canvas.disconnect(site)
+        except ConnectError as exc:
+            return str(exc)
+        self.canvasChanged.emit()
         return note

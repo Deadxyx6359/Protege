@@ -605,8 +605,23 @@ downloaded; a file id is checked, never escaped; nothing downloaded is kept.
 The gatherer and the secretary may read Drive. A refusal for an account now
 always names an address: when no address is connected for a service, it names
 the one there is, so "not connected for Google Drive" says what to do.
-*Next:* Canvas, read-only banking through SimpleFIN, and messages, which waits
-on how Phone Link can be read.
+*Done since, Canvas:* `core/connect/canvas.py`, tools in
+`core/tools/builtin/coursework.py`. The person makes an access token in Canvas
+and gives it to Akira with the school's Canvas address, in Settings, Accounts;
+Canvas is asked whose token it is before anything is kept, and a token it
+refuses is never sealed. The token is sealed with DPAPI under a name without the
+site in it; `canvas.json` keeps the site and the person's name there. A Canvas
+token can do anything the person can, and Canvas gives students none that only
+reads, so Akira holds itself to reading and says so: every request is a GET,
+under `lms.read` for that site, to that site alone, never followed elsewhere,
+and nothing here can submit or post. `list_courses` gives each active course
+with the score Canvas shows; `list_assignments` what is due in the coming days
+and what is overdue, soonest first, with whether each was submitted;
+`read_assignment` what one asks, as text. Ids are checked, never escaped. A new
+`coursework` role reads Canvas, the calendar, notes and Drive, and changes
+nothing.
+*Next:* read-only banking through SimpleFIN, and messages, which waits on how
+Phone Link can be read.
 
 **C6 ✅ Monitoring agent** — `core/agents/monitor.py`, bridge `ui/bridge/monitor.py`
 Watch a page, folder, inbox or feed for change; run on the scheduler; notify or
@@ -730,13 +745,13 @@ and resumable.
 | C | C7 Location and time | ✅ |
 | C | C4 Screen capture | ✅ |
 | C | C2 Web search | ✅ |
-| C | C5 Connectors | ▶ Google done: mail, calendar and Drive; Canvas, banking and messages next |
+| C | C5 Connectors | ▶ Google (mail, calendar, Drive) and Canvas done; banking and messages next |
 | C | C3 Browser | ▶ reading a page, and typing and pressing on it, each approved; a picture of a page next |
 | C | C8 Purchasing | ▶ a cart handed to the person in a window of their own, to pay for themselves |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 2120 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 2150 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---
