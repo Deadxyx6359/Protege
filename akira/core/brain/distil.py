@@ -62,6 +62,7 @@ from akira.models.think_filter import ThinkFilter
 
 from .corpora import ConversationArchive
 from .vault import ConflictError, Note, Vault, VaultError
+from akira.core import files
 
 DISTIL_ACTION = "distil_memory"
 MEMORY_FOLDER = "Memory"
@@ -193,7 +194,7 @@ def _write_json(path: Path, data) -> None:
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as stream:
             json.dump(data, stream, ensure_ascii=False, indent=1)
-        os.replace(temporary, path)
+        files.replace(temporary, path)
     except BaseException:
         with contextlib.suppress(OSError):
             os.unlink(temporary)

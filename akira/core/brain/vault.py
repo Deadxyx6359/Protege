@@ -44,6 +44,7 @@ from akira.security.paths import PathViolation, real, reject_dangerous
 
 from . import markdown
 from .markdown import Link
+from akira.core import files
 
 EXCLUDED_DIRS = frozenset({".obsidian", ".trash", ".git", ".protege", "node_modules"})
 MAX_NOTE_BYTES = 5_000_000
@@ -112,7 +113,7 @@ def _write_atomically(path: Path, data: bytes) -> None:
     try:
         with os.fdopen(handle, "wb") as stream:
             stream.write(data)
-        os.replace(temporary, path)
+        files.replace(temporary, path)
     except BaseException:
         with contextlib.suppress(OSError):
             os.unlink(temporary)

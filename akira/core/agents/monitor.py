@@ -85,6 +85,7 @@ from akira.core.net.page import PageError, page_text
 from akira.core.permissions import AuditLog, Policy
 from akira.core.schedule import ActionRegistry, ActionResult, JobContext
 from akira.security.paths import PathViolation, real
+from akira.core import files
 
 NOTIFY_ACTION = "notify"
 POLL_S = 30.0
@@ -290,7 +291,7 @@ def _write_json(path: Path, data) -> None:
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as stream:
             json.dump(data, stream, ensure_ascii=False, indent=1)
-        os.replace(temporary, path)
+        files.replace(temporary, path)
     except BaseException:
         with contextlib.suppress(OSError):
             os.unlink(temporary)
@@ -319,7 +320,7 @@ class WatchStore:
         except (OSError, ValueError, KeyError, TypeError) as exc:
             moved = self.path.with_name(f"{self.path.name}.damaged-{int(time.time())}")
             with contextlib.suppress(OSError):
-                os.replace(self.path, moved)
+                files.replace(self.path, moved)
             self.warnings.append(f"The list of watches was damaged ({exc}). It was moved "
                                  f"aside to {moved.name}; nothing is being watched.")
             return []

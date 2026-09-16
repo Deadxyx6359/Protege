@@ -47,6 +47,7 @@ from akira.core.net.loopback import WAIT_S, LoopbackError, Receiver
 from akira.core.permissions import AuditLog, SecretStore
 from akira.core.permissions.secrets import SecretError
 from akira.core.review import declare_secret_owner
+from akira.core import files
 
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -219,7 +220,7 @@ class AccountStore:
         try:
             with os.fdopen(handle, "w", encoding="utf-8") as stream:
                 json.dump(data, stream, indent=1)
-            os.replace(temporary, self.path)
+            files.replace(temporary, self.path)
         except BaseException:
             Path(temporary).unlink(missing_ok=True)
             raise

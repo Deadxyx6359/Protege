@@ -39,6 +39,7 @@ from akira.core.config import config_dir
 from akira.core.net import NetError, host_of, with_query
 from akira.core.net import fetch as net_fetch
 from akira.core.permissions import AuditLog, Policy
+from akira.core import files
 
 #: The grant to ask for: it covers the forecast and the geocoder.
 SITE = "open-meteo.com"
@@ -189,7 +190,7 @@ class WeatherStore:
         try:
             with os.fdopen(handle, "w", encoding="utf-8") as stream:
                 json.dump(asdict(reading), stream, ensure_ascii=False)
-            os.replace(temporary, self.path)
+            files.replace(temporary, self.path)
         except BaseException:
             with contextlib.suppress(OSError):
                 os.unlink(temporary)

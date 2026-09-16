@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from .schemas import Manifest, Personality, SchemaError, Settings
+from akira.core import files
 
 PROTEGE_DIR = ".protege"
 MANIFEST_NAME = "manifest.json"
@@ -99,11 +100,11 @@ def write_json(path: Path, data: Any) -> None:
             if path.exists():
                 backup = path.with_suffix(path.suffix + ".bak")
                 try:
-                    os.replace(path, backup)
+                    files.replace(path, backup)
                 except OSError:
                     # A failed backup rotation must not block the write itself.
                     pass
-            os.replace(tmp_name, path)
+            files.replace(tmp_name, path)
         except BaseException:
             try:
                 os.unlink(tmp_name)
@@ -125,7 +126,7 @@ def write_text(path: Path, text: str) -> None:
                 handle.write(text)
                 handle.flush()
                 os.fsync(handle.fileno())
-            os.replace(tmp_name, path)
+            files.replace(tmp_name, path)
         except BaseException:
             try:
                 os.unlink(tmp_name)

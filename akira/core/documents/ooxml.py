@@ -37,6 +37,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from xml.etree import ElementTree
+from akira.core import files
 
 MAX_PACKAGE_BYTES = 100_000_000
 MAX_PART_BYTES = 40_000_000
@@ -221,7 +222,7 @@ def write_atomically(path: Path, data: bytes) -> None:
     try:
         with os.fdopen(handle, "wb") as stream:
             stream.write(data)
-        os.replace(temporary, path)
+        files.replace(temporary, path)
     except BaseException:
         with contextlib.suppress(OSError):
             os.unlink(temporary)

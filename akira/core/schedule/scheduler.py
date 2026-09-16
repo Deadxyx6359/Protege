@@ -60,6 +60,7 @@ from akira.core.permissions.capabilities import ScopeKind, get
 from akira.core.tools import ToolContext
 
 from .triggers import Every, Once, Trigger, trigger_from_json
+from akira.core import files
 
 #: An overdue job within this many seconds of its time is simply on time — the
 #: service ticks every half minute, so a few seconds late is not "missed".
@@ -369,7 +370,7 @@ class JobStore:
         try:
             with os.fdopen(handle, "w", encoding="utf-8") as stream:
                 json.dump(payload, stream, indent=1)
-            os.replace(temporary, self._path)
+            files.replace(temporary, self._path)
         except BaseException:
             with contextlib.suppress(OSError):
                 os.unlink(temporary)
@@ -378,7 +379,7 @@ class JobStore:
     def _quarantine(self) -> Path:
         target = self._path.with_name(f"{self._path.name}.damaged-{int(time.time())}")
         with contextlib.suppress(OSError):
-            os.replace(self._path, target)
+            files.replace(self._path, target)
         return target
 
 

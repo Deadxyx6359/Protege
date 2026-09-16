@@ -25,6 +25,7 @@ from akira.security.paths import PathViolation, is_within, real, reject_dangerou
 
 from . import capabilities as caps
 from .capabilities import Capability, ScopeKind
+from akira.core import files
 
 
 class PermissionError_(PermissionError):
@@ -298,7 +299,7 @@ class Policy:
                 json.dump(payload, fh, indent=2)
                 fh.flush()
                 os.fsync(fh.fileno())
-            os.replace(tmp, target)
+            files.replace(tmp, target)
         except BaseException:
             tmp.unlink(missing_ok=True)
             raise

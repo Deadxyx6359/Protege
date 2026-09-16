@@ -42,6 +42,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+from akira.core import files
 from akira.core.config import config_dir
 from akira.core.permissions import CATALOGUE, AuditLog, Policy, SecretStore
 from akira.core.permissions.audit import Event as AuditEvent
@@ -579,7 +580,7 @@ class ReviewStore:
         try:
             with os.fdopen(handle, "w", encoding="utf-8") as stream:
                 json.dump({"reviews": [r.to_json() for r in reviews]}, stream, indent=1)
-            os.replace(temporary, self._path)
+            files.replace(temporary, self._path)
         except BaseException:
             with contextlib.suppress(OSError):
                 os.unlink(temporary)

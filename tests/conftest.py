@@ -27,6 +27,7 @@ why they must not translate one into a skip. See `tk_available`.
 
 from __future__ import annotations
 
+import gc
 import tkinter as tk
 
 import pytest
@@ -73,6 +74,24 @@ def _own_the_default_root():
     """
     _ensure_root()
     yield
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _collect_on_the_main_thread():
+    """Finalise what a test module dropped, here, on the main thread.
+
+    A Tk interpreter a test made and let go of is destroyed whenever the garbage
+    collector next runs, on whichever thread happens to be allocating then. When
+    that is a background thread — a bridge's worker, the browser's proxy, a
+    stand-in server — Tcl aborts the whole run: "Tcl_AsyncDelete: async handler
+    deleted by the wrong thread". Which test it lands in depends only on timing,
+    so it looks like a crash in something unrelated. Collecting as each module
+    ends means it is this thread, before the next module's threads start. Once a
+    module rather than once a test, because a full collection after each of two
+    thousand tests added over a minute to the run.
+    """
+    yield
+    gc.collect()
 
 
 @pytest.fixture(scope="session")

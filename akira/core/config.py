@@ -17,6 +17,7 @@ import tempfile
 from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
 from typing import Any
+from akira.core import files
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -237,7 +238,7 @@ class AppConfig:
                 json.dump(asdict(self), fh, indent=2, ensure_ascii=False)
                 fh.flush()
                 os.fsync(fh.fileno())
-            os.replace(tmp, target)
+            files.replace(tmp, target)
         except BaseException:
             tmp.unlink(missing_ok=True)
             raise

@@ -42,6 +42,7 @@ from pathlib import Path
 from akira.core.config import config_dir
 from akira.core.permissions import Policy
 from akira.core.permissions.model import Decision, Grant
+from akira.core import files
 
 MAX_PERSONALITY_CHARS = 4000
 
@@ -68,7 +69,7 @@ def _write_json(path: Path, data) -> None:
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as stream:
             json.dump(data, stream, ensure_ascii=False, indent=1)
-        os.replace(temporary, path)
+        files.replace(temporary, path)
     except BaseException:
         with contextlib.suppress(OSError):
             os.unlink(temporary)

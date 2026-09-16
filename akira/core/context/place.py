@@ -36,6 +36,7 @@ from typing import Callable
 from akira.core.config import config_dir
 
 from .weather import Reading, WeatherStore
+from akira.core import files
 
 MAX_NAME_CHARS = 80
 HEMISPHERES = ("north", "south", "")
@@ -152,7 +153,7 @@ class PlaceStore:
             with os.fdopen(handle, "w", encoding="utf-8") as stream:
                 json.dump({"name": place.name, "hemisphere": place.hemisphere,
                            "latitude": place.latitude, "longitude": place.longitude}, stream)
-            os.replace(temporary, self.path)
+            files.replace(temporary, self.path)
         except BaseException:
             with contextlib.suppress(OSError):
                 os.unlink(temporary)
