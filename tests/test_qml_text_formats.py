@@ -3,9 +3,12 @@
 Qt's default for a `Text` is `AutoText`, which renders whatever looks like HTML
 and loads an `<img>` in it. A web address is refused by the engine, but
 `file://server/share/x.png` is opened by Windows as a network share, offering
-that server the person's sign-in. So every `Text` or `Label` whose text is not a
-literal written in the QML says how it is shown, and rich text appears only
-where a bridge serves text made safe for it.
+that server the person's sign-in. So every `Text`, `Label` or `TextEdit` whose
+text is not a literal written in the QML says how it is shown, and rich text
+appears only where a bridge serves text made safe for it.
+
+A reply is a read-only `TextEdit`, so its words can be selected and its links
+followed; the rule covers it for the same reason it covers a `Text`.
 """
 
 from __future__ import annotations
@@ -18,7 +21,7 @@ pytest.importorskip("PySide6.QtQml")
 
 from akira.ui.engine import QML_ROOT  # noqa: E402
 
-_OPEN = re.compile(r"\b(?:Text|Label)\s*\{")
+_OPEN = re.compile(r"\b(?:TextEdit|Text|Label)\s*\{")
 _TEXT = re.compile(r"(?:\A|[;\n])[ \t]*text[ \t]*:")
 _FORMAT = re.compile(r"(?:\A|[;\n])\s*textFormat\s*:")
 #: A string written in the QML, alone in its statement: the whole binding is a literal.
@@ -107,7 +110,8 @@ def test_rich_text_only_where_a_bridge_made_it_safe():
     ('Text {\n  // text: ignored\n  text: "literal with { brace"\n}', []),
     ('Text { text: "a \\"quoted\\"; thing // not a comment"; color: "red" }', []),
     ('Text { text: "radius " + label }', [1]),
-    ('TextEdit { text: code }', []),
+    ('TextEdit { text: code }', [1]),
+    ('TextEdit { text: row.text; textFormat: TextEdit.PlainText }', []),
     ('Item {\n  Text { text: a; textFormat: Text.PlainText }\n  Text { text: b }\n}', [3]),
 ])
 def test_the_check_sees_what_it_should(source, flagged):

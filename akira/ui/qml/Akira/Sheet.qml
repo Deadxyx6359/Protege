@@ -88,9 +88,19 @@ Item {
         anchors.fill: parent
         color: Theme.scrim
 
-        // Swallows every click that misses the panel, both to dismiss and to
-        // stop presses landing on the window underneath.
-        TapHandler { onTapped: root.close() }
+        /*  Swallows every click that misses the panel, both to dismiss and to
+            stop presses landing on the window underneath.
+
+            A MouseArea rather than a TapHandler: a handler here takes a passive
+            grab, which a press on a control inside the panel never takes away,
+            so every tap on a segmented control or a button in a sheet dismissed
+            the sheet as well as doing its own work. Only one item accepts a
+            press, and the panel's own area, below, is above this one.  */
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            onClicked: root.close()
+        }
         WheelHandler {}
     }
 
@@ -125,8 +135,12 @@ Item {
             borderColor: Theme.separatorStrong
         }
 
-        // Presses inside the panel must not reach the scrim behind it.
-        TapHandler {}
+        // Presses inside the panel must not reach the scrim behind it. It sits
+        // under the header and the content, so a control still gets its own.
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+        }
 
         // -- header ---------------------------------------------------------
 

@@ -109,6 +109,7 @@ Sheet {
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: Theme.separator; visible: !!root.selectedRun.id }
         MessageBody {
+            onLinkActivated: function (url) { Links.ask(url); }
             objectName: "taskHistoryAnswer"
             Layout.fillWidth: true
             content: root.selectedRun.answer || ""

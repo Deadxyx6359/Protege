@@ -19,6 +19,11 @@ Column {
     /*! Errors are shown in full, unparsed — an exception is not Markdown. */
     property bool isError: false
 
+    /*! A link in the reply was clicked. The window asks before opening it:
+        following an address is an outward action, and the address is the
+        model's, not the person's. */
+    signal linkActivated(string url)
+
     spacing: Theme.space.md
 
     /*  Re-parsed on every token while streaming, which is quadratic in the
@@ -27,16 +32,20 @@ Column {
         line to revisit.  */
     readonly property var blocks: root.isError ? [] : Blocks.parse(root.content)
 
-    Text {
+    TextEdit {
         width: parent.width
         visible: root.isError
         text: root.content
         font: Theme.type.body
         color: Theme.danger
-        wrapMode: Text.Wrap
-        textFormat: Text.PlainText
-        lineHeight: Theme.leading.relaxed
-        lineHeightMode: Text.ProportionalHeight
+        wrapMode: TextEdit.Wrap
+        textFormat: TextEdit.PlainText
+        // Readable and copyable, never editable: an error is most useful in a
+        // search box or a bug report, which means it has to be selectable.
+        readOnly: true
+        selectByMouse: true
+        selectionColor: Theme.accent
+        selectedTextColor: Theme.textOnAccent
     }
 
     Repeater {
@@ -78,18 +87,29 @@ Column {
     Component {
         id: proseBlock
 
-        Text {
+        TextEdit {
             width: root.width
             font: Theme.type.body
             color: Theme.textPrimary
-            wrapMode: Text.Wrap
+            wrapMode: TextEdit.Wrap
             // Qt renders headings, emphasis, lists, quotes and inline code.
-            // Links are styled but deliberately not activated: opening a URL is
-            // an outward action, and nothing in this application should take
-            // one without being asked.
-            textFormat: Text.MarkdownText
-            lineHeight: Theme.leading.relaxed
-            lineHeightMode: Text.ProportionalHeight
+            textFormat: TextEdit.MarkdownText
+            /*  A reply is reading matter, so it behaves like reading matter:
+                the words can be selected and copied, and it can never be
+                edited. Clicking a link does not open it here — it is handed to
+                the window, which shows the whole address and asks, because
+                opening one is an outward action and the address is the
+                model's.  */
+            readOnly: true
+            selectByMouse: true
+            selectionColor: Theme.accent
+            selectedTextColor: Theme.textOnAccent
+            onLinkActivated: function (link) { root.linkActivated(link); }
+
+            HoverHandler {
+                cursorShape: parent.hoveredLink !== "" ? Qt.PointingHandCursor
+                                                       : Qt.IBeamCursor
+            }
         }
     }
 

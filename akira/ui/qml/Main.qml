@@ -203,6 +203,14 @@ Window {
         z: 100
     }
 
+    // A link in a reply goes out to the person's own browser, so it is asked
+    // about first, with the whole address shown.
+    LinkPrompt {
+        id: linkPrompt
+        objectName: "linkPrompt"
+        z: 90
+    }
+
     // What must reach the person rather than wait in a list: what a watch's
     // job has to say, and a critical finding from the security review.
     NoticeBanner {

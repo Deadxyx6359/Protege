@@ -36,9 +36,18 @@ before changing it.
    bridge serves ready for it, `Chat` message text and `Agents.answer`, whose
    pictures arrive as links. Nothing else goes to `Text.MarkdownText`,
    `Text.RichText` or `Text.StyledText`. `tests/test_qml_text_formats.py`
-   holds every QML file to this: a `Text` or `Label` whose text is not a
-   literal must set `textFormat`, and rich text may appear only where that
-   test allows it.
+   holds every QML file to this: a `Text`, `Label` or `TextEdit` whose text is
+   not a literal must set `textFormat`, and rich text may appear only where
+   that test allows it. A message is a read-only `TextEdit`, so its words can
+   be selected and copied and its links clicked; read-only keeps it a
+   transcript rather than a box to type in.
+6. **A link is opened by the person, not by Akira.** The words of a link in a
+   reply need not match where it goes, and the address is the model's. So a
+   clicked link goes to the `Links` singleton, the window's one `LinkPrompt`
+   shows the whole address as plain text, and only `http` and `https` offer to
+   open, in the person's own browser, after a yes. `Qt.openUrlExternally`
+   appears in `LinkPrompt.qml` and nowhere else, which
+   `tests/test_qml_links_and_sheets.py` holds every QML file to.
 
 ## Context properties
 

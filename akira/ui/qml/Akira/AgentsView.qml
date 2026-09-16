@@ -308,6 +308,7 @@ Item {
                     wrapMode: Text.Wrap
                 }
                 MessageBody {
+                    onLinkActivated: function (url) { Links.ask(url); }
                     Layout.fillWidth: true
                     content: Agents.answer
                     isError: !Agents.ok

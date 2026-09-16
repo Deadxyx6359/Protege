@@ -262,7 +262,7 @@ Item {
                     visible: !root.running && !root.selectedRun.answer
                     text: root.selectedRun.status === "interrupted" ? "Akira closed before this run returned a result. Start a new inquiry to try again." : "This run ended without a final answer. Its progress and gathered references are retained below."
                 }
-                MessageBody { objectName: "investigationAnswer"; Layout.fillWidth: true; visible: !root.running && !!root.selectedRun.answer; content: root.selectedRun.answer || ""; isError: root.selectedRun.status !== "complete" }
+                MessageBody { objectName: "investigationAnswer"; onLinkActivated: function (url) { Links.ask(url); } Layout.fillWidth: true; visible: !root.running && !!root.selectedRun.answer; content: root.selectedRun.answer || ""; isError: root.selectedRun.status !== "complete" }
             }
             Card {
                 visible: root.hasRun

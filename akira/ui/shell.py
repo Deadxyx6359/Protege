@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtGui import QGuiApplication, QIcon
+from PySide6.QtGui import QGuiApplication, QIcon, QWindow
 
 from akira.core.agents import Trace
 from akira.core.agents.monitor import Monitor, MonitorService, WatchStore, register_notify_action
@@ -306,7 +306,12 @@ def build_context(*, persist: bool = True) -> AppContext:
 
 #: Windows groups taskbar buttons by this, and shows the window's own icon for
 #: it. Distinct from the old Tk app's, so the two are not stacked together.
-APP_ID = "Akira.Desktop"
+#:
+#: Numbered because the shell remembers an icon against the id: an id first seen
+#: while the window had no icon of its own keeps the blank one it was given,
+#: whatever the window says afterwards. Retiring the id is how that is undone,
+#: so raise the number rather than editing the name.
+APP_ID = "Akira.Desktop.1"
 
 
 def _claim_taskbar() -> None:
@@ -352,6 +357,14 @@ def run_shell(argv: list[str] | None = None) -> int:
     except QmlError as exc:
         print(exc, file=sys.stderr)
         return 1
+
+    # The application's icon reaches a window when the window is made, which is
+    # here rather than at startup. Set on each window too, so the taskbar and
+    # the title bar have it even if the window was built another way.
+    if ICON.is_file():
+        for root in engine.rootObjects():
+            if isinstance(root, QWindow):
+                root.setIcon(QIcon(str(ICON)))
 
     # Without this the process lingers after the window closes, because the
     # engine still holds the root object and Qt has nothing left to quit on.

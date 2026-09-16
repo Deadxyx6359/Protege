@@ -168,7 +168,7 @@ Item {
                     radius: Theme.radius.md
                     fillColor: Theme.surface
 
-                    Text {
+                    TextEdit {
                         id: mineText
                         anchors.fill: parent
                         anchors.margins: Theme.space.md
@@ -177,12 +177,16 @@ Item {
                         text: row.text
                         // As typed. Pasted text can carry HTML, and AutoText
                         // would render it and load any picture it names.
-                        textFormat: Text.PlainText
+                        textFormat: TextEdit.PlainText
+                        // What you said can be selected and copied, like the
+                        // reply. Read-only: the record of what was sent.
+                        readOnly: true
+                        selectByMouse: true
+                        selectionColor: Theme.accent
+                        selectedTextColor: Theme.textOnAccent
                         font: Theme.type.body
                         color: Theme.textPrimary
-                        wrapMode: Text.Wrap
-                        lineHeight: Theme.leading.relaxed
-                        lineHeightMode: Text.ProportionalHeight
+                        wrapMode: TextEdit.Wrap
                     }
                 }
 
@@ -213,6 +217,7 @@ Item {
                         Layout.alignment: Qt.AlignTop
                         content: row.text
                         isError: row.isError
+                        onLinkActivated: function (url) { Links.ask(url); }
                     }
                 }
             }

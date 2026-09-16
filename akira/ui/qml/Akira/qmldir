@@ -1,6 +1,7 @@
 module Akira
 
 singleton Theme 1.0 Theme.qml
+singleton Links 1.0 Links.qml
 
 ThemeLink 1.0 ThemeLink.qml
 Squircle 1.0 Squircle.qml
@@ -29,6 +30,7 @@ Select 1.0 Select.qml
 SettingsSheet 1.0 SettingsSheet.qml
 ActionButton 1.0 ActionButton.qml
 ConfirmDialog 1.0 ConfirmDialog.qml
+LinkPrompt 1.0 LinkPrompt.qml
 PermissionsSheet 1.0 PermissionsSheet.qml
 AgentsView 1.0 AgentsView.qml
 InvestigationsView 1.0 InvestigationsView.qml
