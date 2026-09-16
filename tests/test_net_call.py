@@ -10,6 +10,8 @@ No test touches the network. The resolver and the connection are fakes.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from akira.core.net import NetError
@@ -230,8 +232,26 @@ def test_a_delete_is_sent_once_however_the_line_behaves(wire):
     assert len(cable.requests) == 1
 
 
+def test_a_patch_carries_only_what_changes_and_is_sent_once(wire, tmp_path):
+    path = "/calendar/v3/calendars/primary/events/abc"
+    cable = wire({("www.googleapis.com", path): json_reply(b'{"id": "abc"}')},
+                 found={"www.googleapis.com": [GOOGLE, SECOND]}, drop=True)
+    policy = Policy()
+    policy.grant("calendar.write", (ACCOUNT,))
+    audit = AuditLog(tmp_path / "audit.jsonl")
+    change = {"start": {"dateTime": "2026-09-18T16:00:00+01:00"}}
+    with pytest.raises(NetError, match="not sent again"):
+        net.call("PATCH", f"https://www.googleapis.com{path}", policy=policy,
+                 capability="calendar.write", scope=ACCOUNT, hosts=("www.googleapis.com",),
+                 audit=audit, bearer=lambda: "ya29.x", payload=change)
+    [sent] = cable.requests
+    assert sent["method"] == "PATCH" and sent["body"] == json.dumps(change).encode("utf-8")
+    assert "2026-09-18T16" not in (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+
+
 @pytest.mark.parametrize("method, hosts, form, payload, reason", [
-    ("PUT", MAIL, None, None, "GET, POST or DELETE"),
+    ("PUT", MAIL, None, None, "GET, POST, PATCH or DELETE"),
+    ("PATCH", MAIL, None, None, "carries a form or a payload"),
     ("GET", (), None, None, "must name the hosts"),
     ("POST", MAIL, None, None, "carries a form or a payload"),
     ("GET", MAIL, {"a": "b"}, None, "carries a form or a payload"),

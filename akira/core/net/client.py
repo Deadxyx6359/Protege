@@ -430,9 +430,13 @@ def fetch(url: str, *, policy, audit: AuditLog | None = None, actor: str = ACTOR
 
 # -- a signed-in request ----------------------------------------------------------------------
 
-#: What a signed-in request may be: reading, sending a form or a document, or
-#: removing something, such as a calendar event the person agreed to cancel.
-CALL_METHODS = frozenset({"GET", "POST", "DELETE"})
+#: What a signed-in request may be: reading, sending a form or a document,
+#: changing part of something, such as the time of an event the person agreed to
+#: move, or removing something, such as an event they agreed to cancel.
+CALL_METHODS = frozenset({"GET", "POST", "PATCH", "DELETE"})
+
+#: The requests that carry something: a form or a JSON document, one of them.
+CARRIERS = frozenset({"POST", "PATCH"})
 
 #: What a connected account's servers usually answer in.
 JSON = "application/json"
@@ -466,8 +470,9 @@ def call(method: str, url: str, *, policy, capability: str, scope: str, hosts: t
     for the sign-in only once every other check has passed, so a refused
     request never even fetches one, and it goes only in the Authorization
     header. A POST carries \a form, such as a sign-in code being exchanged, or
-    \a payload, a JSON document such as a message to send. Anything but a GET is
-    sent at most once. A redirect is refused, never followed.
+    \a payload, a JSON document such as a message to send; a PATCH carries the
+    fields to change, such as an event's new time. Anything but a GET is sent at
+    most once. A redirect is refused, never followed.
 
     Raises `NetError` with a reason written for the person, and `ValueError`
     for a request that could never be right. Every outcome goes into \a audit,
@@ -475,12 +480,13 @@ def call(method: str, url: str, *, policy, capability: str, scope: str, hosts: t
     """
     method = str(method).upper()
     if method not in CALL_METHODS:
-        raise ValueError(f"a signed-in request is GET, POST or DELETE, not {method}")
+        raise ValueError(f"a signed-in request is GET, POST, PATCH or DELETE, not {method}")
     if not hosts:
         raise ValueError(f"a request under {capability} must name the hosts it may reach")
     carried = (form is not None) + (payload is not None)
-    if carried != (method == "POST"):
-        raise ValueError("a POST carries a form or a payload, one of them, and only a POST does")
+    if carried != (method in CARRIERS):
+        raise ValueError("a POST or a PATCH carries a form or a payload, one of them, and "
+                         "nothing else does")
     allowed_hosts = frozenset(host.lower() for host in hosts)
     started = time.monotonic()
     try:

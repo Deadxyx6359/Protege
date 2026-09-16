@@ -515,7 +515,7 @@ Schedule.addJob({
 |---|---|---|
 | `clientReady` | Property, notifies `clientChanged` | Whether the Google client file has been chosen and sealed |
 | `chooseClientFile(path)` | Slot → string | Seal the client in a file downloaded from Google Cloud: `""`, or why not (a web client, not a client file, sign-ins sent somewhere other than Google) |
-| `services` | Property | What an address can be connected for: `id` (`mail`, `calendar`, `send`), `title`, `capability`. `send` asks Google for sending alone (`gmail.send`, under `mail.send`), and is best left off until the person asks for it |
+| `services` | Property | What an address can be connected for: `id` (`mail`, `calendar`, `send`, `events`), `title`, `capability`, and `detail`, a sentence or two on what it does and does not do, for the person choosing — show it as it is, rather than writing captions per id, so a new service arrives with its own words. `send` asks Google for sending alone (`gmail.send`, under `mail.send`); `events` asks for changing events on calendars the person owns (`calendar.events.owned`, under `calendar.write`). Both are best left off until the person asks for them |
 | `accounts` | Property, notifies `accountsChanged` | Each: `address`, `services` (ids), `titles`, `connected` (epoch seconds), `needsSignIn` (why it must be connected again, or `""`) |
 | `missing(address, services)` | Slot → list | What must be allowed first: `capability` and `title` for each service not granted for that address |
 | `connectAccount(address, services)` | Slot → string | Start signing in: `""` once started, or why not, including **Not permitted** while `missing` is not empty |

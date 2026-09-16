@@ -217,11 +217,9 @@ Sheet {
                     }
                     Text {
                         Layout.fillWidth: true
-                        text: offer.modelData.id === "mail"
-                              ? "Search and read messages. Nothing is deleted or marked read."
-                              : offer.modelData.id === "send"
-                              ? "Send a message when you ask. Each one is shown to you whole, and goes only if you approve it."
-                              : "See events. Nothing is added, moved or cancelled."
+                        // Written beside the service in Python, so a new one
+                        // arrives with its own words rather than another's.
+                        text: offer.modelData.detail
                         textFormat: Text.PlainText
                         font: Theme.type.caption
                         color: Theme.textTertiary

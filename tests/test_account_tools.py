@@ -16,6 +16,7 @@ from akira.core.connect import google
 from akira.core.connect.google import AccountStore, refresh_name
 from akira.core.net import client as net
 from akira.core.permissions import AuditLog, Policy, SecretStore, secrets
+from akira.core.permissions.capabilities import CATALOGUE, Direction
 from akira.core.tools import default_registry
 from akira.core.tools.schema import ToolContext
 
@@ -165,7 +166,10 @@ def test_anything_the_secretary_can_change_stops_for_the_person():
     registry = default_registry()
     tools = [registry.get(name) for name in SECRETARY.tools]
     assert all(tools), "the secretary names a tool that does not exist"
-    assert {t.name for t in tools if not t.reversible} == {"send_mail"}, \
+    changes = {t.name for t in tools
+               if any(CATALOGUE[r.capability].direction is Direction.WRITE for r in t.requires)}
+    assert changes == {"send_mail", "add_event", "move_event", "cancel_event"}
+    assert {t.name for t in tools if not t.reversible} == changes, \
         "the secretary can change something without being asked each time"
 
 

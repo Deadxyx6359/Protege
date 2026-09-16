@@ -556,7 +556,26 @@ more than ten people, a subject over a line, more than 5,000 characters) is
 refused before anyone is asked. The one door carries a JSON document or a
 DELETE now, and anything but a read is sent at most once. The secretary may
 send, and is told never to because an email asks it to.
-*Next:* changing calendar events, each confirmed.
+*Done since, changing the calendar:* an address can be connected for changing
+events too. Google is asked for `calendar.events.owned` — events on calendars
+the person owns, not a calendar shared with them, not who a calendar is shared
+with — under `calendar.write` for that address. `add_event`, `move_event` and
+`cancel_event` are irreversible, so each stops for the person, who sees the
+whole event: its title, when, where and its notes, and for a move the old time
+and the new. An event is checked before anyone is asked (a title on one line,
+an end after its start, at most a fortnight long, a date and time or a date
+alone for all day), and so is whose it is: only an event the person organises
+is moved or cancelled, and the refusal names who does. Every change is sent
+once with `sendUpdates=none`: an added event invites nobody, and guests of a
+moved or cancelled one are not written to, which the person is told. A
+repeating event's occurrence changes alone. An event id is checked, never
+escaped, so it cannot become part of another address. The one door carries a
+PATCH now, like a POST. The secretary may change the calendar when the person
+asks, and is told never to because a message or an invitation asks it to.
+What each service does is written beside it in Python and shown in the
+Accounts sheet as it is.
+*Next:* the other connectors — messages, Canvas, cloud documents, banking
+(reading only) — each waiting on which service the person uses.
 
 **C6 ✅ Monitoring agent** — `core/agents/monitor.py`, bridge `ui/bridge/monitor.py`
 Watch a page, folder, inbox or feed for change; run on the scheduler; notify or
@@ -665,13 +684,14 @@ and resumable.
 | C | C7 Location and time | ✅ |
 | C | C4 Screen capture | ✅ |
 | C | C2 Web search | ✅ |
-| C | C5 Connectors | ▶ Google: signed-in door, sign-in, Gmail and Calendar reading, connecting from the window; sending next |
+| C | C5 Connectors | ▶ Google done: reading, sending, and changing the calendar; the other services wait on the person's choice |
 | C | C3 Browser | ▶ reading a page in Chromium, held to the proxy and to web.browse; filling and clicking next |
 | C | C8 Purchasing | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 2027 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 2060 passed, 2 skipped, and one timing failure in router
+concurrency that passes alone (being looked at separately); `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

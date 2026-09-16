@@ -84,8 +84,10 @@ class AccountsBridge(QObject):
 
     @Property("QVariantList", constant=True)
     def services(self) -> list:
-        """What an address can be connected for: `id`, `title`, `capability`."""
-        return [{"id": s.name, "title": s.title, "capability": s.capability}
+        """What an address can be connected for: `id`, `title`, `capability`, and
+        `detail`, what it does and does not do, for the person choosing."""
+        return [{"id": s.name, "title": s.title, "capability": s.capability,
+                 "detail": s.detail}
                 for s in SERVICES.values()]
 
     @Property("QVariantList", notify=accountsChanged)

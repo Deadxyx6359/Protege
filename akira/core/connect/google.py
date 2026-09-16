@@ -84,16 +84,31 @@ class Service:
     """What Google is asked for."""
     hosts: tuple[str, ...]
     """Where its requests go, and nowhere else."""
+    detail: str = ""
+    """What it does and does not do, in a sentence or two, for the person choosing."""
 
 
 MAIL = Service("mail", "Gmail", "mail.read",
-               "https://www.googleapis.com/auth/gmail.readonly", ("gmail.googleapis.com",))
+               "https://www.googleapis.com/auth/gmail.readonly", ("gmail.googleapis.com",),
+               "Search and read messages. Nothing is deleted or marked read.")
 CALENDAR = Service("calendar", "Google Calendar", "calendar.read",
-                   "https://www.googleapis.com/auth/calendar.readonly", ("www.googleapis.com",))
+                   "https://www.googleapis.com/auth/calendar.readonly", ("www.googleapis.com",),
+                   "See events. Nothing is added, moved or cancelled.")
 #: Sending only: `gmail.send` cannot read, change or delete anything.
 SEND = Service("send", "Sending from Gmail", "mail.send",
-               "https://www.googleapis.com/auth/gmail.send", ("gmail.googleapis.com",))
-SERVICES = {service.name: service for service in (MAIL, CALENDAR, SEND)}
+               "https://www.googleapis.com/auth/gmail.send", ("gmail.googleapis.com",),
+               "Send a message when you ask. Each one is shown to you whole, and goes only "
+               "if you approve it.")
+#: Changing events on calendars the person owns, and nothing else: not a calendar
+#: shared with them, not who a calendar is shared with, not its settings.
+#: `calendar.events.owned` is narrower than `calendar.events`, which reaches every
+#: calendar the person can edit.
+EVENTS = Service("events", "Changing Google Calendar events", "calendar.write",
+                 "https://www.googleapis.com/auth/calendar.events.owned", ("www.googleapis.com",),
+                 "Add, move and cancel events on your own calendar when you ask. Each change is "
+                 "shown to you and happens only if you approve it, and nobody is invited or "
+                 "told.")
+SERVICES = {service.name: service for service in (MAIL, CALENDAR, SEND, EVENTS)}
 
 
 def address_of(text: str) -> str:
@@ -444,6 +459,15 @@ class GoogleAccounts:
              audit: AuditLog | None, actor: str) -> dict:
         """Send \a payload to \a url as \a address, at most once. Raises `ConnectError`."""
         return self._signed("POST", address, service, url, payload=payload, policy=policy,
+                            audit=audit, actor=actor)
+
+    def patch(self, address: str, service: str, url: str, payload: dict, *, policy,
+              audit: AuditLog | None, actor: str) -> dict:
+        """Change the fields in \a payload at \a url, as \a address, at most once.
+
+        Raises `ConnectError`.
+        """
+        return self._signed("PATCH", address, service, url, payload=payload, policy=policy,
                             audit=audit, actor=actor)
 
     def delete(self, address: str, service: str, url: str, *, policy, audit: AuditLog | None,
