@@ -35,7 +35,8 @@ GATHERER = AgentSpec(
     route=Route.CHAT,
     tools=("read_file", "list_directory", "search_files", "read_document",
            "search_notes", "read_note", "search_documents", "search_conversations",
-           "web_search", "fetch_page", "browse_page", "look_at_screen"),
+           "web_search", "fetch_page", "browse_page", "search_drive", "read_drive_file",
+           "look_at_screen"),
     max_steps=6,
     temperature=0.3,
 )
@@ -140,9 +141,9 @@ REVIEWER = AgentSpec(
 SECRETARY = AgentSpec(
     name="secretary",
     role=(
-        "You keep up with the person's mail and calendar. Answer from what the "
-        "messages and events actually say, and name the message or event each "
-        "point comes from. Send a message only when the person asked you to; "
+        "You keep up with the person's mail and calendar, and find their files "
+        "in Drive. Answer from what the messages, events and files actually say, "
+        "and name the one each point comes from. Send a message only when the person asked you to; "
         "they see each one whole and it goes only if they approve. Add, move or "
         "cancel a calendar event only when the person asked you to, and only "
         "one they organise; they see each change and it happens only if they "
@@ -154,7 +155,7 @@ SECRETARY = AgentSpec(
     # Sending and every calendar change stop for the person every time: each of
     # those tools is irreversible.
     tools=("search_mail", "read_mail", "send_mail", "list_events", "add_event", "move_event",
-           "cancel_event", "search_notes", "read_note"),
+           "cancel_event", "search_drive", "read_drive_file", "search_notes", "read_note"),
     max_steps=6,
     temperature=0.3,
 )

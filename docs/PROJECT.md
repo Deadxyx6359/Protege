@@ -591,8 +591,22 @@ PATCH now, like a POST. The secretary may change the calendar when the person
 asks, and is told never to because a message or an invitation asks it to.
 What each service does is written beside it in Python and shown in the
 Accounts sheet as it is.
-*Next:* the other connectors — messages, Canvas, cloud documents, banking
-(reading only) — each waiting on which service the person uses.
+*Done since, Google Drive:* the person chose Drive, Canvas, read-only banking
+and messages as the connectors to add. Drive is a fifth service on the same
+address, under a new permission, `cloud.read` (high risk, though it only reads:
+a drive is where tax returns and scans of passports end up), and Google is asked
+for `drive.readonly`, which cannot change, move, share or delete anything.
+`search_drive` finds files by name or words, the words quoted into Drive's query
+so they cannot change it; `read_drive_file` reads one as text — Google's own
+formats by asking Google for text, and Word, Excel, PowerPoint, PDF and plain
+text by downloading at most 15 MB and reading it with `read_document`'s readers.
+A file that cannot be read as text, or is too large, is refused before it is
+downloaded; a file id is checked, never escaped; nothing downloaded is kept.
+The gatherer and the secretary may read Drive. A refusal for an account now
+always names an address: when no address is connected for a service, it names
+the one there is, so "not connected for Google Drive" says what to do.
+*Next:* Canvas, read-only banking through SimpleFIN, and messages, which waits
+on how Phone Link can be read.
 
 **C6 ✅ Monitoring agent** — `core/agents/monitor.py`, bridge `ui/bridge/monitor.py`
 Watch a page, folder, inbox or feed for change; run on the scheduler; notify or
@@ -701,13 +715,13 @@ and resumable.
 | C | C7 Location and time | ✅ |
 | C | C4 Screen capture | ✅ |
 | C | C2 Web search | ✅ |
-| C | C5 Connectors | ▶ Google done: reading, sending, and changing the calendar; the other services wait on the person's choice |
+| C | C5 Connectors | ▶ Google done: mail, calendar and Drive; Canvas, banking and messages next |
 | C | C3 Browser | ▶ reading a page, and typing and pressing on it, each approved; a picture of a page next |
 | C | C8 Purchasing | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 2099 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 2114 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

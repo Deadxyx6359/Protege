@@ -18,9 +18,10 @@ DPAPI (`google.client`) and never shown to a model. Connecting an address then:
    someone else connects nothing: the sign-in is handed back and forgotten.
 
 Google is asked only for what the person chose: reading (`gmail.readonly`,
-`calendar.readonly`), and sending (`gmail.send`) only when they switch it on,
-each needing its own permission for the address first. Google's page says
-exactly what is asked. Connecting again for more keeps what was granted before.
+`calendar.readonly`, `drive.readonly`), and sending (`gmail.send`) or changing
+their own events (`calendar.events.owned`) only when they switch it on, each
+needing its own permission for the address first. Google's page says exactly
+what is asked. Connecting again for more keeps what was granted before.
 Disconnecting hands the sign-in back to Google and forgets it here.
 """
 
@@ -40,7 +41,8 @@ from pathlib import Path
 from secrets import token_urlsafe
 
 from akira.core.config import config_dir
-from akira.core.net import NetError, Response, call, with_query
+from akira.core.net import MAX_BYTES, NetError, Response, call, with_query
+from akira.core.net.client import JSON
 from akira.core.net.loopback import WAIT_S, LoopbackError, Receiver
 from akira.core.permissions import AuditLog, SecretStore
 from akira.core.permissions.secrets import SecretError
@@ -108,7 +110,14 @@ EVENTS = Service("events", "Changing Google Calendar events", "calendar.write",
                  "Add, move and cancel events on your own calendar when you ask. Each change is "
                  "shown to you and happens only if you approve it, and nobody is invited or "
                  "told.")
-SERVICES = {service.name: service for service in (MAIL, CALENDAR, SEND, EVENTS)}
+#: Reading Drive: `drive.readonly` can open and list files, and cannot change,
+#: move, share or delete any of them. Google's narrower scopes read only files
+#: Akira itself made or was handed one at a time, which would read nothing the
+#: person already has.
+DRIVE = Service("drive", "Google Drive", "cloud.read",
+                "https://www.googleapis.com/auth/drive.readonly", ("www.googleapis.com",),
+                "Search and read your files. Nothing is changed, moved, shared or deleted.")
+SERVICES = {service.name: service for service in (MAIL, CALENDAR, SEND, EVENTS, DRIVE)}
 
 
 def address_of(text: str) -> str:
@@ -238,6 +247,15 @@ class AccountStore:
         """The one connected address for \a service, or "" when there is none or a choice."""
         having = [a.address for a in self.all() if service in a.services]
         return having[0] if len(having) == 1 else ""
+
+    def only(self) -> str:
+        """The one connected address, whatever it is connected for, or "".
+
+        For naming an address in a refusal: "not connected for Google Drive"
+        says what to do, where a permission for no address at all does not.
+        """
+        having = self.all()
+        return having[0].address if len(having) == 1 else ""
 
 
 # -- signing in ----------------------------------------------------------------------------------
@@ -476,9 +494,24 @@ class GoogleAccounts:
         return self._signed("DELETE", address, service, url, policy=policy, audit=audit,
                             actor=actor)
 
+    def download(self, address: str, service: str, url: str, *, policy,
+                 audit: AuditLog | None, actor: str, max_bytes: int) -> Response:
+        """Read the bytes at \a url from \a service as \a address: a file, not an answer.
+
+        At most \a max_bytes. Raises `ConnectError`.
+        """
+        return self._answer("GET", address, service, url, policy=policy, audit=audit,
+                            actor=actor, accept="*/*", max_bytes=max_bytes)
+
     def _signed(self, method: str, address: str, service: str, url: str, *,
                 payload: dict | None = None, policy, audit: AuditLog | None,
                 actor: str) -> dict:
+        return _json(self._answer(method, address, service, url, payload=payload, policy=policy,
+                                  audit=audit, actor=actor))
+
+    def _answer(self, method: str, address: str, service: str, url: str, *,
+                payload: dict | None = None, policy, audit: AuditLog | None, actor: str,
+                accept: str = JSON, max_bytes: int = MAX_BYTES) -> Response:
         spec = SERVICES[service]
         account = self._store.get(address)
         if account is not None and service not in account.services:
@@ -493,7 +526,8 @@ class GoogleAccounts:
             try:
                 response = call(method, url, policy=policy, capability=spec.capability,
                                 scope=address, hosts=spec.hosts, audit=audit, actor=actor,
-                                bearer=signed_in, payload=payload)
+                                bearer=signed_in, payload=payload, accept=accept,
+                                max_bytes=max_bytes)
             except NetError as exc:
                 raise ConnectError(str(exc)) from None
             if response.status == 401 and attempt == 1:
@@ -501,10 +535,13 @@ class GoogleAccounts:
                 # refused for its sign-in did nothing, so asking again cannot do it twice.
                 _forget_access(address)
                 continue
-            data = _json(response)
             if not response.ok:
-                raise ConnectError(_refusal(data, response))
-            return data
+                try:
+                    said = _json(response)
+                except ConnectError:
+                    said = {}
+                raise ConnectError(_refusal(said, response))
+            return response
         raise ConnectError(f"Google did not accept the sign-in for {address}. Connect it again.")
 
     # -- signing out ---------------------------------------------------------------------------

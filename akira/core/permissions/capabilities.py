@@ -205,6 +205,14 @@ CATALOGUE: dict[str, Capability] = {
            Direction.WRITE, Risk.MEDIUM, ScopeKind.ACCOUNT,
            irreversible=True, leaves_machine=True),
 
+        # -- documents kept in an account ------------------------------------
+        #
+        # High, though it only reads: a cloud drive is where tax returns,
+        # contracts and scans of passports end up.
+        _c("cloud.read", "Read your cloud documents",
+           "Search and read files in cloud storage accounts you connect.",
+           Direction.READ, Risk.HIGH, ScopeKind.ACCOUNT, leaves_machine=True),
+
         # -- study ----------------------------------------------------------
         _c("lms.read", "Read your courses",
            "Read Canvas courses, assignments and grades.",
