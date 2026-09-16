@@ -35,6 +35,15 @@ class Handler(BaseHTTPRequestHandler):
         super().setup()
 
     def do_GET(self):
+        self._answer()
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        sent = self.rfile.read(length).decode("utf-8", "replace")
+        self.server.posted.append((self.headers.get("Host", "").rsplit(":", 1)[0], self.path, sent))
+        self._answer()
+
+    def _answer(self):
         host = (self.headers.get("Host") or "").rsplit(":", 1)[0]
         self.server.seen.append((host, self.path, self.headers.get("Cookie") or ""))
         status, headers, body = self.server.pages.get((host, self.path), (404, {}, b""))
@@ -62,6 +71,7 @@ class StandIn(ThreadingHTTPServer):
                                       do_handshake_on_connect=False)
         self.pages = {}
         self.seen = []
+        self.posted = []
         self.dialled = []
         threading.Thread(target=self.serve_forever, daemon=True).start()
 

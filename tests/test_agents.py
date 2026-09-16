@@ -360,6 +360,25 @@ def test_no_model_is_left_free_to_invent_a_web_address(context):
     assert NO_INVENTED_ADDRESSES in agent.system_prompt()
 
 
+def test_what_the_tools_kept_open_is_closed_when_the_work_ends(context):
+    """A browser left open for the next step must not outlive the work it was for."""
+    closed = []
+    ctx = context()
+    ctx.on_finish(lambda: closed.append("first"))
+    ctx.on_finish(lambda: (_ for _ in ()).throw(RuntimeError("would not close")))
+    ctx.on_finish(lambda: closed.append("last"))
+    agent, _ = build_agent(["fine"], ctx)
+    agent.run("go")
+    assert closed == ["last", "first"], "something was left open, or one failure kept the rest"
+    assert ctx.closers == []
+
+    broken = context()
+    broken.on_finish(lambda: closed.append("after a failure"))
+    agent, _ = build_agent([], broken)
+    agent.run("go")
+    assert "after a failure" in closed, "work that failed left its browser open"
+
+
 def test_the_workspace_is_stated_in_the_prompt(context, workspace):
     agent, _ = build_agent(["fine"], context())
     assert str(workspace) in agent.system_prompt()

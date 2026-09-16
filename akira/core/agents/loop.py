@@ -113,7 +113,18 @@ class Agent:
     def run(self, task: str, *,
             on_token: Callable[[str], None] | None = None,
             is_cancelled: Callable[[], bool] | None = None) -> Outcome:
-        """Work on \a task until answered, out of steps, or cancelled."""
+        """Work on \a task until answered, out of steps, or cancelled.
+
+        Whatever the tools kept open for the next step, such as a browser, is
+        closed when the work ends, however it ends.
+        """
+        try:
+            return self._run(task, on_token=on_token, is_cancelled=is_cancelled)
+        finally:
+            self._context.finish()
+
+    def _run(self, task: str, *, on_token: Callable[[str], None] | None,
+             is_cancelled: Callable[[], bool] | None) -> Outcome:
         name = self.spec.name
         self._trace.emit(Kind.STARTED, name, text=task)
 

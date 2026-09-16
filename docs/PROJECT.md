@@ -468,7 +468,7 @@ material; reading one is `fetch_page` under `net.http` for that site. When
 DuckDuckGo asks whether a person is searching, the answer is "try later".
 The gatherer may search.
 
-**C3 ▶ Browser and computer use** — `core/net/browser.py`, `core/net/proxy.py`, `client.tunnel`; filling and clicking next
+**C3 ▶ Browser and computer use** — `core/net/browser.py`, `core/net/proxy.py`, `client.tunnel`, tools in `core/tools/builtin/browsing.py`; a picture of a page next
 Playwright driving a real browser: navigate, read, fill, click, scrape without
 APIs. **Every irreversible interaction confirms** — submit, post, purchase,
 apply. Job applications stage a draft and stop.
@@ -505,8 +505,25 @@ only, so it refuses to activate the program before Firefox runs, sandbox or
 none. The person chose Chromium; the headless build is 115 MB to download and
 270 MB on disk, and the broken Firefox can be removed with
 `python -m playwright uninstall firefox`.
-*Next:* filling in and clicking, under `web.submit`, each irreversible action
-confirmed on its own; a picture of a page for the person to look at.
+*Done, using a page:* a browser can now stay open for the rest of an agent's
+work and close when the work ends, however it ends (`ToolContext.finish`,
+called by `Agent.run`). `open_page` reads a page under `web.browse` and lists
+what on it can be used, numbered — fields, lists, boxes and buttons before
+links, since a result is cut at 6,000 characters — with each link's address.
+A link is never clicked: it is followed by opening its address, so no script
+of the page's runs because of it. `fill_in` and `press_button` act under
+`web.submit` for the site they name, which must be the one the page is on, and
+both are irreversible. Typing shows the person every field and every word,
+and that it reaches the site as it is typed; a press shows the button, the
+page, where its form sends and everything the form holds, and a form that
+sends to another site needs `web.submit` for that site too. Refused before
+anyone is asked, whatever the grants: typing into a field recognisably for a
+password, a card or account number, a code or an identity number; pressing a
+button that pays, by what it says or by a card field in its form; and doing
+anything to an element whose label changed since the page was read. The
+`errands` role uses these, told to stop and say what is left for the person.
+*Next:* a picture of a page for the person to look at; C8, a cart assembled
+and left for the person to pay for.
 
 **C4 ✅ Screen capture** — `core/screen.py`, tools in `core/tools/builtin/screen.py`
 *Done:* the whole screen captured with GDI and encoded as PNG with zlib, and
@@ -685,13 +702,12 @@ and resumable.
 | C | C4 Screen capture | ✅ |
 | C | C2 Web search | ✅ |
 | C | C5 Connectors | ▶ Google done: reading, sending, and changing the calendar; the other services wait on the person's choice |
-| C | C3 Browser | ▶ reading a page in Chromium, held to the proxy and to web.browse; filling and clicking next |
+| C | C3 Browser | ▶ reading a page, and typing and pressing on it, each approved; a picture of a page next |
 | C | C8 Purchasing | ○ |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 2060 passed, 2 skipped, and one timing failure in router
-concurrency that passes alone (being looked at separately); `verify_offline.py`
+**Tests at last commit:** 2099 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

@@ -118,6 +118,23 @@ class ToolContext:
 
     extra: dict[str, Any] = field(default_factory=dict)
 
+    closers: list[Callable[[], None]] = field(default_factory=list)
+    """What to close when the work this context is for ends: a browser a tool
+    kept open for the next step, for one. See `finish`."""
+
+    def on_finish(self, close: Callable[[], None]) -> None:
+        """Have \a close called when the work ends, however it ends."""
+        self.closers.append(close)
+
+    def finish(self) -> None:
+        """Close what tools kept open for this work, newest first. Never raises."""
+        while self.closers:
+            close = self.closers.pop()
+            try:
+                close()
+            except Exception:  # noqa: BLE001 - one thing failing to close must not keep the rest open
+                pass
+
 
 @dataclass(frozen=True, slots=True)
 class ToolResult:
