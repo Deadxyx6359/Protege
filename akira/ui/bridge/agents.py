@@ -25,7 +25,7 @@ import time
 from copy import deepcopy
 from pathlib import Path
 from typing import Callable
-from uuid import uuid4
+import secrets
 
 from PySide6.QtCore import Property, QObject, Signal, Slot, QTimer
 
@@ -307,7 +307,7 @@ class AgentsBridge(QObject):
                               confirm=self._confirm, workspace=workspace)
         self._cancel.clear()
         project = self._project()
-        record = clean_record({"id": str(uuid4()), "kind": kind, "name": actor,
+        record = clean_record({"id": secrets.token_hex(16), "kind": kind, "name": actor,
             "task": text, "folder": workspace, "projectId": project.get("id", ""),
             "projectName": project.get("name", "") or "Personal workspace",
             "started": time.time(), "status": "running", "members": members,

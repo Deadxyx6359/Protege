@@ -10,19 +10,29 @@ from copy import deepcopy
 import json
 import math
 from pathlib import Path
+import re
 import threading
 import time
-from uuid import UUID
 
 MAX_RUNS = 60
 MAX_BYTES = 12_000_000
+
+#: A run's id, as it is accepted from disk: hex from `secrets.token_hex`, or the
+#: UUID shape earlier records were written with. Checked because the id names a
+#: record. The module that makes UUIDs is not imported anywhere in Akira -- its
+#: `getnode()` reads the machine's network interfaces, so `verify_offline.py`
+#: counts it as networking -- and this is the same check without it.
+_ID = re.compile("(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                 "|[0-9a-f]{16,64})")
 
 
 def clean_record(value: dict) -> dict:
     """Whitelist the disk format; cached preview content cannot leak into it."""
     if not isinstance(value, dict):
         raise ValueError("Invalid saved investigation")
-    ident = str(UUID(value["id"]))
+    ident = str(value["id"])
+    if not _ID.fullmatch(ident):
+        raise ValueError("Invalid saved investigation")
     result = {"id": ident}
     for key, limit in {"task": 4000, "answer": 60000, "name": 80, "kind": 16,
                        "projectId": 200, "projectName": 200, "folder": 4096,
