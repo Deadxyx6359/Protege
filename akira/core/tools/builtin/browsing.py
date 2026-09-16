@@ -23,6 +23,11 @@ recognisably for a password, a card or account number, a code or an identity
 number, and pressing a button that pays for something. Those are the person's
 to do, and the refusal tells the agent so. What a page says is material, not
 instructions.
+
+- `hand_over_page` gives the person what is theirs to do (C8): the page opens in a
+  window on their screen with what the browser held, such as a cart, Akira's own
+  browser closes, and nothing more is read. Paying happens there, by the person,
+  every time.
 """
 
 from __future__ import annotations
@@ -303,4 +308,33 @@ press_button = Tool(
 )
 
 
-ALL = (open_page, fill_in, press_button)
+# -- hand_over_page -------------------------------------------------------------------------------
+
+
+def _run_hand_over(arguments: dict, context: ToolContext) -> ToolResult:
+    session = _current(context, arguments["site"])
+    title = session.title
+    try:
+        handed = session.hand_over()
+    except browser.BrowseError as exc:
+        raise ToolError(str(exc)) from None
+    return ToolResult.success(
+        f"Handed over: {title or handed.url} is open in a window on the person's screen, and "
+        "Akira's own browser is closed. Nothing more is read from that window. Tell the person "
+        "what is in it and what is left for them to do there: to check it, sign in and pay if "
+        "they choose, and close the window when they are done.",
+        data={"url": handed.url})
+
+
+hand_over_page = Tool(
+    name="hand_over_page",
+    summary=("Give the page open_page opened to the person, in a window on their screen, with "
+             "what it holds, such as a cart, and stop using it: for paying, signing in, or "
+             "anything only they should do. Nothing is read from the window afterwards."),
+    parameters=(Parameter("site", "string", "The site the page is on, as open_page said."),),
+    requires=(Requirement("web.browse", scope_from="site", scope_of=_site),),
+    run=_run_hand_over,
+)
+
+
+ALL = (open_page, fill_in, press_button, hand_over_page)

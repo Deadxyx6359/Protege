@@ -26,6 +26,7 @@ from akira.core.connect.inbox import GmailInbox
 from akira.core.context.place import PlaceStore
 from akira.core.context.weather import Weather, WeatherService
 from akira.core.models import ModelRouter, Route
+from akira.core.net import browser
 from akira.core.permissions import AuditLog, Policy, SecretStore
 from akira.core.projects import ProjectStore
 from akira.core.review import ensure_review_job, register_review_action
@@ -148,6 +149,9 @@ class AppContext:
             self.service.stop()
         if self.trace is not None:
             self.trace.detach()
+        # A page handed to the person lives on a thread of its own. Closing Akira
+        # closes its window rather than leaving a browser nobody owns.
+        browser.close_handed_over()
         # A turn still streaming holds the model; asking it to stop lets the
         # router unload promptly instead of waiting out the generation.
         if self.chat.busy:

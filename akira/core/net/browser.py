@@ -33,6 +33,14 @@ outside:
   something; a link is never clicked, only opened by its address, so no script
   of the page's runs because of it; and nothing is done to an element that has
   changed since the page was read.
+- **What only the person should do is handed to them** (`Handover`, C8). A page
+  ready to pay for, or to sign in to, opens in a window on the person's screen,
+  carrying what Akira's browser held for its sites, such as a cart, in memory
+  only. Akira's own browser closes first, and nothing is ever read from the
+  window. Because every page in it is one the person chose, it may go to any
+  site on the open internet — a payment page, a bank's check — but still only
+  through the proxy, over https, and logged. It stays open until the person
+  closes it, even once the agent's work is over.
 
 `verify_offline.py` checks that only this module imports Playwright, that every
 browser it starts is given the proxy, and that nothing here attaches to a
@@ -91,6 +99,9 @@ MAX_FORM_FIELDS = 30
 
 #: How the browser is installed, once, beside Playwright.
 INSTALL = "python -m playwright install --only-shell chromium"
+
+#: How the browser with a window, for a page handed to the person, is installed.
+INSTALL_WINDOW = "python -m playwright install chromium"
 
 #: Chromium's switches, beyond Playwright's own, which already turn off
 #: background networking, updates, sync and crash reports.
@@ -389,9 +400,9 @@ def _plain(exc: Exception) -> str:
     return rest if sep and "." in call and " " not in call else first
 
 
-def _not_started(exc: Exception) -> str:
+def _not_started(exc: Exception, install: str = INSTALL) -> str:
     if "Executable doesn't exist" in str(exc):
-        return f"The browser is not installed. It is installed once, like a package: {INSTALL}"
+        return f"The browser is not installed. It is installed once, like a package: {install}"
     return f"The browser could not be started: {_plain(exc)}"
 
 
@@ -593,6 +604,31 @@ class Session:
         self._status, self._reason = 0, ""
         return self._look(start, since)
 
+    def hand_over(self) -> "Handover":
+        """Give the page open to the person, in a window of their own, and close this browser.
+
+        What this browser held for the page's sites, such as a cart, goes with
+        it, in memory only. From then on Akira reads nothing from the window.
+        Raises `BrowseError`.
+        """
+        page = self._running()
+        url = page.url
+        if not host_of(url):
+            raise BrowseError("Only an https page is handed over.")
+        try:
+            state = page.context.storage_state()
+        except PlaywrightError as exc:
+            raise BrowseError(f"The page could not be handed over: {_plain(exc)}") from None
+        # Akira's own browser closes first, so it cannot go on using what the
+        # person has been given.
+        self.close()
+        handover = Handover(state, url, audit=self._audit)
+        handover.start()
+        if self._audit is not None:
+            self._audit.tool_call(self._actor, "net.handover", {"url": redact(url)},
+                                  allowed=True, capability=CAPABILITY, scope=host_of(url))
+        return handover
+
     def close(self) -> None:
         """Close the browser and the proxy. Safe to call more than once."""
         self.closed = True
@@ -700,6 +736,143 @@ class Session:
         return Seen(final, self._status, self._reason, title, text,
                     tuple(dict.fromkeys(self._proxy.reached[since[2]:])),
                     tuple(dict.fromkeys(refused)), tuple(self._controls.values()))
+
+
+# -- a page handed to the person -----------------------------------------------------------------
+
+#: Whether a page handed over opens in a window on the person's screen. Only
+#: tests turn it off, so a test run does not put windows in front of anyone.
+HANDOVER_WINDOW = True
+
+#: The longest a window handed over stays open. Past this it is closed.
+HANDOVER_MAX_S = 4 * 60 * 60
+
+#: How often a window's thread looks up from waiting, to see whether Akira is closing.
+_HANDOVER_TICK_S = 1.0
+
+#: Windows handed over and still open.
+_HANDED_OVER: list["Handover"] = []
+_HANDED_OVER_LOCK = threading.Lock()
+
+
+class _PersonDriving:
+    """The rules for a window the person drives: any site on the open internet, over https.
+
+    Relaxed from `_Visit` because every page in it is one the person chose to go
+    to: a payment page, a bank's check, a sign-in. Still through the proxy, so
+    still https on port 443 only, still the open internet only, still logged.
+    """
+
+    def may(self, host: str) -> str:
+        return ""
+
+    def route(self, route, request) -> None:
+        url = request.url
+        if str(url).split(":", 1)[0].lower() in LOCAL_SCHEMES or host_of(url):
+            route.continue_()
+        else:
+            route.abort("blockedbyclient")
+
+
+class Handover:
+    """A page given to the person, in a window of its own that Akira reads nothing from.
+
+    It carries what Akira's own browser held for the page's sites, such as a
+    cart, and nothing else. It runs on a thread of its own, which owns the
+    window, so the window outlives the agent that handed it over: the person
+    may still be paying when the agent's work has ended. It closes when the
+    person closes it, when Akira closes, or after `HANDOVER_MAX_S`.
+    """
+
+    def __init__(self, state: dict, url: str, *, audit: AuditLog | None = None) -> None:
+        self.url = url
+        self._state = state
+        self._audit = audit
+        self._opened = threading.Event()
+        self._stop = threading.Event()
+        self._error = ""
+        self.proxy_port = 0
+        self._thread = threading.Thread(target=self._run, name="handover", daemon=True)
+
+    @property
+    def open(self) -> bool:
+        return self._thread.is_alive()
+
+    def start(self) -> None:
+        """Open the window, and return once the page has arrived. Raises `BrowseError`."""
+        self._thread.start()
+        self._opened.wait(LOAD_S + 30)
+        if self._error:
+            raise BrowseError(self._error)
+        if not self._opened.is_set():
+            self.stop()
+            raise BrowseError("The window took too long to open, so it was closed.")
+        with _HANDED_OVER_LOCK:
+            _HANDED_OVER.append(self)
+
+    def stop(self, wait_s: float = 10.0) -> None:
+        """Close the window from Akira's side."""
+        self._stop.set()
+        if self._thread.is_alive() and threading.current_thread() is not self._thread:
+            self._thread.join(wait_s)
+
+    def _run(self) -> None:
+        # What was carried is the window's alone from here.
+        state, self._state = self._state, {}
+        driving = _PersonDriving()
+        proxy = driver = chromium = None
+        try:
+            proxy = Proxy(driving.may, audit=self._audit, actor="person")
+            self.proxy_port = proxy.port
+            driver = sync_playwright().start()
+            try:
+                chromium = driver.chromium.launch(
+                    headless=not HANDOVER_WINDOW, chromium_sandbox=True,
+                    proxy={"server": proxy.server}, args=list(ARGS))
+            except PlaywrightError as exc:
+                self._error = _not_started(exc, INSTALL_WINDOW)
+                return
+            context = chromium.new_context(storage_state=state, **CONTEXT)
+            context.route("**/*", driving.route)
+            page = context.new_page()
+            try:
+                page.goto(self.url, wait_until="domcontentloaded", timeout=LOAD_S * 1000)
+            except PlaywrightError as exc:
+                self._error = f"The window could not open {redact(self.url)}: {_plain(exc)}"
+                return
+            self._opened.set()
+            deadline = time.monotonic() + HANDOVER_MAX_S
+            while not self._stop.is_set() and time.monotonic() < deadline:
+                pages = [p for p in context.pages if not p.is_closed()]
+                if not pages:
+                    return  # the person closed it
+                try:
+                    pages[0].wait_for_event("close", timeout=_HANDOVER_TICK_S * 1000)
+                except PlaywrightTimeout:
+                    continue
+                except PlaywrightError:
+                    return
+        except (PlaywrightError, OSError) as exc:
+            self._error = self._error or f"The window could not be opened: {_plain(exc)}"
+        finally:
+            for step in (lambda: chromium is not None and chromium.close(),
+                         lambda: driver is not None and driver.stop(),
+                         lambda: proxy is not None and proxy.close()):
+                try:
+                    step()
+                except Exception:  # noqa: BLE001 - one part failing to close must not keep the rest open
+                    pass
+            with _HANDED_OVER_LOCK:
+                if self in _HANDED_OVER:
+                    _HANDED_OVER.remove(self)
+
+
+def close_handed_over() -> None:
+    """Close every window handed over and still open. For Akira closing."""
+    with _HANDED_OVER_LOCK:
+        open_now = list(_HANDED_OVER)
+    for handover in open_now:
+        handover.stop()
 
 
 def read(url: str, *, policy, audit: AuditLog | None = None, actor: str = ACTOR) -> Seen:

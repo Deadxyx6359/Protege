@@ -522,8 +522,8 @@ password, a card or account number, a code or an identity number; pressing a
 button that pays, by what it says or by a card field in its form; and doing
 anything to an element whose label changed since the page was read. The
 `errands` role uses these, told to stop and say what is left for the person.
-*Next:* a picture of a page for the person to look at; C8, a cart assembled
-and left for the person to pay for.
+*Next:* a picture of a page for the person to look at, in the confirmation
+(offered to Codex, handoff 30).
 
 **C4 ✅ Screen capture** — `core/screen.py`, tools in `core/tools/builtin/screen.py`
 *Done:* the whole screen captured with GDI and encoded as PNG with zlib, and
@@ -661,10 +661,25 @@ reported as now, and a reading for another place never is. Models are told it
 with the place. A place can be looked up by name for its position, on the same
 site, when the person asks.
 
-**C8 ○ Purchasing** — staged only
+**C8 ▶ Purchasing** — staged only; `Handover` in `core/net/browser.py`, tool `hand_over_page`
 Assemble the cart, present the total and the payment method, stop. A person
 presses the button, every time. There is no unattended path and there will not
 be one.
+*Done, handing it over:* the person chose a visible browser handed to them, and
+allowed the full Chromium for it (191.8 MB to download, 426.7 MB on disk).
+Akira's own browser cannot pay: it never types a card number or a password and
+never presses a button that pays. So when a cart is ready, the errands agent
+says what it holds and what it costs, and `hand_over_page` opens the page in a
+window on the person's screen, carrying what Akira's browser held for its
+sites — the cart — in memory only, never written down. Akira's own browser
+closes first, and nothing is ever read from the window again. Because every
+page in it is one the person chooses, it may reach any site on the open
+internet — a payment page, a bank's check — but still only through the proxy,
+over https, never to this computer or a private network, and logged. The window
+lives on a thread of its own, so it outlives the agent's work, since the person
+may still be paying; it closes when the person closes it, when Akira closes,
+or after four hours.
+*Next:* nothing, unless the person wants more of it.
 
 ### Phase D — voice
 
@@ -717,11 +732,11 @@ and resumable.
 | C | C2 Web search | ✅ |
 | C | C5 Connectors | ▶ Google done: mail, calendar and Drive; Canvas, banking and messages next |
 | C | C3 Browser | ▶ reading a page, and typing and pressing on it, each approved; a picture of a page next |
-| C | C8 Purchasing | ○ |
+| C | C8 Purchasing | ▶ a cart handed to the person in a window of their own, to pay for themselves |
 | D | D1–D3 Voice | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 2114 passed, 2 skipped; `verify_offline.py`
+**Tests at last commit:** 2120 passed, 2 skipped; `verify_offline.py`
 passes. Update this line when it changes.
 
 ---

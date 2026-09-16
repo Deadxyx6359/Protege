@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import socket
 import ssl
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -74,6 +75,12 @@ class StandIn(ThreadingHTTPServer):
         self.posted = []
         self.dialled = []
         threading.Thread(target=self.serve_forever, daemon=True).start()
+
+    def handle_error(self, request, client_address):
+        # Chromium opens connections ahead of need, which no page's trust in the
+        # stand-in's own certificate covers, and it drops them. Not a failure.
+        if not isinstance(sys.exc_info()[1], (ssl.SSLError, ConnectionError)):
+            super().handle_error(request, client_address)
 
 
 def resolve(host, port):
