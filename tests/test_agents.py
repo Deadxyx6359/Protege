@@ -345,6 +345,21 @@ def test_an_ungranted_tool_never_appears_in_the_system_prompt(context, workspace
     assert "write_file" not in prompt
 
 
+def test_no_model_is_left_free_to_invent_a_web_address(context):
+    """An address is the detail a model makes up without feeling unsure.
+
+    The eleven characters that pick out a video carry nothing to reason from,
+    so a model writes something of the right shape and the link goes nowhere.
+    Every model Akira runs is told not to: the plain conversation, and each
+    agent, whether or not it has a tool that could fetch a real one.
+    """
+    from akira.core.conversation import DEFAULT_SYSTEM_PROMPT, NO_INVENTED_ADDRESSES
+
+    assert NO_INVENTED_ADDRESSES in DEFAULT_SYSTEM_PROMPT
+    agent, _ = build_agent(["fine"], context())
+    assert NO_INVENTED_ADDRESSES in agent.system_prompt()
+
+
 def test_the_workspace_is_stated_in_the_prompt(context, workspace):
     agent, _ = build_agent(["fine"], context())
     assert str(workspace) in agent.system_prompt()

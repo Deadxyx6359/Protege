@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from akira.core.context.place import now_line
-from akira.core.conversation import Cancelled
+from akira.core.conversation import NO_INVENTED_ADDRESSES, Cancelled
 from akira.core.models import ModelRouter, Route
 from akira.core.tools import ToolContext, ToolRegistry
 from akira.models.base import ChatMessage
@@ -100,7 +100,8 @@ class Agent:
         return self._registry.available(self._context.policy, only=self.spec.tools)
 
     def system_prompt(self) -> str:
-        parts = [self.spec.role.strip(), "", render_tools(self._tools())]
+        parts = [self.spec.role.strip(), "", NO_INVENTED_ADDRESSES, "",
+                 render_tools(self._tools())]
         if self._context.workspace:
             parts += ["", f"You are working in: {self._context.workspace}"]
         # A model has no clock. The place and time zone only with location.read.

@@ -18,11 +18,27 @@ from akira.models.think_filter import ThinkFilter
 from .config import AppConfig
 from .models import ModelRouter, Route
 
+#: Said to every model Akira runs, its agents included.
+#:
+#: A web address is the one kind of detail a model invents without feeling
+#: unsure: the shape of `youtube.com/watch?v=...` is deeply familiar, while the
+#: eleven characters that pick the video carry no meaning to reason from. So it
+#: writes something of the right shape, and the link leads nowhere. The same
+#: goes for a title, a page number or a part number it "remembers".
+NO_INVENTED_ADDRESSES = (
+    "Never write a web address unless something in this conversation gave it to "
+    "you: a search result, a page that was read, a file. The part of an address "
+    "that picks out a video or a page cannot be worked out from what it is "
+    "about, so one you write yourself looks right and leads nowhere. Name what "
+    "to search for instead, and say plainly that you cannot check it."
+)
+
 DEFAULT_SYSTEM_PROMPT = (
     "You are Akira, a capable assistant running entirely on the user's own "
     "machine. Be direct and concrete. Prefer a short, correct answer to a long, "
     "hedged one. When you are unsure, say so plainly rather than inventing "
-    "detail. Use Markdown for structure only when it genuinely helps."
+    "detail. Use Markdown for structure only when it genuinely helps. "
+    + NO_INVENTED_ADDRESSES
 )
 
 #: Reserved above the reply budget for the system prompt and formatting overhead

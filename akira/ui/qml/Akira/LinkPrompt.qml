@@ -134,7 +134,8 @@ Item {
                 Layout.fillWidth: true
                 text: root.openable
                       ? "It opens outside Akira, in the browser you are signed in to. "
-                        + "The words in the reply are not the address: this is."
+                        + "The words of a link are not its address: this is. Akira has "
+                        + "not opened it, and an address a model wrote may lead nowhere."
                       : "Akira opens http and https addresses only. Nothing was opened."
                 textFormat: Text.PlainText
                 font: Theme.type.caption
