@@ -19,11 +19,12 @@ from .projects import ProjectsBridge
 from .schedule import ScheduleBridge
 from .settings import SettingsBridge
 from .trace import TraceBridge, TraceListModel
+from .voice import VoiceBridge
 
 __all__ = [
     "ChatBridge", "MessageListModel", "SettingsBridge",
     "PermissionsBridge", "ConfirmBridge", "ScheduleBridge",
     "TraceBridge", "TraceListModel", "AgentsBridge", "MemoryBridge",
     "ProjectsBridge", "GraphBridge", "MonitorBridge", "PlaceBridge", "AccountsBridge",
-    "DocumentsBridge", "CodingBridge",
+    "DocumentsBridge", "CodingBridge", "VoiceBridge",
 ]

@@ -67,6 +67,8 @@ before changing it.
 | `Place` | `PlaceBridge` | Where the person is, and the hemisphere the scenes turn their seasons by |
 | `Accounts` | `AccountsBridge` | Connected Google addresses: the client file, signing in, disconnecting |
 | `Documents` | `DocumentsBridge` | Local folder rows, document text previews and content search |
+| `Coding` | `CodingBridge` | The code workspace; see `## Coding` below |
+| `Voice` | `VoiceBridge` | Push to talk, reading aloud, and the chosen voice |
 
 Registered in `akira/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
@@ -577,6 +579,48 @@ Schedule.addJob({
   it to `connectBank`, and clear the field straight away.
 - **Money never moves.** There is no `bank.write`, no tool and no request that
   could. Say so; `bankHelp` does.
+
+## `Voice` — push to talk, reading aloud, and the chosen voice
+
+Speech in is Whisper small.en and speech out is Kokoro, both on this computer
+(`akira/core/voice`). Nothing heard is kept or sent; the log records each
+recording's length and never its words.
+
+| Member | Kind | Notes |
+|---|---|---|
+| `available`, `unavailableReason` | Properties, notify `stateChanged` | Whether the voice packages and model files are here, and if not, which are missing. Fixed for the session |
+| `canListen`, `listenBlocked` | Properties, notify `stateChanged` | Whether the microphone may open now, and if not why, e.g. "Not permitted: Listen has not been allowed." Re-read on `Permissions.grantsChanged` |
+| `canSpeak`, `speakBlocked` | Properties, notify `stateChanged` | The same for speaking (`audio.play`) |
+| `startListening()` | Slot → bool | Open the microphone. Stops Akira speaking first, so the person can talk over it. False, with `note`, when it cannot |
+| `stopListening()` | Slot | Close it and make out what was said, on a worker; `heard` follows |
+| `cancelListening()` | Slot | Close it and throw away what it heard |
+| `heard(text)` | Signal | What one press heard, never `""`. Put it in the composer for the person to send, or send it: the view decides |
+| `listening` | Property, notifies `stateChanged` | **The microphone is open.** Show that plainly whenever it is true |
+| `transcribing` | Property, notifies `stateChanged` | Whisper is making out what was said, a second or two. A new press is refused meanwhile |
+| `level` | Property, notifies `levelChanged` | 0 to 1, twenty times a second while listening, for a meter |
+| `maxSeconds` | Constant | 120. One press records no longer; at the limit it stops and keeps what it heard |
+| `speak(text)` | Slot → bool | Read `text` aloud in the chosen voice, stopping whatever was being said. Markdown is taken out; code is not read, and a link is read as its words |
+| `stopSpeaking()` | Slot | Stops within a tenth of a second |
+| `speaking` | Property, notifies `stateChanged` | |
+| `readAloud`, `setReadAloud(on)` | Property (notifies `settingsChanged`), Slot | Off until turned on. When on, each finished chat answer is read out (`Chat.answered` is wired to it in the shell). Turning it off stops the reading |
+| `voices` | Constant list | Six: `id`, `name`, `description`. The first, `af_heart`, is the default |
+| `voice`, `setVoice(id)` | Property (notifies `settingsChanged`), Slot | An unknown id is ignored |
+| `previewVoice(id)` | Slot → bool | Say a sample line in that voice without choosing it |
+| `speed`, `setSpeed(x)` | Property (notifies `settingsChanged`), Slot | 0.6 to 1.6; 1.0 is Kokoro's own pace |
+| `note`, `clearNote()` | Property (notifies `stateChanged`), Slot | The last thing that went wrong, written for the person, or `""` |
+
+- **Both are off until allowed.** `audio.record` (Listen) and `audio.play`
+  (Speak) are global grants, not a project's. When `listenBlocked` says one is
+  missing, offer it there, after the person agrees.
+- **Withdrawing Listen closes the microphone at once**, within a twentieth of
+  a second, and what it heard is thrown away unheard. So does closing Akira.
+- The first press loads Whisper, and the first thing said loads Kokoro, each
+  taking a few seconds once. After that, a few seconds of speech is made out
+  in about two, and speech starts within a second or so.
+- Choices are kept in `voice.json`; what was said and heard is not kept anywhere.
+
+`Chat.answered(text)` is a signal on the chat bridge: a reply that finished
+whole, with its text. It is not sent for one stopped, failed or empty.
 
 ## `Chat` — what a turn drew on
 

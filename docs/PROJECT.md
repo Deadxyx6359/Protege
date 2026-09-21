@@ -102,8 +102,8 @@ measured benchmarks, not from optimism.
 
 | Capability | Verdict | Item |
 |---|---|---|
-| Speech in | Fine — Whisper, real-time on this CPU | D1 |
-| Speech out, ~6 voices, default feminine/professional/expressive | Fine — Piper or Kokoro, local | D2 |
+| Speech in | **Push to talk done**: Whisper small.en on the CPU, about two seconds to make out a few seconds of speech | D1 |
+| Speech out, ~6 voices, default feminine/professional/expressive | **Done**: Kokoro 82M on the CPU, six voices, about real time, a sentence at a time | D2 |
 | Live calls that survive the window being minimised, own widget | Fine | D3 |
 
 ### 2.5 Making
@@ -735,9 +735,31 @@ or after four hours.
 
 ### Phase D — voice
 
-**D1 ○ Speech in** — Whisper, streaming, push-to-talk and wake-word.
-**D2 ○ Speech out** — Piper or Kokoro; six selectable voices; default feminine,
-professional, expressive.
+**D1 ▶ Speech in** — Whisper, streaming, push-to-talk and wake-word; `core/voice/listen.py`, bridge `Voice`
+*Done, push to talk:* Whisper small.en through whisper.cpp's own binding
+(pywhispercpp's downloader is never imported), on four threads of the CPU. The
+microphone opens when the person presses and closes when they let go, or after
+two minutes; what it heard stays in memory, is made out, and is dropped, never
+written to disk. `audio.record` is checked when it opens, twenty times a second
+while it is open, and again before anything is made out: withdrawing it closes
+the microphone and throws the recording away unheard. The log keeps each
+recording's length, never its words. A clip with too little speech in it is
+never given to Whisper, which invents "Thanks for watching!" on silence, and
+its notes on sounds are dropped. Pressing to talk stops Akira speaking.
+*Next:* streaming as the person talks, and a wake word. The wake word needs a
+microphone that is always open, so it waits for the person to ask for it, and
+for D3's visible mute.
+**D2 ✅ Speech out** — Kokoro; six selectable voices; default feminine, professional, expressive; `core/voice/speak.py`
+*Done:* Kokoro 82M, int8, through onnxruntime with the CPU named as its only
+provider, on four threads: about real time. Six voices, Heart the default
+(warm, expressive), then Bella, Nicole, Emma (British), Michael and George
+(British). Text is spoken a sentence at a time, the next made while one plays,
+so a long answer starts at once; Markdown is taken out, code is not read, and a
+link is read as its words. It stops within a tenth of a second. `audio.play`
+is checked before each sentence. Answers are read aloud only once the person
+turns that on. The voice, the speed and that choice are kept in `voice.json`.
+The model files, fetched once with the person's permission, are listed with
+their checksums in the README.
 **D3 ○ Live call** — a session that survives the main window closing, in its own
 always-on-top widget, with barge-in (the user interrupting mid-sentence) and a
 visible mute that actually stops capture.
@@ -785,11 +807,14 @@ and resumable.
 | C | C5 Connectors | ▶ Google, Canvas, banks (SimpleFIN) and texts (Phone Link, reading) done |
 | C | C3 Browser | ▶ reading a page, and typing and pressing on it, each approved; a picture of a page next |
 | C | C8 Purchasing | ▶ a cart handed to the person in a window of their own, to pay for themselves |
-| D | D1–D3 Voice | ○ |
+| D | D1 Speech in | ▶ push to talk; streaming and a wake word next |
+| D | D2 Speech out | ✅ |
+| D | D3 Live call | ○ |
 | E | E1–E4 Making | ○ |
 
-**Tests at last commit:** 2170 passed, 2 skipped; `verify_offline.py`
-passes. Update this line when it changes.
+**Tests at last commit:** 2284 passed, 2 skipped, and the two known
+dialog-geometry failures (a window 7 px taller than the test allows);
+`verify_offline.py` passes. Update this line when it changes.
 
 ---
 

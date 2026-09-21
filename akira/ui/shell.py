@@ -50,6 +50,7 @@ from akira.ui.bridge import (
     ScheduleBridge,
     SettingsBridge,
     TraceBridge,
+    VoiceBridge,
 )
 
 from .engine import QML_ROOT, QmlError, build_engine, configure_application, load
@@ -86,6 +87,7 @@ class AppContext:
     accounts: AccountsBridge | None = None
     documents: DocumentsBridge | None = None
     coding: CodingBridge | None = None
+    voice: VoiceBridge | None = None
     scheduler: Scheduler | None = None
     service: SchedulerService | None = None
     monitor_service: MonitorService | None = None
@@ -104,7 +106,7 @@ class AppContext:
                           ("Projects", self.projects), ("Graph", self.graph),
                           ("Monitor", self.monitor), ("Place", self.place),
                           ("Accounts", self.accounts), ("Documents", self.documents),
-                          ("Coding", self.coding)):
+                          ("Coding", self.coding), ("Voice", self.voice)):
             if obj is not None:
                 exposed[name] = obj
         return exposed
@@ -131,6 +133,9 @@ class AppContext:
 
     def close(self) -> None:
         self.chat.historySearch.close()
+        # The microphone first: nothing is heard once Akira is closing.
+        if self.voice is not None:
+            self.voice.close()
         if self.documents is not None:
             self.documents.close()
         if self.coding is not None:
@@ -285,11 +290,18 @@ def build_context(*, persist: bool = True) -> AppContext:
                                  audit=audit, secrets=secret_store, projects=projects.store,
                                  vault=lambda: vault_of(scheduler), place=place.store)
 
+    # The person's own voice, not a project's: listening and speaking answer to
+    # the global grants, audio.record and audio.play.
+    voice = VoiceBridge(policy=live_policy, audit=audit)
+    permissions.grantsChanged.connect(voice.refresh)
+    chat = ChatBridge(router, config, context=assembler, project=projects.store.current_id)
+    chat.answered.connect(voice.readReply)
+
     return AppContext(
         config=config,
         router=router,
         theme=theme,
-        chat=ChatBridge(router, config, context=assembler, project=projects.store.current_id),
+        chat=chat,
         settings=SettingsBridge(config, router),
         permissions=permissions,
         confirm=confirm,
@@ -305,6 +317,7 @@ def build_context(*, persist: bool = True) -> AppContext:
         accounts=accounts,
         documents=documents,
         coding=coding,
+        voice=voice,
         housekeeping=sweep_indexes,
     )
 

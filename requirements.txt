@@ -95,6 +95,58 @@ greenlet==3.5.5
 pyee==13.0.1
 typing_extensions==4.16.0
 
+# --- Voice (D1, D2) ------------------------------------------------------------
+#
+# Speech in and out, on this computer. The model files are fetched once, by
+# hand, into models/whisper and models/voice (the README gives the addresses
+# and checksums); nothing below fetches anything while Akira runs.
+# verify_offline.py walks all of it from akira/core/voice/engines.py, the one
+# module that imports it, and only when voice is first used.
+
+# pywhispercpp: whisper.cpp, compiled, for speech in. Akira imports only its
+# binding, `_pywhispercpp`. The package's own Python has a model downloader,
+# which is why it brings requests, tqdm and platformdirs: Akira never imports
+# it, and verify_offline.py lists it as present and unreachable.
+pywhispercpp==1.5.1
+requests==2.34.2
+urllib3==2.8.0
+idna==3.20
+certifi==2026.7.22
+charset-normalizer==3.5.1
+tqdm==4.70.1
+colorama==0.4.6
+platformdirs==4.11.11
+
+# kokoro-onnx: Kokoro 82M, for speech out, through onnxruntime on the CPU.
+# Akira makes the onnxruntime session itself and names the CPU as its only
+# provider, never the Azure one this build also carries. Its Windows build
+# reports usage through Windows' event tracing, not a socket; Akira switches
+# that off before making a session (akira/core/voice/engines.py).
+# phonemizer and espeakng-loader turn text into sounds with a copy of eSpeak NG
+# that ships inside the wheel. phonemizer works through joblib, which names its
+# jobs with uuid4; verify_offline.py allows that and holds it to it.
+kokoro-onnx==0.6.1
+onnxruntime==1.30.0
+flatbuffers==25.12.19
+protobuf==7.36.2
+packaging==26.2
+phonemizer==3.4.0
+espeakng-loader==0.2.4
+joblib==1.6.0
+cloudpickle==3.1.2
+dlinfo==2.0.0
+attrs==26.1.0
+
+# sounddevice: the microphone and speakers, through PortAudio, which ships
+# inside the wheel. Local devices only.
+sounddevice==0.5.6
+cffi==2.1.0
+pycparser==3.0
+
+# numpy: the audio itself, as arrays. Already installed with llama-cpp-python;
+# pinned here because voice uses it directly.
+numpy==2.5.1
+
 # --- Development only (not required to run Akira) ---------------------------
 
 # pytest: test runner. Not imported by the application.
@@ -102,7 +154,11 @@ pytest==8.3.3
 
 # --- Deliberately NOT used ----------------------------------------------------
 #
-# requests / httpx / aiohttp / urllib3  -- networking, by definition
+# requests / httpx / aiohttp / urllib3  -- networking, by definition. requests
+#                                          and urllib3 are installed, above, only
+#                                          because pywhispercpp's downloader
+#                                          wants them; nothing Akira runs
+#                                          imports either.
 # huggingface-hub                       -- downloads models at runtime
 # sentence-transformers / torch         -- pulls model weights over the network
 #                                          on first use; retrieval uses a pure

@@ -292,6 +292,43 @@ def test_an_empty_reply_is_reported_rather_than_shown_blank(qt_app, make_bridge)
     assert model.data(last, model.TextRole) == "The model returned nothing."
 
 
+# -- a finished answer, for reading aloud ------------------------------------
+
+
+def test_a_finished_answer_is_announced_with_its_text(qt_app, make_bridge):
+    bridge = make_bridge(SlowBackend(["Hel", "lo"]))
+    answers = []
+    bridge.answered.connect(answers.append)
+    bridge.send("hi")
+    assert pump_until(lambda: not bridge.busy)
+    assert answers == ["Hello"]
+
+
+@pytest.mark.parametrize("backend", [
+    SlowBackend([], fail=ModelUnavailable("out of memory")),
+    SlowBackend([]),
+])
+def test_a_failed_or_empty_answer_is_not_announced(qt_app, make_bridge, backend):
+    bridge = make_bridge(backend)
+    answers = []
+    bridge.answered.connect(answers.append)
+    bridge.send("hi")
+    assert pump_until(lambda: not bridge.busy)
+    assert answers == []
+
+
+def test_a_stopped_answer_is_not_announced(qt_app, make_bridge):
+    backend = SlowBackend(["one ", "two ", "three ", "four "], delay=0.05)
+    bridge = make_bridge(backend)
+    answers = []
+    bridge.answered.connect(answers.append)
+    bridge.send("count")
+    assert backend.started.wait(2.0)
+    bridge.stop()
+    assert pump_until(lambda: not bridge.busy)
+    assert answers == []
+
+
 # -- starting over -----------------------------------------------------------
 
 

@@ -208,6 +208,12 @@ THIRD_PARTY_ALLOWED = {
     # Jinja, which llama.cpp renders chat templates with, quotes text for its
     # urlize filter with urllib.parse.
     "jinja2": frozenset({"urllib.parse"}),
+    # Joblib, which phonemizer (Kokoro's) runs its work through, names jobs and
+    # temporary files with uuid4. Its process pool, loky, imports socket to
+    # hand an open socket to a worker, on POSIX alone (socket.fromfd).
+    "joblib": frozenset({"uuid", "socket"}),
+    # Names the classes it pickles for joblib with uuid4.
+    "cloudpickle": frozenset({"uuid"}),
 }
 
 #: What a package allowed each module must still never call or import, in any
@@ -315,6 +321,9 @@ ENTRY_POINTS = (
     # The browser (C3), the one module that imports Playwright, so that
     # Playwright's own Python is walked however the tools come to import it.
     "akira/core/net/browser.py",
+    # Voice (D1, D2): Whisper, Kokoro and the audio devices are imported only
+    # when first used, so their one importing module is walked from here.
+    "akira/core/voice/engines.py",
 )
 
 
@@ -901,10 +910,12 @@ def scan_installed_inventory(result: ScanResult) -> None:
     """Informational: networking code that is installed but unreachable.
 
     Reported as notes, never errors. `llama_cpp/server/` is the expected
-    occupant of this list.
+    occupant of this list, and so is pywhispercpp's own Python, whose model
+    downloader imports requests: Akira imports only its compiled binding,
+    `_pywhispercpp`.
     """
     for root in _site_packages():
-        for package in ("llama_cpp",):
+        for package in ("llama_cpp", "pywhispercpp"):
             base = root / package
             if not base.is_dir():
                 continue

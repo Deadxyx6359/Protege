@@ -205,6 +205,8 @@ def test_each_package_allowed_a_networking_module_is_allowed_only_what_it_was_re
         "playwright": frozenset({"urllib.parse", "uuid"}),
         "llama_cpp": frozenset({"uuid"}),
         "jinja2": frozenset({"urllib.parse"}),
+        "joblib": frozenset({"uuid", "socket"}),
+        "cloudpickle": frozenset({"uuid"}),
     }
     assert vo.THIRD_PARTY_IMPORTERS == {"playwright": vo.BROWSER}
     assert set().union(*vo.THIRD_PARTY_ALLOWED.values()) <= set(vo.ALLOWANCE_LIMITS)

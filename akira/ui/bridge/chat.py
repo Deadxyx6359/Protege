@@ -126,6 +126,10 @@ class ChatBridge(QObject):
     recentsChanged = Signal()
     sourcesChanged = Signal()
 
+    #: A reply finished whole, with its text: for reading it aloud. Not sent for
+    #: one stopped, failed or empty.
+    answered = Signal(str)
+
     _tokenArrived = Signal(str)
     _turnEnded = Signal(str)
     _stageRequested = Signal(str)
@@ -427,6 +431,9 @@ class ChatBridge(QObject):
                 last.text = "The model returned nothing."
                 last.error = True
             self._model.touched(len(messages) - 1)
+            finished = "" if problem or last.error else last.text
+        else:
+            finished = ""
 
         self._set_busy(False)
         self._set_stage("")
@@ -436,6 +443,8 @@ class ChatBridge(QObject):
         # token would be hundreds of fsyncs for one answer.
         self._persist()
         self._refresh_recents()
+        if finished:
+            self.answered.emit(finished)
 
     # -- helpers ------------------------------------------------------------
 

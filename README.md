@@ -464,6 +464,38 @@ set GPU layers back to `-1`.
 > and Ministral 3B has no GGUF because its weights were never published. The
 > Ministral 8B build is still in `models/` and selectable in Settings → Models.
 
+### Voice
+
+Speech in is **Whisper small.en** (through whisper.cpp) and speech out is
+**Kokoro 82M**, quantised to int8, in six voices. Both run on the processor,
+from these three files, fetched once:
+
+```bash
+curl -L -o models/whisper/ggml-small.en.bin --create-dirs https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
+```
+
+```bash
+curl -L -o models/voice/kokoro-v1.0.int8.onnx --create-dirs https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.int8.onnx
+```
+
+```bash
+curl -L -o models/voice/voices-v1.0.bin --create-dirs https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
+```
+
+| File | Bytes | SHA-256 |
+|---|---|---|
+| `models/whisper/ggml-small.en.bin` | 487,614,201 | `c6138d6d58ecc8322097e0f987c32f1be8bb0a18532a3f88f734d1bbf9c41e5d` |
+| `models/voice/kokoro-v1.0.int8.onnx` | 92,361,271 | `6e742170d309016e5891a994e1ce1559c702a2ccd0075e67ef7157974f6406cb` |
+| `models/voice/voices-v1.0.bin` | 28,214,398 | `bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d` |
+
+Measured here: Whisper makes out a few seconds of speech in about two, and
+Kokoro speaks at about real time on four threads, a sentence at a time so the
+first is heard at once. Listening needs **Listen** (`audio.record`) and
+speaking needs **Speak** (`audio.play`), both off until allowed. What the
+microphone hears stays in memory and is dropped once it is words; no recording
+is ever written to disk. ONNX Runtime's own usage reporting, which goes through
+Windows rather than a socket, is switched off before Kokoro loads.
+
 ### Run
 
 The **Akira** desktop shortcut launches the app against your Obsidian vault
