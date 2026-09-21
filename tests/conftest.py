@@ -76,6 +76,23 @@ def _own_the_default_root():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _never_the_real_phone_link(monkeypatch):
+    """No test reads the person's real texts.
+
+    `akira.core.phone` reads whatever Phone Link's window shows, which on this
+    machine is the person's own messages. A test that reaches it without putting
+    a fake in its place fails at once, instead of running the script against the
+    real window.
+    """
+    from akira.core import phone
+
+    def refuse(command, **options):
+        raise AssertionError("a test tried to read the real Phone Link window")
+
+    monkeypatch.setattr(phone, "_run", refuse)
+
+
 @pytest.fixture(scope="module", autouse=True)
 def _collect_on_the_main_thread():
     """Finalise what a test module dropped, here, on the main thread.

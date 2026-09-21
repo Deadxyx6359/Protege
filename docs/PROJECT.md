@@ -637,7 +637,28 @@ once a day and limits how often it is asked, and is not handed back once the
 permission has gone. Nothing from a bank is written to disk. There is no
 `bank.write` and no request that could move money. A new `finances` role reads
 it and is told it is not a financial adviser.
-*Next:* messages, which waits on how Phone Link can be read.
+*Done since, texts through Phone Link:* `core/phone.py`, tool
+`read_messages` in `core/tools/builtin/texts.py`. The person chose Phone Link.
+It keeps no messages on disk that could be read — its local databases hold
+calls, contacts, phone apps and settings, and the messages database older
+versions kept is gone — so texts are read from its window, the way a screen
+reader reads them: Windows' own UI Automation, from PowerShell, nothing
+installed. The window's layout was mapped once with the person's say-so and
+without reading a word: control types, ids and positions only, every text
+reduced to its length. What is read is what Phone Link tells a screen reader:
+each conversation as it describes it, and the open conversation's messages,
+marked as the person's or the other side's by where they sit. The script names
+no pattern that acts, so it cannot click, type, select, scroll or move focus,
+and a test holds it to that; Phone Link must be open on Messages, and Akira
+never opens it. One-time codes are hidden before anything leaves the module —
+a text that talks of a code, a password, a PIN or a sign-in has its 4-to-8
+character codes replaced — because a code is a credential, and credentials
+never reach a model. Held to `messages.read` for the account "Phone Link",
+granted in the Permissions screen; only the secretary reads texts, and nothing
+can send one. No test can read the real window: `tests/conftest.py` puts a
+refusal in the reader's place for every test.
+*Next:* sending a text, if the person wants it — typed into Phone Link's own
+box and sent only after they approve each one.
 
 **C6 ✅ Monitoring agent** — `core/agents/monitor.py`, bridge `ui/bridge/monitor.py`
 Watch a page, folder, inbox or feed for change; run on the scheduler; notify or
@@ -761,7 +782,7 @@ and resumable.
 | C | C7 Location and time | ✅ |
 | C | C4 Screen capture | ✅ |
 | C | C2 Web search | ✅ |
-| C | C5 Connectors | ▶ Google, Canvas and banks (SimpleFIN) done; messages wait on Phone Link |
+| C | C5 Connectors | ▶ Google, Canvas, banks (SimpleFIN) and texts (Phone Link, reading) done |
 | C | C3 Browser | ▶ reading a page, and typing and pressing on it, each approved; a picture of a page next |
 | C | C8 Purchasing | ▶ a cart handed to the person in a window of their own, to pay for themselves |
 | D | D1–D3 Voice | ○ |
