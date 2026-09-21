@@ -130,6 +130,7 @@ class AppContext:
             self.weather_service.start()
 
     def close(self) -> None:
+        self.chat.historySearch.close()
         if self.documents is not None:
             self.documents.close()
         if self.coding is not None:

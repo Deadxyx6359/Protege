@@ -277,6 +277,11 @@ Window {
             })
 
             recentModel: Chat.recents
+            contentMatches: Chat.historySearch.results
+            searchBusy: Chat.historySearch.busy
+            searchNote: Chat.historySearch.note
+            onSearchRequested: function (query) { Chat.historySearch.search(query); }
+            onSearchInvalidated: Chat.historySearch.clear()
 
             onNavSelected: function (id) { win.selectWorkspace(id) }
             onRecentSelected: function (id) { win.openRecent(id) }

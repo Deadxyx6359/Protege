@@ -19,13 +19,21 @@ Sheet {
     id: root
 
     title: "Accounts"
-    subtitle: "Google, Canvas and banks"
-    sheetWidth: 640
+    subtitle: "Connect only what you need"
+    sheetWidth: 700
+    property string section: "google"
+    property string noticeSection: "google"
+    property bool setupDetails: false
+    onSectionChanged: { root.armed = ""; root.scrollToTop(); }
+    onOpenedChanged: {
+        if (!opened) { root.canvasToken = ""; root.bankToken = ""; root.armed = ""; }
+    }
 
     property string address: ""
     /*! What to connect, by service id. */
     property var chosen: ["mail", "calendar"]
     property string notice: ""
+    onNoticeChanged: { if (opened && notice !== "") root.scrollToTop(); }
     property bool good: false
     /*! The address a first press of Disconnect armed. */
     property string armed: ""
@@ -44,16 +52,19 @@ Sheet {
     Connections {
         target: Accounts
         function onBankFinished(ok, message) {
+            root.noticeSection = "banks";
             root.notice = message;
             root.good = ok;
         }
         function onCanvasFinished(ok, message) {
+            root.noticeSection = "canvas";
             root.notice = message;
             root.good = ok;
             if (ok)
                 root.canvasSite = "";
         }
         function onFinished(ok, message) {
+            root.noticeSection = "google";
             root.notice = message;
             root.good = ok;
             if (ok)
@@ -87,6 +98,7 @@ Sheet {
         var known = held.map(function (s) { return String(s).toLowerCase(); });
         if (known.indexOf(scope) >= 0)
             return "";
+        root.noticeSection = root.section;
         root.notice = Permissions.grant(capability, held.concat([scope]));
         root.good = false;
         return root.notice;
@@ -105,6 +117,7 @@ Sheet {
     }
 
     function connectBank() {
+        root.noticeSection = "banks";
         root.notice = Accounts.connectBank(root.bankToken);
         root.good = false;
         root.bankToken = "";
@@ -118,12 +131,14 @@ Sheet {
             return "";
         }
         root.armed = "";
+        root.noticeSection = "banks";
         root.notice = Accounts.disconnectBank(bridge);
         root.good = true;
         return root.notice;
     }
 
     function connectCanvas() {
+        root.noticeSection = "canvas";
         root.notice = Accounts.connectCanvas(root.canvasSite, root.canvasToken);
         root.good = false;
         root.canvasToken = "";
@@ -137,12 +152,14 @@ Sheet {
             return "";
         }
         root.armed = "";
+        root.noticeSection = "canvas";
         root.notice = Accounts.disconnectCanvas(site);
         root.good = true;
         return root.notice;
     }
 
     function chooseClient(path) {
+        root.noticeSection = "google";
         var why = Accounts.chooseClientFile(path);
         root.notice = why === "" ? "Chosen, and sealed on this computer. You can delete the downloaded copy."
                                  : why;
@@ -151,6 +168,7 @@ Sheet {
     }
 
     function connectNow() {
+        root.noticeSection = "google";
         root.notice = Accounts.connectAccount(root.who, root.chosen);
         root.good = false;
         return root.notice;
@@ -169,6 +187,7 @@ Sheet {
             return "";
         }
         root.armed = "";
+        root.noticeSection = "google";
         var note = Accounts.disconnectAccount(address);
         root.notice = note === "" ? "Disconnected " + address + ", and Google was told." : note;
         root.good = note === "";
@@ -192,6 +211,7 @@ Sheet {
         property string text: ""
         /*! Shown as dots, for a token. */
         property bool secret: false
+        property string label: placeholder
         property alias placeholder: input.placeholderText
         signal edited(string value)
         radius: Theme.radius.sm
@@ -215,17 +235,69 @@ Sheet {
             padding: 0
             verticalAlignment: TextInput.AlignVCenter
             echoMode: field.secret ? TextInput.Password : TextInput.Normal
+            Accessible.name: field.label
             onTextEdited: field.edited(text)
+        }
+    }
+
+    ColumnLayout {
+        width: parent.width
+        spacing: Theme.space.md
+        Segmented {
+            objectName: "accountSections"
+            Layout.fillWidth: true
+            Layout.preferredHeight: 36
+            current: root.section
+            options: [{id: "google", label: "Google"}, {id: "canvas", label: "Canvas"}, {id: "banks", label: "Banks"}]
+            onSelected: function (id) { root.section = id; }
+        }
+        Text {
+            Layout.fillWidth: true
+            text: root.section === "google" ? "Mail, calendars & Drive" : root.section === "canvas" ? "Your coursework, in reach" : "Your finances, read only"
+            textFormat: Text.PlainText
+            font: Theme.type.headline
+            color: Theme.textPrimary
+            wrapMode: Text.Wrap
+        }
+        Text {
+            Layout.fillWidth: true
+            text: root.section === "google" ? "Choose individual services. Sending mail and changing events are optional."
+                : root.section === "canvas" ? "Read courses and assignments from the school you connect."
+                : "Read balances and transactions through SimpleFIN. Akira cannot move money."
+            textFormat: Text.PlainText
+            font: Theme.type.callout
+            color: Theme.textSecondary
+            wrapMode: Text.Wrap
+        }
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: feedback.implicitHeight + 24
+            visible: root.notice !== ""
+            radius: Theme.radius.sm
+            color: Theme.inset
+            border.color: root.good ? Theme.separator : Theme.danger
+            Text {
+                id: feedback
+                objectName: "accountFeedback"
+                anchors.fill: parent; anchors.margins: 12
+                text: (root.noticeSection === "google" ? "Google · " : root.noticeSection === "canvas" ? "Canvas · " : "Banks · ") + root.notice
+                textFormat: Text.PlainText
+                font: Theme.type.callout
+                color: root.good ? Theme.success : Theme.danger
+                wrapMode: Text.Wrap
+            }
         }
     }
 
     // -- the client -------------------------------------------------------------------
 
     ColumnLayout {
+        objectName: "googleClientSetup"
+        visible: root.section === "google"
         width: parent.width
         spacing: Theme.space.md
 
-        SectionLabel { text: "The Google client" }
+        SectionLabel { text: "1 · App connection" }
 
         RowLayout {
             Layout.fillWidth: true
@@ -234,12 +306,15 @@ Sheet {
                 Layout.fillWidth: true
                 spacing: 1
                 Text {
-                    text: Accounts.clientReady ? "Chosen, and sealed on this computer" : "Not chosen yet"
+                    text: Accounts.clientReady ? "Client file saved securely" : "Choose your Google client file"
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
                     textFormat: Text.PlainText
                     font: Theme.type.body
                     color: Theme.textPrimary
                 }
                 Text {
+                    visible: root.setupDetails
                     Layout.fillWidth: true
                     text: "In Google Cloud, signed in as the address you made for Akira: make a project, turn on the Gmail API, the Google Calendar API and the Google Drive API, set up the consent screen as External with that address as a test user, then under Credentials make an OAuth client ID of the Desktop app kind and download its file. Choose it here. Never paste it into a chat."
                     font: Theme.type.caption
@@ -253,18 +328,26 @@ Sheet {
                 onClicked: clientPicker.open()
             }
         }
+        ActionButton {
+            objectName: "googleSetupHelp"
+            text: root.setupDetails ? "Hide setup instructions" : "How to get a client file"
+            onClicked: root.setupDetails = !root.setupDetails
+        }
     }
 
     // -- connecting -------------------------------------------------------------------
 
     ColumnLayout {
+        objectName: "googleConnection"
+        visible: root.section === "google"
         width: parent.width
         spacing: Theme.space.md
 
-        SectionLabel { text: "Connect an address" }
+        SectionLabel { text: "2 · Address & services" }
 
         Field {
             objectName: "accountAddress"
+            label: "Google email address"
             Layout.fillWidth: true
             text: root.address
             placeholder: "The Google address, such as akira.helper@gmail.com"
@@ -330,7 +413,7 @@ Sheet {
                     }
                     Text {
                         Layout.fillWidth: true
-                        text: "Lets Akira, and agents you start, read it. Each request goes to Google with the sign-in, and nowhere else."
+                        text: "Applies only to this address. The service description above explains the access you are allowing."
                         font: Theme.type.caption
                         color: Theme.textTertiary
                         wrapMode: Text.Wrap
@@ -365,16 +448,7 @@ Sheet {
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.space.sm
-            Text {
-                Layout.fillWidth: true
-                visible: root.notice !== ""
-                text: root.notice
-                textFormat: Text.PlainText
-                font: Theme.type.callout
-                color: root.good ? Theme.success : Theme.danger
-                wrapMode: Text.Wrap
-            }
-            Item { Layout.fillWidth: root.notice === "" }
+            Item { Layout.fillWidth: true }
             ActionButton {
                 objectName: "connectAccount"
                 text: "Connect"
@@ -389,6 +463,7 @@ Sheet {
     // -- connected --------------------------------------------------------------------
 
     ColumnLayout {
+        visible: root.section === "google"
         width: parent.width
         spacing: Theme.space.md
 
@@ -450,6 +525,8 @@ Sheet {
     // -- Canvas -----------------------------------------------------------------------
 
     ColumnLayout {
+        objectName: "canvasConnection"
+        visible: root.section === "canvas"
         width: parent.width
         spacing: Theme.space.md
 
@@ -466,6 +543,7 @@ Sheet {
 
         Field {
             objectName: "canvasSite"
+            label: "Canvas school address"
             Layout.fillWidth: true
             text: root.canvasSite
             placeholder: "Your school's Canvas address, such as school.instructure.com"
@@ -474,6 +552,7 @@ Sheet {
 
         Field {
             objectName: "canvasToken"
+            label: "Canvas access token"
             Layout.fillWidth: true
             secret: true
             text: root.canvasToken
@@ -572,6 +651,8 @@ Sheet {
     // -- banks, through SimpleFIN ------------------------------------------------------
 
     ColumnLayout {
+        objectName: "bankConnection"
+        visible: root.section === "banks"
         width: parent.width
         spacing: Theme.space.md
 
@@ -588,6 +669,7 @@ Sheet {
 
         Field {
             objectName: "bankToken"
+            label: "SimpleFIN setup token"
             Layout.fillWidth: true
             secret: true
             text: root.bankToken

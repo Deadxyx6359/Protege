@@ -38,6 +38,7 @@ from akira.core.tools import ToolContext, ToolRegistry
 from akira.security.qtguard import inert_markdown
 from akira.ui.run_archive import RunArchive, MAX_RUNS, clean_record
 from akira.ui.run_sources import ObservedRegistry
+from akira.ui.history_search import matching_excerpt, terms
 
 #: A task longer than this belongs in a file the agent is pointed at.
 MAX_TASK_CHARS = 4000
@@ -161,6 +162,19 @@ class AgentsBridge(QObject):
     @Property("QVariantMap", notify=runsChanged)
     def currentRun(self) -> dict:
         return self.record(self._current_id)
+
+    @Slot(str, result="QVariantList")
+    def searchRuns(self, query: str) -> list:
+        """Search only loaded tasks/final answers; no source fetch or file read."""
+        if not terms(query):
+            return self.runs
+        results = []
+        for summary in self.runs:
+            record = self._records[summary["id"]]
+            snippet = matching_excerpt(query, [record["task"], record["answer"]])
+            if snippet is not None:
+                results.append({**summary, "snippet": snippet})
+        return results
 
     @Property(str, notify=runsChanged)
     def historyError(self) -> str:

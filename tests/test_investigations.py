@@ -216,6 +216,30 @@ def test_expired_grant_removes_visible_source(system):
     assert not bridge.sourcePreview
 
 
+def test_browser_preview_checks_page_redirect_but_not_loaded_asset_hosts(system):
+    app, policy, _, _, build = system
+    bridge = build()
+    bridge.runTeam("research", "Question", "")
+    wait(app, lambda: not bridge.busy)
+    ident = bridge.currentRun["id"]
+    source, = gathered_sources("browse_page", {"url": "https://original.example/article"},
+        ToolResult(True, "The actual page text", data={
+            "url": "https://destination.example/article", "title": "Article",
+            "sites": ["fonts.example", "analytics.example"]}), default_registry())
+    assert source["checks"] == [("web.browse", "original.example"), ("web.browse", "destination.example")]
+    bridge._on_source((ident, bridge._source_epoch, source))
+    policy.grant("web.browse", ("original.example",))
+    assert bridge.previewSource(ident, source["id"]), "redirect destination still requires permission"
+    policy.grant("web.browse", ("original.example", "destination.example"))
+    # A refused preview discards its cache. Observe a fresh read after granting.
+    bridge._on_source((ident, bridge._source_epoch, source))
+    assert bridge.previewSource(ident, source["id"]) == ""
+    assert bridge.sourcePreview["body"] == "The actual page text"
+    policy.revoke("web.browse")
+    bridge._check_preview()
+    assert not bridge.sourcePreview
+
+
 def test_model_assignment_snapshot_is_retained_when_settings_change(system):
     app, _, _, _, build = system
     bridge = build()
@@ -227,6 +251,20 @@ def test_model_assignment_snapshot_is_retained_when_settings_change(system):
     model["label"] = "Another model"
     assert bridge.record(ident)["models"]["gatherer"]["label"] == "Local-7B-Q4_K_M"
     assert build().record(ident)["models"]["writer"]["route"] == "chat"
+
+
+def test_run_search_reads_final_answers_and_not_sources_or_tool_logs(system):
+    _, _, _, _, build = system
+    bridge = build()
+    record = row(task="Ocean currents", answer="The luminous shrimp migrate.",
+                 sources=[{"title": "Hidden source", "locator": "secret-link"}])
+    bridge._records[record["id"]] = record
+    found = bridge.searchRuns("ocean SHRIMP")
+    assert [r["id"] for r in found] == [record["id"]]
+    assert found[0]["snippet"] == "The luminous shrimp migrate."
+    assert not bridge.searchRuns("secret-link")
+    assert not bridge.searchRuns("no match")
+    assert bridge.searchRuns("") == bridge.runs
 
 
 @pytest.mark.parametrize('approved', [True, False])

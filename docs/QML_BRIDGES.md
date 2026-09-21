@@ -177,7 +177,8 @@ Additive presentation seam implemented by Codex after coordination handoff 25
 - A run retains up to 32 source labels; bodies cap at 30,000 characters each.
   Bodies for up to four recent runs remain in memory. Preview use checks the
   original project's identity and current permissions. Redirect destination
-  and browser-reported sites are included in page-preview checks. A one-second
+  is included in page-preview checks alongside the original tool scope; loaded
+  font/CDN/analytics hosts are not additional preview grants. A one-second
   timer clears an open preview when its grant expires.
 - Shell connects `invalidateSources()` to global/project grant changes and
   project switches. It clears transient content and rejects later source bodies
@@ -578,6 +579,37 @@ Schedule.addJob({
   could. Say so; `bankHelp` does.
 
 ## `Chat` — what a turn drew on
+
+### Local saved-history search (UI)
+
+`Chat.historySearch` is a constant child QObject. It exposes `results`
+(QVariantList), `busy` (bool), and `note` (string), all notifying `changed`;
+`search(query)` starts a worker request and `clear()` cancels and removes its
+results. Only one worker runs at a time, with a replaceable pending request;
+stale completions are discarded. The shell closes it on shutdown.
+
+The sidebar debounces typing by 180 ms and displays plain-text result excerpts.
+Search uses the newest 200 saved-conversation summaries, rather than the 40
+shown when no query is entered. It reads only those app-owned conversation
+files, at most 32 MiB per request, with the existing per-file size bound.
+Missing, invalid, linked, corrupt or oversized files are skipped and disclosed
+in `note`; the newest 40 matches are returned with a visible limit notice.
+Queries are limited to 200 characters. All case-insensitive words must occur
+somewhere in the title or saved user/assistant messages; system messages and
+the system prompt are excluded. No model, network, source-file read, RAG index,
+new archive or grant is involved. Opening a match uses the existing conversation
+and project restoration path. Save/delete/recent refresh reruns an active query.
+
+`Agents.searchRuns(query)` is an additive slot returning existing `runs`
+summaries with a plain-text `snippet` for matches. It searches only the already
+loaded tasks and final answers (at most 60 runs); an empty query returns `runs`.
+It does not search source bodies, tool logs or artifact contents. QML observes
+`runsChanged` and retains the existing project/team filters: Research searches
+that project's research-team runs, and task history has its explicit
+all-projects toggle. This is access to saved results, not permission to re-read
+the original sources. Source/artifact previews keep their own current checks.
+
+### Turn context
 
 `Chat` is otherwise as it was (see `bridge/chat.py`). Two properties and a
 stage are new:

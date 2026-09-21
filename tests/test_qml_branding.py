@@ -115,6 +115,9 @@ out['answers'] = answers
 # Search operates on visible names, responds to live model changes, and clears
 # with Escape. It must not turn this local filter into a filesystem/network scan.
 root.setProperty('sidebarOpen', True)
+expression = QQmlExpression(engine.rootContext(), sidebar, 'contentMatches = null')
+expression.evaluate()  # Isolate the component's name-only fallback.
+assert not expression.hasError()
 sidebar.setProperty('projectModel', [{'id': 'fixture-a', 'name': 'Thesis', 'color': '#379062'},
                                    {'id': 'fixture-b', 'name': 'Garden', 'color': '#379062'}])
 sidebar.setProperty('recentModel', [{'id': 'fixture-c', 'title': 'Thesis outline', 'when': 'Today'}])

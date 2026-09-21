@@ -34,6 +34,7 @@ from akira.core.conversations import ConversationError, ConversationStore, relat
 from akira.core.models import ModelRouter, Route
 from akira.models.base import ModelError
 from akira.security.qtguard import inert_markdown
+from akira.ui.history_search import HistorySearch
 
 if TYPE_CHECKING:
     from akira.core.brain.recall import TurnContext
@@ -169,9 +170,15 @@ class ChatBridge(QObject):
         self._contextReady.connect(self._on_context)
 
         self._recents: list = []
+        self._search_candidates: list = []
+        self._history_search = HistorySearch(self._store, lambda: self._search_candidates, self)
         self._refresh_recents()
 
     # -- properties ---------------------------------------------------------
+
+    @Property(QObject, constant=True)
+    def historySearch(self):
+        return self._history_search
 
     @Property(QObject, constant=True)
     def messages(self) -> MessageListModel:
@@ -442,15 +449,17 @@ class ChatBridge(QObject):
             pass
 
     def _refresh_recents(self) -> None:
-        self._recents = [
+        self._search_candidates = [
             {
                 "id": summary.id,
                 "title": summary.title,
                 "when": relative_time(summary.updated),
                 "turns": summary.turns,
             }
-            for summary in self._store.list(limit=40)
+            for summary in self._store.list(limit=200)
         ]
+        self._recents = self._search_candidates[:40]
+        self._history_search.refresh()
         self.recentsChanged.emit()
 
     def _set_busy(self, value: bool) -> None:

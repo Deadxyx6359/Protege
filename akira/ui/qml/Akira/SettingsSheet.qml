@@ -9,6 +9,7 @@ Sheet {
     sheetWidth: 700
     property string section: "general"
     property bool modelDetails: false
+    readonly property int accountCount: Accounts.accounts.length + Accounts.canvasSites.length + Accounts.bankConnections.length
     readonly property int availableRoutes: Settings.routes.filter(function (r) { return r.usable; }).length
     signal permissionsRequested()
     signal placeRequested()
@@ -90,9 +91,9 @@ Sheet {
                 Layout.fillWidth: true
                 divider: false
                 title: "Connected accounts"
-                description: Accounts.accounts.length ? Accounts.accounts.length + " Google account" + (Accounts.accounts.length === 1 ? "" : "s") + " connected."
-                    : "Gmail and Google Calendar. Connect only what you need."
-                ActionButton { objectName: "openAccounts"; text: Accounts.accounts.length ? "Manage" : "Connect"; onClicked: root.accountsRequested() }
+                description: root.accountCount ? root.accountCount + " connection" + (root.accountCount === 1 ? "" : "s") + " across Google, Canvas and banks."
+                    : "Google, Canvas and read-only banking. Connect only what you need."
+                ActionButton { objectName: "openAccounts"; text: root.accountCount ? "Manage" : "Connect"; onClicked: root.accountsRequested() }
             }
         }
         ColumnLayout {

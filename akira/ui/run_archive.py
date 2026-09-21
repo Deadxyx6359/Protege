@@ -12,7 +12,7 @@ import math
 from pathlib import Path
 import re
 import threading
-import time
+from akira.core.files import replace
 
 MAX_RUNS = 60
 MAX_BYTES = 12_000_000
@@ -103,17 +103,7 @@ class RunArchive:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             temporary = self.path.with_suffix(".tmp")
             temporary.write_text(payload, encoding="utf-8")
-            # Windows indexers can briefly hold the destination between saves.
-            # Retry only this atomic replace, on the worker; never erase the
-            # original as a workaround for a sharing violation.
-            for attempt in range(4):
-                try:
-                    temporary.replace(self.path)
-                    break
-                except PermissionError:
-                    if attempt == 3:
-                        raise
-                    time.sleep(.025 * (attempt + 1))
+            replace(temporary, self.path)
         self._records = records
 
     def save(self, record: dict) -> None:

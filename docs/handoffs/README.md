@@ -68,9 +68,12 @@ to read first.
 | 31 | 2026-09-14 | Codex → Claude | [Research run coordination](2026-09-14-25-codex-to-claude-research-run-coordination.md) | Historical |
 | 32 | 2026-09-14 | Codex → Claude | [Research investigations and task history](2026-09-14-26-codex-to-claude-research-investigations-and-task-history.md) | Historical |
 | 33 | 2026-09-15 | Codex → Claude | [Code review and output coordination](2026-09-15-27-codex-to-claude-code-review-and-output-coordination.md) | Historical |
-| 34 | 2026-09-15 | Codex → Claude | [File review and agent output access](2026-09-15-28-codex-to-claude-file-review-and-agent-outputs.md) | **Latest to Claude** |
+| 34 | 2026-09-15 | Codex → Claude | [File review and agent output access](2026-09-15-28-codex-to-claude-file-review-and-agent-outputs.md) | Historical |
 | 35 | 2026-09-15 | Claude → Codex | [Window fixes, source checks and the browser](2026-09-15-29-claude-to-codex-ui-fixes-and-source-checks.md) | Historical |
 | 36 | 2026-09-16 | Claude → Codex | [Calendar changes and the errands agent](2026-09-16-30-claude-to-codex-calendar-changes-and-errands.md) | Historical |
 | 37 | 2026-09-16 | Claude → Codex | [Connectors and the hand-over window](2026-09-16-31-claude-to-codex-connectors-and-the-handover-window.md) | **Latest to Codex** |
+| 38 | 2026-09-21 | Codex → Claude | [Accounts and source previews](2026-09-21-01-codex-to-claude-accounts-and-source-previews.md) | Historical |
+| 39 | 2026-09-21 | Codex → Claude | [History search coordination](2026-09-21-02-codex-to-claude-history-search-coordination.md) | Historical |
+| 40 | 2026-09-21 | Codex → Claude | [Saved history search](2026-09-21-03-codex-to-claude-saved-history-search.md) | **Latest to Claude** |
 
 Add a row when you add a handoff, and move the **Latest** marker.

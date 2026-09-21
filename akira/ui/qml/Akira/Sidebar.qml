@@ -30,6 +30,10 @@ Item {
     property string currentRecent: ""
     property bool newChatEnabled: true
     property alias searchText: search.text
+    property var contentMatches: null
+    property bool searchBusy: false
+    property string searchNote: ""
+    readonly property bool searchPending: searchDelay.running || searchBusy
     readonly property string query: searchText.trim().toLowerCase()
     readonly property bool searching: query.length > 0
     readonly property var navGroups: {
@@ -40,12 +44,12 @@ Item {
     readonly property var filteredProjects: searching ? projectModel.filter(function (p) {
         return String(p.name || "").toLowerCase().indexOf(root.query) !== -1;
     }) : projectModel
-    readonly property var filteredRecents: searching ? recentModel.filter(function (r) {
+    readonly property var filteredRecents: searching && contentMatches !== null ? contentMatches : searching ? recentModel.filter(function (r) {
         return String(r.title || "").toLowerCase().indexOf(root.query) !== -1;
     }) : recentModel
 
     function openFirstMatch() {
-        if (!searching) return;
+        if (!searching || searchPending) return;
         if (filteredProjects.length > 0) projectSelected(filteredProjects[0].id);
         else if (filteredRecents.length > 0) recentSelected(filteredRecents[0].id);
         else return;
@@ -59,6 +63,14 @@ Item {
     signal newProjectRequested()
     signal settingsRequested()
     signal collapseRequested()
+    signal searchRequested(string query)
+    signal searchInvalidated()
+    onQueryChanged: {
+        searchInvalidated();
+        if (root.query.length > 0 && contentMatches !== null) searchDelay.restart();
+        else searchDelay.stop();
+    }
+    Timer { id: searchDelay; interval: 180; onTriggered: root.searchRequested(root.query) }
 
     implicitWidth: 264
 
@@ -121,6 +133,7 @@ Item {
             id: search
             objectName: "workspaceSearch"
             placeholder: "Find projects or chats"
+            maximumLength: 200
             onAccepted: root.openFirstMatch()
             Layout.fillWidth: true
             Layout.leftMargin: Theme.space.md
@@ -145,6 +158,9 @@ Item {
         // -- scrolling body -------------------------------------------------
 
         C.ScrollView {
+            // Isolate vector icon painting inside the scroll viewport, including
+            // the Qt software renderer used on machines without GPU rendering.
+            layer.enabled: true
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.topMargin: Theme.space.md
@@ -217,7 +233,7 @@ Item {
                     Layout.leftMargin: Theme.space.md
                     Layout.topMargin: Theme.space.lg
                     Layout.bottomMargin: Theme.space.xs
-                    text: "All recent chats"
+                    text: root.searching ? "Matching chats" : "All recent chats"
                     visible: root.filteredRecents.length > 0
                 }
 
@@ -231,6 +247,7 @@ Item {
                         Layout.rightMargin: Theme.space.sm
                         icon: "chat"
                         label: modelData.title
+                        subtitle: root.searching ? (modelData.snippet || "") : ""
                         detail: modelData.when
                         selected: root.currentRecent === modelData.id
                         onClicked: { root.recentSelected(modelData.id); root.searchText = ""; }
@@ -241,14 +258,26 @@ Item {
                     objectName: "sidebarSearchEmpty"
                     Layout.fillWidth: true
                     Layout.margins: Theme.space.lg
-                    visible: root.searching && root.filteredProjects.length === 0
+                    visible: root.searching && !root.searchPending && root.filteredProjects.length === 0
                              && root.filteredRecents.length === 0
-                    text: "No matching projects or chats.\nTry a different name."
+                    text: "No matching projects or chats.\nTry other words from the title or conversation."
                     textFormat: Text.PlainText
                     font: Theme.type.callout
                     color: Theme.textSecondary
                     wrapMode: Text.Wrap
                     lineHeight: Theme.leading.normal
+                }
+
+                Text {
+                    objectName: "sidebarSearchStatus"
+                    Layout.fillWidth: true
+                    Layout.margins: Theme.space.lg
+                    visible: root.searching && (root.searchPending || root.searchNote !== "")
+                    text: root.searchPending ? "Searching saved chats…" : root.searchNote
+                    textFormat: Text.PlainText
+                    font: Theme.type.caption
+                    color: Theme.textSecondary
+                    wrapMode: Text.Wrap
                 }
 
                 Item { Layout.preferredHeight: Theme.space.lg }

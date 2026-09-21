@@ -12,6 +12,7 @@ Item {
 
     property string placeholder: "Search"
     property alias text: field.text
+    property alias maximumLength: field.maximumLength
 
     signal accepted(string text)
 
@@ -49,6 +50,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
 
         font: Theme.type.callout
+        Accessible.name: root.placeholder
         color: Theme.textPrimary
         selectionColor: Theme.accentSubtle
         selectedTextColor: Theme.textPrimary

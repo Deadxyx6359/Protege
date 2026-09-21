@@ -15,17 +15,25 @@ Sheet {
     property var selectedRun: ({})
     property string notice: ""
     property bool confirmingDelete: false
+    property string query: ""
+    onQueryChanged: { root.confirmingDelete = false; }
+    Timer { id: searchDelay; interval: 180; onTriggered: root.query = historySearch.text.trim(); }
     signal artifactRequested(var artifact)
-    readonly property var saved: Agents.runs.filter(function (r) {
+    readonly property var saved: {
+        void Agents.runs;
+        return Agents.searchRuns(root.query).filter(function (r) {
         return (root.allProjects || r.projectId === Projects.currentId)
             && (!root.teamFilter || r.name === root.teamFilter || (root.teamFilter === "software" && ["architect", "implementer", "reviewer"].indexOf(r.name) >= 0));
-    })
+        });
+    }
+    onSavedChanged: { if (opened) root.refresh(); }
     function refresh() {
         if (!saved.some(function (r) { return r.id === root.selectedId; }))
             selectedId = saved.length ? saved[0].id : "";
         selectedRun = selectedId ? Agents.record(selectedId) : ({});
     }
     function present(team) {
+        historySearch.text = ""; query = "";
         teamFilter = team; allProjects = false; selectedId = ""; notice = ""; confirmingDelete = false;
         refresh(); open();
     }
@@ -44,11 +52,20 @@ Sheet {
         spacing: 14
         RowLayout {
             Layout.fillWidth: true
-            Copy { text: root.saved.length + (root.saved.length === 1 ? " saved run" : " saved runs"); font: Theme.type.caption }
+            Copy { text: root.saved.length + (root.query ? (root.saved.length === 1 ? " match" : " matches") : (root.saved.length === 1 ? " saved run" : " saved runs")); font: Theme.type.caption }
             ActionButton {
                 text: root.allProjects ? "This project" : "All projects"
                 onClicked: { root.allProjects = !root.allProjects; root.confirmingDelete = false; root.refresh(); }
             }
+        }
+        SearchField {
+            id: historySearch
+            objectName: "taskHistorySearch"
+            Layout.fillWidth: true
+            placeholder: "Search tasks and answers"
+            maximumLength: 200
+            onTextChanged: searchDelay.restart()
+            onAccepted: { searchDelay.stop(); root.query = text.trim(); }
         }
         Copy { visible: !!Agents.historyError || !!root.notice; text: root.notice || Agents.historyError; color: Theme.danger }
         Select {
@@ -57,15 +74,17 @@ Sheet {
             visible: root.saved.length > 0
             current: root.selectedId
             label: "Saved task"
+            stackedDetails: !!root.query
             options: root.saved.map(function (r) {
                 return {value: r.id, label: r.task.replace(/\s+/g, " ").slice(0, 100),
-                        detail: r.name + " · " + r.status + " · " + Qt.formatDateTime(new Date(r.started * 1000), "MMM d, h:mm AP")};
+                        detail: root.query ? r.snippet : r.name + " · " + r.status + " · " + Qt.formatDateTime(new Date(r.started * 1000), "MMM d, h:mm AP")};
             })
             onPicked: function (id) { root.choose(id); }
         }
         Copy {
             visible: !root.saved.length
-            text: "No saved tasks here yet. Team and individual-agent results will appear after you start work."
+            text: root.query ? "No matching tasks or answers in this view. Try other words or include all projects."
+                : "No saved tasks here yet. Team and individual-agent results will appear after you start work."
         }
         Copy { visible: !!root.selectedRun.id; text: root.selectedRun.task || ""; font: Theme.type.headline; color: Theme.textPrimary }
         Copy {

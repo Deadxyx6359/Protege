@@ -27,6 +27,7 @@ Item {
 
     /*! Trailing text: a count, a shortcut, a timestamp. */
     property string detail: ""
+    property string subtitle: ""
     property string detailDescription: ""
     property color detailColor: Theme.textTertiary
 
@@ -38,10 +39,10 @@ Item {
     signal clicked()
 
     implicitWidth: 200
-    implicitHeight: 34
+    implicitHeight: root.subtitle ? 72 : 34
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
-    Accessible.name: root.label + (root.detail ? ", " + (root.detailDescription || root.detail) : "")
+    Accessible.name: root.label + (root.detail ? ", " + (root.detailDescription || root.detail) : "") + (root.subtitle ? ", " + root.subtitle : "")
     Accessible.selected: root.selected
     Accessible.onPressAction: root.clicked()
     Keys.onReturnPressed: root.clicked()
@@ -94,20 +95,35 @@ Item {
             }
         }
 
-        Text {
+        Column {
             width: parent.width - 20 - Theme.space.sm
                    - (detailText.visible ? detailText.width + Theme.space.sm : 0)
             anchors.verticalCenter: parent.verticalCenter
-            text: root.label
-            // Conversation titles and project names: never rich text.
-            textFormat: Text.PlainText
-            font: root.selected ? Theme.type.bodyStrong : Theme.type.body
-            color: root.selected ? Theme.textPrimary
-                                 : (root.hovered ? Theme.textPrimary : Theme.textSecondary)
-            elide: Text.ElideRight
+            spacing: 3
+            Text {
+                width: parent.width
+                text: root.label
+                // Conversation titles and project names: never rich text.
+                textFormat: Text.PlainText
+                font: root.selected ? Theme.type.bodyStrong : Theme.type.body
+                color: root.selected ? Theme.textPrimary
+                                     : (root.hovered ? Theme.textPrimary : Theme.textSecondary)
+                elide: Text.ElideRight
 
-            Behavior on color {
-                ColorAnimation { duration: Theme.duration.fast }
+                Behavior on color {
+                    ColorAnimation { duration: Theme.duration.fast }
+                }
+            }
+            Text {
+                width: parent.width
+                visible: root.subtitle !== ""
+                text: root.subtitle
+                textFormat: Text.PlainText
+                font: Theme.type.caption
+                color: Theme.textSecondary
+                wrapMode: Text.Wrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
             }
         }
 

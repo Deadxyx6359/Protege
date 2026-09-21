@@ -11,6 +11,7 @@ import QtQuick.Layouts
 */
 Item {
     id: root
+    property bool stackedDetails: false
     property int minimumPopupWidth: 0
 
     /*! [{ value, label, detail }] */
@@ -104,7 +105,7 @@ Item {
             required property int index
 
             width: box.popup.width - 8
-            height: 32
+            height: root.stackedDetails && option.modelData.detail ? 48 : 32
             Accessible.name: option.modelData.label + (option.modelData.detail ? ", " + option.modelData.detail : "")
 
             background: Rectangle {
@@ -113,8 +114,10 @@ Item {
                                                              : "transparent"
             }
 
-            contentItem: RowLayout {
-                spacing: Theme.space.sm
+            contentItem: GridLayout {
+                columns: root.stackedDetails ? 1 : 2
+                columnSpacing: Theme.space.sm
+                rowSpacing: 2
 
                 Text {
                     Layout.fillWidth: true
@@ -125,7 +128,8 @@ Item {
                     elide: Text.ElideRight
                 }
                 Text {
-                    Layout.maximumWidth: Math.min(150, box.popup.width * 0.46)
+                    Layout.fillWidth: root.stackedDetails
+                    Layout.maximumWidth: root.stackedDetails ? box.popup.width - 24 : Math.min(150, box.popup.width * 0.46)
                     visible: text !== ""
                     text: option.modelData.detail || ""
                     textFormat: Text.PlainText

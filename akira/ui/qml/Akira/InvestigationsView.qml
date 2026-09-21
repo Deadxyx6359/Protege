@@ -11,14 +11,23 @@ Item {
     property string notice: ""
     property bool showActivity: false
     property bool confirmingDelete: false
+    property string query: ""
+    Timer { id: searchDelay; interval: 180; onTriggered: root.query = historySearch.text.trim(); }
+    onQueryChanged: root.confirmingDelete = false
     property alias taskDraft: taskInput.text
     property var drafts: ({})
     property string draftProject: Projects.currentId
     readonly property var project: Projects.projects.find(function (p) { return p.current; }) || ({})
     readonly property string folder: project.folder || ""
-    readonly property var saved: Agents.runs.filter(function (r) {
+    readonly property var saved: {
+        void Agents.runs;
+        return Agents.searchRuns(root.query).filter(function (r) {
         return r.kind === "team" && r.name === "research" && r.projectId === Projects.currentId;
-    })
+        });
+    }
+    onSavedChanged: {
+        if (root.query && root.selectedId && !root.saved.some(function (r) { return r.id === root.selectedId; })) root.choose("");
+    }
     readonly property bool hasRun: !!selectedRun.id
     readonly property bool running: hasRun && selectedRun.status === "running"
     readonly property var stages: [
@@ -40,6 +49,7 @@ Item {
         Qt.callLater(function () { scroller.contentItem.contentY = 0; });
     }
     function prepare(text) {
+        historySearch.text = ""; query = "";
         choose("");
         if (text.trim()) taskInput.text = text;
         Qt.callLater(function () { taskInput.forceActiveFocus(); });
@@ -47,7 +57,7 @@ Item {
     function start() {
         if (Agents.busy || Chat.busy) return;
         notice = Agents.runTeam("research", taskInput.text, root.folder);
-        if (!notice) { choose(Agents.currentRun.id); taskInput.text = ""; }
+        if (!notice) { historySearch.text = ""; query = ""; choose(Agents.currentRun.id); taskInput.text = ""; }
     }
     function statusLabel(status) {
         return ({running: "In progress", complete: "Complete", stopped: "Stopped", incomplete: "Incomplete", interrupted: "Interrupted"})[status] || status;
@@ -69,6 +79,7 @@ Item {
     Connections {
         target: Projects
         function onCurrentChanged() {
+            historySearch.text = ""; root.query = "";
             const saved = Object.assign({}, root.drafts);
             saved[root.draftProject] = taskInput.text;
             root.drafts = saved; root.draftProject = Projects.currentId;
@@ -115,17 +126,32 @@ Item {
                 Layout.topMargin: 8
                 Text { text: "Investigations"; font: Theme.type.title2; color: Theme.textPrimary }
                 Item { Layout.fillWidth: true }
-                Text { text: root.saved.length + " saved"; textFormat: Text.PlainText; font: Theme.type.caption; color: Theme.textSecondary }
+                Text { text: root.saved.length + (root.query ? (root.saved.length === 1 ? " match" : " matches") : " saved"); textFormat: Text.PlainText; font: Theme.type.caption; color: Theme.textSecondary }
+            }
+            SearchField {
+                id: historySearch
+                objectName: "investigationSearch"
+                Layout.fillWidth: true
+                placeholder: "Search saved questions and findings"
+                maximumLength: 200
+                onTextChanged: searchDelay.restart()
+                onAccepted: { searchDelay.stop(); root.query = text.trim(); }
+            }
+            Copy {
+                visible: !!root.query && root.saved.length === 0
+                text: "No matching investigations in this project. Try other words from the question or findings."
             }
             Select {
+                // Kept below the search field so a long archive stays navigable.
                 objectName: "investigationHistory"
                 Layout.fillWidth: true
                 visible: root.saved.length > 0
                 label: "Saved research investigations in this project"
+                stackedDetails: !!root.query
                 current: root.selectedId
                 options: [{value: "", label: "New investigation", detail: "Prepare an editable question"}].concat(root.saved.map(function (r) {
                     return {value: r.id, label: r.task.replace(/\s+/g, " ").slice(0, 100),
-                            detail: root.statusLabel(r.status) + " · " + Qt.formatDateTime(new Date(r.started * 1000), "MMM d, h:mm AP")};
+                            detail: root.query ? r.snippet : root.statusLabel(r.status) + " · " + Qt.formatDateTime(new Date(r.started * 1000), "MMM d, h:mm AP")};
                 }))
                 onPicked: function (id) { root.choose(id); }
             }

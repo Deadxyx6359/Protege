@@ -79,6 +79,8 @@ Item {
         if (target && target.visible && target.enabled) target.forceActiveFocus();
     }
 
+    function scrollToTop() { contentScroll.contentItem.contentY = 0; }
+
     Shortcut { sequence: "Tab"; enabled: root._open && root.ownsFocus; onActivated: root.moveFocus(true) }
     Shortcut { sequence: "Shift+Tab"; enabled: root._open && root.ownsFocus; onActivated: root.moveFocus(false) }
 
@@ -202,6 +204,7 @@ Item {
         // -- content ----------------------------------------------------------
 
         C.ScrollView {
+            id: contentScroll
             anchors.top: header.bottom
             anchors.left: parent.left
             anchors.right: parent.right

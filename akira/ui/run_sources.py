@@ -25,8 +25,9 @@ def gathered_sources(name, arguments, result, registry):
     if name in ("fetch_page", "browse_page") and data.get("url"):
         capability = "web.browse" if name == "browse_page" else "net.http"
         checks.append((capability, host_of(str(data["url"]))))
-        if name == "browse_page":
-            checks.extend((capability, str(site)) for site in data.get("sites", [])[:128])
+        # The browser's loaded sites include fonts, CDNs and analytics, not
+        # independently granted page reads. Keep the original tool scope and
+        # final destination; the preview body belongs to that page.
         candidates.append((data.get("title") or data["url"], data["url"], "Page read", result.content))
     elif name == "web_search":
         for hit in data.get("hits", [])[:16]:
