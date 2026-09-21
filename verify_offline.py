@@ -42,8 +42,18 @@ Five checks:
    must be given `proxy=`. It may not attach to a browser already running,
    start one that listens for others, make requests from Playwright's own
    driver (`.request`, `route.fetch`), which the proxy never sees, or trust any
-   certificate. Playwright's own Python may import `urllib.parse`, to read
-   addresses, and nothing else from the network (`THIRD_PARTY_ALLOWED`).
+   certificate.
+
+A few installed packages import a networking module for something other than
+the network: Playwright reads addresses with `urllib.parse`, llama.cpp names a
+completion with `uuid4`. Each is declared in `THIRD_PARTY_ALLOWED` with its
+reason, and every file of the package is read to hold it to that reason
+(`ALLOWANCE_LIMITS`): allowed `uuid`, it may not read the network card with
+`uuid1` or `getnode`; allowed `socket`, it may not connect or look a name up.
+
+The walk descends into installed packages, which on Windows sit inside the
+standard library's own folder (`Lib\\site-packages`). It once stopped there,
+taking every package for the standard library, and so checked none of them.
 
 That distinction in check 2 is the whole point of doing this properly rather
 than with grep. `llama-cpp-python` ships `llama_cpp/server/app.py`, which
@@ -146,6 +156,10 @@ FORBIDDEN_QT = frozenset(
 # alias is what has to be checked.
 QT_PACKAGES = frozenset({"PySide6"})
 
+# Standard-library packages imported from the same way, `from urllib import
+# parse`: the alias names the module, so the alias alone is what is checked.
+SUBMODULE_PACKAGES = frozenset({"urllib", "http", "xmlrpc"})
+
 # The same, as QML imports. A QML file importing one of these can connect
 # without going through the engine's access manager, which is what is shut.
 FORBIDDEN_QML = frozenset(
@@ -179,11 +193,31 @@ OUTWARD = frozenset({"connect", "connect_ex", "create_connection", "getaddrinfo"
 #: The one module that drives a browser (C3).
 BROWSER = "akira.core.net.browser"
 
-#: Third-party packages Akira drives, and the networking modules each may import
-#: at module scope. Playwright's Python talks to its driver over pipes; it
-#: imports `urllib.parse` to read addresses and nothing else from the network.
-#: The browser it starts is a process of its own, held by the proxy.
-THIRD_PARTY_ALLOWED = {"playwright": frozenset({"urllib.parse"})}
+#: Third-party packages Akira runs, and the networking modules each may import at
+#: module scope, each with why. Every one was read, and `_allowance_findings`
+#: holds it to what was found: a package allowed `uuid` never calls `uuid1` or
+#: `getnode`, which read the machine's network card, and one allowed `socket`
+#: never opens a connection or looks a name up.
+THIRD_PARTY_ALLOWED = {
+    # Talks to its driver over pipes. It reads addresses (urllib.parse) and
+    # names its waits with uuid4. The browser it starts is a process of its own,
+    # held by the proxy.
+    "playwright": frozenset({"urllib.parse", "uuid"}),
+    # Names each completion with uuid4.
+    "llama_cpp": frozenset({"uuid"}),
+    # Jinja, which llama.cpp renders chat templates with, quotes text for its
+    # urlize filter with urllib.parse.
+    "jinja2": frozenset({"urllib.parse"}),
+}
+
+#: What a package allowed each module must still never call or import, in any
+#: file of it that imports that module, its tests aside.
+ALLOWANCE_LIMITS = {
+    "uuid": frozenset({"uuid1", "getnode"}),
+    "socket": frozenset({"create_connection", "create_server", "getaddrinfo", "gethostbyname",
+                         "gethostbyname_ex", "gethostbyaddr", "connect", "connect_ex"}),
+    "urllib.parse": frozenset(),
+}
 
 #: Who alone may import each of them.
 THIRD_PARTY_IMPORTERS = {"playwright": BROWSER}
@@ -342,6 +376,18 @@ def _stdlib_root() -> Path | None:
     return Path(raw) if raw else None
 
 
+def _in_stdlib(path: Path, stdlib: Path | None, packages: list[Path]) -> bool:
+    """Whether \a path is the standard library's own, rather than an installed package's.
+
+    On Windows `site-packages` sits inside the standard library's folder
+    (`Lib\\site-packages`), so being under that folder is not enough: a check
+    that stopped there never looked at a single installed package, and passed.
+    """
+    if stdlib is None or stdlib not in path.parents:
+        return False
+    return not any(root in path.parents for root in packages)
+
+
 def _module_file(module: str, search_roots: list[Path]) -> Path | None:
     """Locate a module's source without importing it.
 
@@ -409,6 +455,13 @@ def _imports_in(tree: ast.AST) -> list[ImportSite]:
             elif node.module:
                 name = node.module
             else:
+                continue
+            if name in SUBMODULE_PACKAGES:
+                # `from urllib import parse` imports urllib.parse, and only that is
+                # what is checked, so allowing `urllib.parse` never allows
+                # `from urllib import request`.
+                found.extend(ImportSite(f"{name}.{alias.name}", node.lineno, not enclosing,
+                                        enclosing) for alias in node.names)
                 continue
             found.append(ImportSite(name, node.lineno, not enclosing, enclosing))
             if name in QT_PACKAGES:
@@ -705,7 +758,8 @@ def _module_name_for(path: Path) -> str:
 
 def scan_reachable(result: ScanResult, max_modules: int = 6000) -> None:
     """Check 2: walk the transitive import graph from the entry points."""
-    search_roots = [REPO_ROOT] + _site_packages()
+    packages = _site_packages()
+    search_roots = [REPO_ROOT] + packages
     stdlib = _stdlib_root()
 
     queue: list[tuple[str, Path]] = []
@@ -786,10 +840,61 @@ def scan_reachable(result: ScanResult, max_modules: int = 6000) -> None:
             # Do not descend into the stdlib beyond the forbidden-root check.
             # It is enormous, largely uninteresting, and its networking modules
             # are already named in FORBIDDEN_ROOTS.
-            if stdlib is not None and stdlib in child.parents:
+            if _in_stdlib(child, stdlib, packages):
                 continue
             if resolved not in seen:
                 queue.append((resolved, child))
+
+
+def _is_test_file(path: Path, base: Path) -> bool:
+    parts = path.relative_to(base).parts
+    return any(part in ("test", "tests") for part in parts[:-1]) or path.name.startswith("test_")
+
+
+def _allowance_findings(tree: ast.AST, allowed: frozenset[str], module: str,
+                        path: Path) -> list[Finding]:
+    """What a file does with a module its package was allowed, past the reason given."""
+    imported = {site.name for site in _imports_in(tree)} & allowed
+    limits = set().union(*(ALLOWANCE_LIMITS.get(name, frozenset()) for name in imported))
+    if not limits:
+        return []
+    findings = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            name = (node.func.attr if isinstance(node.func, ast.Attribute)
+                    else getattr(node.func, "id", ""))
+            if name in limits:
+                findings.append(Finding(module, path, node.lineno,
+                                        f"calls {name}(), past what THIRD_PARTY_ALLOWED allows it"))
+        elif isinstance(node, ast.ImportFrom) and node.module in imported:
+            for alias in node.names:
+                if alias.name in limits:
+                    findings.append(Finding(module, path, node.lineno,
+                                            f"imports {alias.name} from {node.module}, past what "
+                                            "THIRD_PARTY_ALLOWED allows it"))
+    return findings
+
+
+def scan_allowances(result: ScanResult) -> None:
+    """Hold each package in THIRD_PARTY_ALLOWED to the reason it was allowed.
+
+    Every file of the package is read, reachable or not, since a lazy import can
+    reach any of them. Its tests are the exception: Akira never runs them.
+    """
+    for root in _site_packages():
+        for package, allowed in THIRD_PARTY_ALLOWED.items():
+            base = root / package
+            if not base.is_dir():
+                continue
+            for path in sorted(base.rglob("*.py")):
+                if _is_test_file(path, base):
+                    continue
+                try:
+                    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+                except (OSError, SyntaxError, UnicodeDecodeError):
+                    continue
+                result.errors.extend(_allowance_findings(tree, allowed, _module_name_for(path),
+                                                         path))
 
 
 def scan_installed_inventory(result: ScanResult) -> None:
@@ -837,6 +942,7 @@ def main(argv: list[str] | None = None) -> int:
     scan_qml(result)
     if not args.source_only:
         scan_reachable(result)
+        scan_allowances(result)
         scan_installed_inventory(result)
 
     print(f"verify_offline: scanned {result.modules_scanned} Akira modules, "

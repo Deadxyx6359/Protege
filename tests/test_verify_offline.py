@@ -200,9 +200,77 @@ def test_the_browser_module_never_trusts_any_certificate(source):
     assert "certificate" in finding.detail
 
 
-def test_playwright_may_read_addresses_and_nothing_more():
-    assert vo.THIRD_PARTY_ALLOWED == {"playwright": frozenset({"urllib.parse"})}
+def test_each_package_allowed_a_networking_module_is_allowed_only_what_it_was_read_for():
+    assert vo.THIRD_PARTY_ALLOWED == {
+        "playwright": frozenset({"urllib.parse", "uuid"}),
+        "llama_cpp": frozenset({"uuid"}),
+        "jinja2": frozenset({"urllib.parse"}),
+    }
     assert vo.THIRD_PARTY_IMPORTERS == {"playwright": vo.BROWSER}
+    assert set().union(*vo.THIRD_PARTY_ALLOWED.values()) <= set(vo.ALLOWANCE_LIMITS)
+
+
+# --- installed packages ----------------------------------------------------
+
+
+def test_installed_packages_are_not_taken_for_the_standard_library(tmp_path):
+    # On Windows site-packages is inside the standard library's own folder.
+    stdlib = tmp_path / "Lib"
+    packages = [stdlib / "site-packages"]
+    assert vo._in_stdlib(stdlib / "json" / "__init__.py", stdlib, packages)
+    assert not vo._in_stdlib(stdlib / "site-packages" / "jinja2" / "utils.py", stdlib, packages)
+    assert not vo._in_stdlib(tmp_path / "elsewhere.py", stdlib, packages)
+    assert not vo._in_stdlib(stdlib / "json.py", None, packages)
+
+
+def test_the_walk_reaches_into_installed_packages_and_finds_nothing():
+    result = vo.ScanResult()
+    vo.scan_reachable(result)
+    assert result.errors == [], "\n".join(f.render() for f in result.errors)
+    # llama.cpp, jinja2 and Playwright alone are well over a hundred modules. The
+    # walk once stopped at the first of them.
+    assert result.external_scanned > 100
+
+
+def test_a_module_named_in_a_from_import_is_what_is_checked():
+    sites = vo._imports_in(_parse("from urllib import parse, request\n"))
+    assert [s.name for s in sites] == ["urllib.parse", "urllib.request"]
+    # So allowing urllib.parse never lets `from urllib import request` through.
+    assert "urllib.request" not in vo.THIRD_PARTY_ALLOWED["jinja2"]
+
+
+@pytest.mark.parametrize("source", [
+    "import uuid\nuuid.uuid1()\n",
+    "import uuid\nnode = uuid.getnode()\n",
+    "from uuid import getnode\n",
+    "import socket\ns = socket.socket()\ns.connect(('example.com', 443))\n",
+    "import socket\nsocket.getaddrinfo('example.com', 443)\n",
+])
+def test_a_package_allowed_a_module_is_held_to_why(source):
+    allowed = frozenset({"uuid", "socket"})
+    assert vo._allowance_findings(_parse(source), allowed, "pkg.m", vo.REPO_ROOT / "m.py")
+
+
+@pytest.mark.parametrize("source", [
+    "import uuid\nname = uuid.uuid4().hex\n",
+    "import socket\npair = socket.socketpair()\n",
+    "import sqlite3\ndb = sqlite3.connect(':memory:')\n",  # not the socket's connect
+])
+def test_what_a_package_was_allowed_for_passes(source):
+    allowed = frozenset({"uuid", "socket"})
+    assert not vo._allowance_findings(_parse(source), allowed, "pkg.m", vo.REPO_ROOT / "m.py")
+
+
+def test_a_packages_tests_are_not_held_to_it(tmp_path):
+    assert vo._is_test_file(tmp_path / "tests" / "helpers.py", tmp_path)
+    assert vo._is_test_file(tmp_path / "test_things.py", tmp_path)
+    assert not vo._is_test_file(tmp_path / "backend" / "reduction.py", tmp_path)
+
+
+def test_the_installed_packages_keep_to_their_allowances():
+    result = vo.ScanResult()
+    vo.scan_allowances(result)
+    assert result.errors == [], "\n".join(f.render() for f in result.errors)
 
 
 def test_the_browsers_proxy_is_held_to_the_same_rules():
