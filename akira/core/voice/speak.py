@@ -195,8 +195,7 @@ class Speaker:
         self._policy = policy
         self._synthesizer = synthesizer if synthesizer is not None else Synthesizer()
         self._sounddevice = sounddevice
-        self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
+        self._reading: Reading | None = None
         self._lock = threading.Lock()
 
     @property
@@ -205,8 +204,9 @@ class Speaker:
 
     @property
     def speaking(self) -> bool:
-        thread = self._thread
-        return thread is not None and thread.is_alive()
+        """Whether something is being read, including a reply still arriving."""
+        reading = self._reading
+        return reading is not None and reading.alive
 
     def ready(self) -> str:
         """Why nothing can be said, or "". Loads nothing to find out."""
@@ -214,6 +214,16 @@ class Speaker:
         if not decision:
             return f"Not permitted: {decision.reason}."
         return self._synthesizer.ready
+
+    def allowed(self) -> bool:
+        return bool(self._policy().allows("audio.play"))
+
+    def _check(self, voice: str) -> None:
+        problem = self.ready()
+        if problem:
+            raise VoiceError(problem)
+        if voice not in BY_ID:
+            raise VoiceError(f"There is no voice called {voice!r}.")
 
     def say(self, text: str, voice: str = DEFAULT_VOICE, speed: float = 1.0,
             on_done: Callable[[str], None] | None = None) -> bool:
@@ -223,37 +233,85 @@ class Speaker:
         with why it stopped short, or "" if it did not. False, and nothing
         said, when there is nothing to say.
         """
-        problem = self.ready()
-        if problem:
-            raise VoiceError(problem)
-        if voice not in BY_ID:
-            raise VoiceError(f"There is no voice called {voice!r}.")
+        self._check(voice)
         said = pieces(speakable(text))
         if not said:
             return False
+        reading = self.begin(voice, speed, on_done)
+        reading.add(said)
+        reading.finish()
+        return True
+
+    def begin(self, voice: str = DEFAULT_VOICE, speed: float = 1.0,
+              on_done: Callable[[str], None] | None = None) -> "Reading":
+        """Start reading something whose text is still to come, a piece at a time.
+
+        For a reply as it streams in: each whole sentence is given to `add` as
+        it arrives, and spoken while the next is being written. Stops whatever
+        was being said.
+        """
+        self._check(voice)
         with self._lock:
             self.stop()
-            stop = self._stop = threading.Event()
-            self._thread = threading.Thread(target=self._speak, name="akira-speak", daemon=True,
-                                            args=(said, voice, speed, stop, on_done))
-            self._thread.start()
-        return True
+            reading = Reading(self, voice, speed, on_done)
+            self._reading = reading
+            reading.start()
+        return reading
 
     def stop(self, wait: float = 1.0) -> None:
         """Stop speaking, within a tenth of a second."""
-        self._stop.set()
-        thread = self._thread
-        if thread is not None and thread is not threading.current_thread():
-            thread.join(wait)
+        reading = self._reading
+        if reading is not None:
+            reading.stop(wait)
 
     def _devices(self) -> Any:
         return self._sounddevice if self._sounddevice is not None else load_engines().sounddevice
 
-    def _speak(self, said: list[str], voice: str, speed: float, stop: threading.Event,
-               on_done: Callable[[str], None] | None) -> None:
+
+class Reading:
+    """One thing being said, whose text may still be arriving."""
+
+    #: A reading given nothing new for this long is over. Its owner finishes or
+    #: stops it; this is only so that a forgotten one cannot hold the speakers.
+    IDLE_SECONDS = 900.0
+
+    def __init__(self, speaker: Speaker, voice: str, speed: float,
+                 on_done: Callable[[str], None] | None) -> None:
+        self._speaker = speaker
+        self._voice = voice
+        self._speed = speed
+        self._on_done = on_done
+        self._incoming: queue.Queue = queue.Queue()
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._speak, name="akira-speak", daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    @property
+    def alive(self) -> bool:
+        return self._thread.is_alive()
+
+    def add(self, said: list[str]) -> None:
+        """More to say, in the pieces `pieces` makes."""
+        for piece in said:
+            if piece.strip():
+                self._incoming.put(piece)
+
+    def finish(self) -> None:
+        """Nothing more is coming: end once what was given has been said."""
+        self._incoming.put(None)
+
+    def stop(self, wait: float = 1.0) -> None:
+        self._stop.set()
+        if self._thread is not threading.current_thread() and self._thread.ident is not None:
+            self._thread.join(wait)
+
+    def _speak(self) -> None:
+        stop = self._stop
         made: queue.Queue = queue.Queue(maxsize=2)
         maker = threading.Thread(target=self._make, name="akira-speak-make", daemon=True,
-                                 args=(said, voice, speed, stop, made))
+                                 args=(made,))
         maker.start()
         problem = ""
         stream = None
@@ -270,8 +328,8 @@ class Speaker:
                     break
                 samples, rate = piece
                 if stream is None:
-                    stream = self._devices().OutputStream(samplerate=rate, channels=1,
-                                                          dtype="float32")
+                    stream = self._speaker._devices().OutputStream(samplerate=rate, channels=1,
+                                                                   dtype="float32")
                     stream.start()
                 block = max(1, int(rate * BLOCK_SECONDS))
                 for start in range(0, samples.size, block):
@@ -289,11 +347,12 @@ class Speaker:
                 finally:
                     stream.close()
             maker.join(1.0)
-        if on_done is not None:
-            on_done(problem or (STOPPED if stopped else ""))
+        if self._on_done is not None:
+            self._on_done(problem or (STOPPED if stopped else ""))
 
-    def _make(self, said: list[str], voice: str, speed: float, stop: threading.Event,
-              made: queue.Queue) -> None:
+    def _make(self, made: queue.Queue) -> None:
+        stop, speaker = self._stop, self._speaker
+
         def hand_over(item: Any) -> bool:
             while not stop.is_set():
                 try:
@@ -303,23 +362,55 @@ class Speaker:
                     continue
             return False
 
-        for piece in said:
-            if stop.is_set():
+        idle = 0.0
+        while not stop.is_set():
+            try:
+                piece = self._incoming.get(timeout=BLOCK_SECONDS)
+            except queue.Empty:
+                idle += BLOCK_SECONDS
+                if idle >= self.IDLE_SECONDS:
+                    hand_over(None)
+                    return
+                continue
+            idle = 0.0
+            if piece is None:
+                hand_over(None)
                 return
-            decision = self._policy().allows("audio.play")
-            if not decision:
-                hand_over(f"Not permitted: {decision.reason}.")
+            if not speaker.allowed():
+                hand_over(speaker.ready() or "Not permitted.")
                 return
             try:
-                sound = self._synthesizer.synthesize(piece, voice, speed)
+                samples, rate = speaker.synthesizer.synthesize(piece, self._voice, self._speed)
             except VoiceError as exc:
                 hand_over(str(exc))
                 return
             except Exception as exc:
                 hand_over(f"Kokoro could not say that: {exc}")
                 return
-            samples, rate = sound
             pause = np.zeros(int(rate * PAUSE_SECONDS), dtype=np.float32)
             if not hand_over((np.concatenate([samples, pause]), rate)):
                 return
-        hand_over(None)
+
+
+class Unfolding:
+    """A reply as it streams in, handed out a whole piece at a time.
+
+    Given the text so far, `grew` returns the pieces that are now whole and
+    were not handed out before: every piece but the last, which may still be
+    growing. `ended` returns the rest.
+    """
+
+    def __init__(self) -> None:
+        self._given = 0
+
+    def grew(self, text: str) -> list[str]:
+        found = pieces(speakable(text))
+        new = found[self._given:len(found) - 1]
+        self._given += len(new)
+        return new
+
+    def ended(self, text: str) -> list[str]:
+        found = pieces(speakable(text))
+        rest = found[self._given:]
+        self._given = len(found)
+        return rest

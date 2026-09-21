@@ -68,7 +68,7 @@ before changing it.
 | `Accounts` | `AccountsBridge` | Connected Google addresses: the client file, signing in, disconnecting |
 | `Documents` | `DocumentsBridge` | Local folder rows, document text previews and content search |
 | `Coding` | `CodingBridge` | The code workspace; see `## Coding` below |
-| `Voice` | `VoiceBridge` | Push to talk, reading aloud, and the chosen voice |
+| `Voice` | `VoiceBridge` | Push to talk, reading aloud, calls, and the chosen voice |
 
 Registered in `akira/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
@@ -580,7 +580,7 @@ Schedule.addJob({
 - **Money never moves.** There is no `bank.write`, no tool and no request that
   could. Say so; `bankHelp` does.
 
-## `Voice` — push to talk, reading aloud, and the chosen voice
+## `Voice` — push to talk, reading aloud, calls, and the chosen voice
 
 Speech in is Whisper small.en and speech out is Kokoro, both on this computer
 (`akira/core/voice`). Nothing heard is kept or sent; the log records each
@@ -602,7 +602,7 @@ recording's length and never its words.
 | `speak(text)` | Slot → bool | Read `text` aloud in the chosen voice, stopping whatever was being said. Markdown is taken out; code is not read, and a link is read as its words |
 | `stopSpeaking()` | Slot | Stops within a tenth of a second |
 | `speaking` | Property, notifies `stateChanged` | |
-| `readAloud`, `setReadAloud(on)` | Property (notifies `settingsChanged`), Slot | Off until turned on. When on, each finished chat answer is read out (`Chat.answered` is wired to it in the shell). Turning it off stops the reading |
+| `readAloud`, `setReadAloud(on)` | Property (notifies `settingsChanged`), Slot | Off until turned on. When on, the chat's replies are read out as they stream in, a sentence at a time, so a slow model is heard from its first sentence. `stopSpeaking()` stops the rest of that reply too. Turning it off stops the reading |
 | `voices` | Constant list | Six: `id`, `name`, `description`. The first, `af_heart`, is the default |
 | `voice`, `setVoice(id)` | Property (notifies `settingsChanged`), Slot | An unknown id is ignored |
 | `previewVoice(id)` | Slot → bool | Say a sample line in that voice without choosing it |
@@ -619,8 +619,44 @@ recording's length and never its words.
   in about two, and speech starts within a second or so.
 - Choices are kept in `voice.json`; what was said and heard is not kept anywhere.
 
-`Chat.answered(text)` is a signal on the chat bridge: a reply that finished
-whole, with its text. It is not sent for one stopped, failed or empty.
+### A call
+
+A call is talking with Akira hands-free: what the person says goes to the chat
+as if typed, and the reply is read aloud as it streams in, whatever `readAloud`
+says, until they end the call. There is no wake word. **The microphone is open
+only during a call the person started, and muting closes it.**
+
+| Member | Kind | Notes |
+|---|---|---|
+| `startCall()` | Slot → bool | Start one. False, with `note`, when it cannot. Stops Akira speaking first |
+| `callBlocked` | Property, notifies `stateChanged` | Why a call cannot start now, or `""`. It needs Listen and Speak both |
+| `endCall()` | Slot | The microphone closes and Akira stops at once; returns at once too |
+| `inCall` | Property, notifies `callChanged` | **Show that a call is on whenever this is true** |
+| `callState` | Property, notifies `callChanged` | `listening`, `hearing` (the person is talking), `thinking` (being made out, or waiting for the reply), `speaking`, `muted`; `""` out of a call |
+| `muted`, `setMuted(on)` | Property (notifies `callChanged`), Slot | Muting closes the microphone: capture stops, rather than being ignored. Unmuting checks Listen again, and says in `note` if it cannot |
+| `level` | Property, notifies `levelChanged` | The microphone's loudness during a call too; 0 while muted |
+| `interruptByVoice`, `setInterruptByVoice(on)` | Property (notifies `settingsChanged`), Slot | **For headphones.** Off by default: on speakers Akira hears itself, so it listens only while it is neither thinking nor speaking, and the person interrupts with a button (`stopSpeaking()`). On: talking over Akira stops it and the reply, and what they say is sent next |
+
+- A call ends by itself when Listen or Speak is withdrawn, within a twentieth
+  of a second, and `note` says why. It also ends when Akira closes.
+- Push to talk is refused during a call (`listenBlocked` says so); a call is
+  refused while push to talk is open.
+- What is heard in a call is not sent on `heard`; it goes to the chat, and
+  appears there as the person's message.
+- If the person speaks again while a reply is still being written (possible
+  with `interruptByVoice`), the reply is stopped and the new words are sent.
+- The call runs in the bridge and needs no window, so a small always-on-top
+  call window can own it while the main window is closed. Keep the
+  application running while `inCall` is true.
+- The log keeps that a call began and ended, how long it ran and how many
+  things were said, never what.
+
+### On the chat bridge, for reading aloud
+
+`Chat.replyGrew(text)` is the reply so far, each time it grows.
+`Chat.replyEnded(text)` is its whole text when it is over, or `""` when it was
+stopped, failed or came back empty. It is sent just before `busy` goes false.
+`Voice` follows both; the view need not.
 
 ## `Chat` — what a turn drew on
 

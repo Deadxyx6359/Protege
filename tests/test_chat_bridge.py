@@ -292,41 +292,44 @@ def test_an_empty_reply_is_reported_rather_than_shown_blank(qt_app, make_bridge)
     assert model.data(last, model.TextRole) == "The model returned nothing."
 
 
-# -- a finished answer, for reading aloud ------------------------------------
+# -- the reply as it grows, for reading aloud --------------------------------
 
 
-def test_a_finished_answer_is_announced_with_its_text(qt_app, make_bridge):
+def test_a_reply_is_announced_as_it_grows_and_whole_at_the_end(qt_app, make_bridge):
     bridge = make_bridge(SlowBackend(["Hel", "lo"]))
-    answers = []
-    bridge.answered.connect(answers.append)
+    grew, ended = [], []
+    bridge.replyGrew.connect(grew.append)
+    bridge.replyEnded.connect(lambda text: ended.append((text, bridge.busy)))
     bridge.send("hi")
     assert pump_until(lambda: not bridge.busy)
-    assert answers == ["Hello"]
+    assert grew == ["Hel", "Hello"]
+    # Ended while still busy, so what waits for the chat to be idle finds it over.
+    assert ended == [("Hello", True)]
 
 
 @pytest.mark.parametrize("backend", [
     SlowBackend([], fail=ModelUnavailable("out of memory")),
     SlowBackend([]),
 ])
-def test_a_failed_or_empty_answer_is_not_announced(qt_app, make_bridge, backend):
+def test_a_failed_or_empty_reply_ends_with_nothing_to_read(qt_app, make_bridge, backend):
     bridge = make_bridge(backend)
-    answers = []
-    bridge.answered.connect(answers.append)
+    ended = []
+    bridge.replyEnded.connect(ended.append)
     bridge.send("hi")
     assert pump_until(lambda: not bridge.busy)
-    assert answers == []
+    assert ended == [""]
 
 
-def test_a_stopped_answer_is_not_announced(qt_app, make_bridge):
+def test_a_stopped_reply_ends_with_nothing_more_to_read(qt_app, make_bridge):
     backend = SlowBackend(["one ", "two ", "three ", "four "], delay=0.05)
     bridge = make_bridge(backend)
-    answers = []
-    bridge.answered.connect(answers.append)
+    ended = []
+    bridge.replyEnded.connect(ended.append)
     bridge.send("count")
     assert backend.started.wait(2.0)
     bridge.stop()
     assert pump_until(lambda: not bridge.busy)
-    assert answers == []
+    assert ended == [""]
 
 
 # -- starting over -----------------------------------------------------------

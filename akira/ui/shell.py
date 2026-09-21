@@ -295,7 +295,8 @@ def build_context(*, persist: bool = True) -> AppContext:
     voice = VoiceBridge(policy=live_policy, audit=audit)
     permissions.grantsChanged.connect(voice.refresh)
     chat = ChatBridge(router, config, context=assembler, project=projects.store.current_id)
-    chat.answered.connect(voice.readReply)
+    # Replies are read aloud as they stream in, and a call talks to this chat.
+    voice.follow(chat)
 
     return AppContext(
         config=config,

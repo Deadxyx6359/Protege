@@ -24,15 +24,19 @@ class VoiceSettings:
     speed: float = 1.0
     read_aloud: bool = False
     """Off until the person turns it on: Akira does not start talking unasked."""
+    interrupt_by_voice: bool = False
+    """For headphones. Off, because on speakers Akira would hear itself and stop."""
 
 
-def checked(voice: str, speed: float, read_aloud: bool) -> VoiceSettings:
+def checked(voice: str, speed: float, read_aloud: bool,
+            interrupt_by_voice: bool = False) -> VoiceSettings:
     """Settings that can be used: an unknown voice is the default, the speed in range."""
     try:
         pace = min(FASTEST, max(SLOWEST, round(float(speed), 2)))
     except (TypeError, ValueError):
         pace = 1.0
-    return VoiceSettings(voice if voice in BY_ID else DEFAULT_VOICE, pace, bool(read_aloud))
+    return VoiceSettings(voice if voice in BY_ID else DEFAULT_VOICE, pace, bool(read_aloud),
+                         bool(interrupt_by_voice))
 
 
 class VoiceStore:
@@ -45,7 +49,7 @@ class VoiceStore:
         try:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
             return checked(str(raw.get("voice") or ""), raw.get("speed", 1.0),
-                           raw.get("read_aloud") is True)
+                           raw.get("read_aloud") is True, raw.get("interrupt_by_voice") is True)
         except (OSError, ValueError, AttributeError, TypeError):
             return VoiceSettings()
 
@@ -55,7 +59,8 @@ class VoiceStore:
         try:
             with os.fdopen(handle, "w", encoding="utf-8") as stream:
                 json.dump({"voice": settings.voice, "speed": settings.speed,
-                           "read_aloud": settings.read_aloud}, stream)
+                           "read_aloud": settings.read_aloud,
+                           "interrupt_by_voice": settings.interrupt_by_voice}, stream)
             files.replace(temporary, self.path)
         except BaseException:
             with contextlib.suppress(OSError):

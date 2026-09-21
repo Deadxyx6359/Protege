@@ -496,6 +496,12 @@ microphone hears stays in memory and is dropped once it is words; no recording
 is ever written to disk. ONNX Runtime's own usage reporting, which goes through
 Windows rather than a socket, is switched off before Kokoro loads.
 
+A **call** is hands-free: Akira listens, sends what you say to the chat, and
+reads the reply as it is written. The microphone is open only during a call you
+started, and mute closes it. There is no wake word. On speakers Akira waits
+until it has finished speaking before it listens again; with headphones you can
+let yourself interrupt it by talking.
+
 ### Run
 
 The **Akira** desktop shortcut launches the app against your Obsidian vault

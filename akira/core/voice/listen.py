@@ -183,6 +183,46 @@ class Transcriber:
 # -- the microphone ------------------------------------------------------------------------------
 
 
+def input_rate(sd: Any, device: int | str | None) -> int:
+    """16 kHz where \a device allows it, and otherwise its own rate."""
+    try:
+        try:
+            sd.check_input_settings(device=device, channels=1, dtype="float32",
+                                    samplerate=SAMPLE_RATE)
+            return SAMPLE_RATE
+        except Exception:
+            return int(sd.query_devices(device, "input")["default_samplerate"])
+    except Exception as exc:
+        raise VoiceError(f"The microphone could not be opened: {exc}") from None
+
+
+def open_input(sd: Any, device: int | str | None, rate: int, callback: Callable,
+               blocksize: int = 0) -> Any:
+    """A mono input stream on \a device, started. Closed again if it will not start."""
+    try:
+        stream = sd.InputStream(samplerate=rate, channels=1, dtype="float32", device=device,
+                                blocksize=blocksize, callback=callback)
+    except Exception as exc:
+        raise VoiceError(f"The microphone could not be opened: {exc}") from None
+    try:
+        stream.start()
+    except Exception as exc:
+        close_input(stream)
+        raise VoiceError(f"The microphone could not be opened: {exc}") from None
+    return stream
+
+
+def close_input(stream: Any) -> None:
+    """Close \a stream whatever stopping it says: a microphone left open is the one
+    outcome that must not happen."""
+    if stream is None:
+        return
+    with contextlib.suppress(Exception):
+        stream.stop()
+    with contextlib.suppress(Exception):
+        stream.close()
+
+
 class Microphone:
     """The default microphone, recorded into memory.
 
@@ -224,27 +264,11 @@ class Microphone:
         if self._stream is not None:
             return
         sd = self._devices()
-        try:
-            try:
-                sd.check_input_settings(device=self._device, channels=1, dtype="float32",
-                                        samplerate=SAMPLE_RATE)
-                rate = SAMPLE_RATE
-            except Exception:
-                rate = int(sd.query_devices(self._device, "input")["default_samplerate"])
-            with self._lock:
-                self._pieces, self._kept, self._level = [], 0, 0.0
-                self._rate, self._limit = rate, int(rate * self._max_seconds)
-            stream = sd.InputStream(samplerate=rate, channels=1, dtype="float32",
-                                    device=self._device, callback=self._heard)
-        except Exception as exc:
-            raise VoiceError(f"The microphone could not be opened: {exc}") from None
-        try:
-            stream.start()
-        except Exception as exc:
-            with contextlib.suppress(Exception):
-                stream.close()
-            raise VoiceError(f"The microphone could not be opened: {exc}") from None
-        self._stream = stream
+        rate = input_rate(sd, self._device)
+        with self._lock:
+            self._pieces, self._kept, self._level = [], 0, 0.0
+            self._rate, self._limit = rate, int(rate * self._max_seconds)
+        self._stream = open_input(sd, self._device, rate, self._heard)
 
     def _heard(self, indata: np.ndarray, frames: int, when: Any, status: Any) -> None:
         # On the audio thread: copy, since the buffer is reused, and keep no more
@@ -262,13 +286,7 @@ class Microphone:
     def stop(self) -> np.ndarray:
         """Close the microphone and hand over what it heard, at 16 kHz. It keeps nothing."""
         stream, self._stream = self._stream, None
-        if stream is not None:
-            # Closed whatever stopping it says: a microphone left open is the
-            # one outcome that must not happen.
-            with contextlib.suppress(Exception):
-                stream.stop()
-            with contextlib.suppress(Exception):
-                stream.close()
+        close_input(stream)
         with self._lock:
             pieces, self._pieces, self._kept, self._level = self._pieces, [], 0, 0.0
             rate = self._rate

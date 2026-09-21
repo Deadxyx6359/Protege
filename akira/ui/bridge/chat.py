@@ -126,9 +126,12 @@ class ChatBridge(QObject):
     recentsChanged = Signal()
     sourcesChanged = Signal()
 
-    #: A reply finished whole, with its text: for reading it aloud. Not sent for
-    #: one stopped, failed or empty.
-    answered = Signal(str)
+    #: The reply so far, each time it grows: for reading it aloud as it comes.
+    replyGrew = Signal(str)
+
+    #: The reply is over: its whole text, or "" when it was stopped, failed or
+    #: came back empty, and nothing more of it should be read.
+    replyEnded = Signal(str)
 
     _tokenArrived = Signal(str)
     _turnEnded = Signal(str)
@@ -411,6 +414,7 @@ class ChatBridge(QObject):
         if self._stage != "Writing":
             self._set_stage("Writing")
         self._model.touched(len(messages) - 1)
+        self.replyGrew.emit(messages[-1].text)
 
     @Slot(str)
     def _on_ended(self, problem: str) -> None:
@@ -435,6 +439,9 @@ class ChatBridge(QObject):
         else:
             finished = ""
 
+        # Before the chat is idle again, so that whatever waits for it to be
+        # idle, a call with the next thing said, finds this reply finished.
+        self.replyEnded.emit(finished)
         self._set_busy(False)
         self._set_stage("")
         self.routeChanged.emit()
@@ -443,8 +450,6 @@ class ChatBridge(QObject):
         # token would be hundreds of fsyncs for one answer.
         self._persist()
         self._refresh_recents()
-        if finished:
-            self.answered.emit(finished)
 
     # -- helpers ------------------------------------------------------------
 
