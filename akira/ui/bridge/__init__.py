@@ -10,6 +10,7 @@ from .agents import AgentsBridge
 from .chat import ChatBridge, MessageListModel
 from .coding import CodingBridge
 from .documents import DocumentsBridge
+from .drafts import DraftsBridge
 from .drawing import DrawingBridge
 from .graph import GraphBridge
 from .memory import MemoryBridge
@@ -27,5 +28,5 @@ __all__ = [
     "PermissionsBridge", "ConfirmBridge", "ScheduleBridge",
     "TraceBridge", "TraceListModel", "AgentsBridge", "MemoryBridge",
     "ProjectsBridge", "GraphBridge", "MonitorBridge", "PlaceBridge", "AccountsBridge",
-    "DocumentsBridge", "CodingBridge", "VoiceBridge", "DrawingBridge",
+    "DocumentsBridge", "CodingBridge", "VoiceBridge", "DrawingBridge", "DraftsBridge",
 ]

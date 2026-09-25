@@ -31,7 +31,8 @@ from akira.core.permissions import AuditLog, Policy, SecretStore
 from akira.core.projects import ProjectStore
 from akira.core.review import ensure_review_job, register_review_action
 from akira.core.schedule import ActionRegistry, Scheduler, SchedulerService
-from akira.core.schedule.actions import register_agent_actions
+from akira.core.making.pipeline import DraftStore
+from akira.core.schedule.actions import register_agent_actions, register_pipeline_action
 from akira.core.tools import default_registry
 from akira.design import ThemeController
 from akira.ui.bridge import (
@@ -41,6 +42,7 @@ from akira.ui.bridge import (
     CodingBridge,
     ConfirmBridge,
     DocumentsBridge,
+    DraftsBridge,
     DrawingBridge,
     GraphBridge,
     MemoryBridge,
@@ -90,6 +92,7 @@ class AppContext:
     coding: CodingBridge | None = None
     voice: VoiceBridge | None = None
     drawing: DrawingBridge | None = None
+    drafts: DraftsBridge | None = None
     scheduler: Scheduler | None = None
     service: SchedulerService | None = None
     monitor_service: MonitorService | None = None
@@ -109,7 +112,7 @@ class AppContext:
                           ("Monitor", self.monitor), ("Place", self.place),
                           ("Accounts", self.accounts), ("Documents", self.documents),
                           ("Coding", self.coding), ("Voice", self.voice),
-                          ("Drawing", self.drawing)):
+                          ("Drawing", self.drawing), ("Drafts", self.drafts)):
             if obj is not None:
                 exposed[name] = obj
         return exposed
@@ -139,6 +142,8 @@ class AppContext:
         # The microphone first: nothing is heard once Akira is closing.
         if self.voice is not None:
             self.voice.close()
+        if self.drafts is not None:
+            self.drafts.close()
         if self.documents is not None:
             self.documents.close()
         if self.coding is not None:
@@ -254,6 +259,12 @@ def build_context(*, persist: bool = True) -> AppContext:
                            secret_store=secret_store, on_review=schedule.on_review,
                            projects=projects.store.policies)
     register_agent_actions(actions, router=router, registry=default_registry())
+    # A pipeline's draft waits for the person, who publishes it under the global
+    # grants, as the job that made it ran under them.
+    drafts = DraftsBridge(DraftStore(), registry=default_registry(), policy=live_policy,
+                          audit=audit, secrets=secret_store)
+    register_pipeline_action(actions, router=router, registry=default_registry(),
+                             store=drafts.store)
     def model_for(route: str) -> dict:
         resolved = router.resolve(Route.parse(route))
         return {"route": resolved.value, "label": router.status(resolved).label}
@@ -323,6 +334,7 @@ def build_context(*, persist: bool = True) -> AppContext:
         coding=coding,
         voice=voice,
         drawing=DrawingBridge(),
+        drafts=drafts,
         housekeeping=sweep_indexes,
     )
 

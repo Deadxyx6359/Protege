@@ -70,6 +70,7 @@ before changing it.
 | `Coding` | `CodingBridge` | The code workspace; see `## Coding` below |
 | `Voice` | `VoiceBridge` | Push to talk, reading aloud, calls, and the chosen voice |
 | `Drawing` | `DrawingBridge` | Drawings in the chat's replies: found, cleaned, shown, saved |
+| `Drafts` | `DraftsBridge` | What content pipelines drafted, waiting for the person to publish |
 
 Registered in `akira/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
@@ -262,7 +263,13 @@ Schedule.addJob({
   months), `cron` `{expr}`, and `event` `{name, match, cooldown}` (a cooldown of
   at least 5 seconds).
 - **Arguments:** for `agent`, `role` and `task`; for `team`, `team` and `task`;
-  for `notify`, `text` and optionally `title` (the job's name otherwise). A
+  for `notify`, `text` and optionally `title` (the job's name otherwise); for
+  `pipeline`, `brief` (what to write) and `publish`, one of
+  `{kind: "note", path}` (a new `.md` note), `{kind: "file", path}` (a new
+  file), or `{kind: "mail", to, account}` (an email; `account` optional). A
+  pipeline's `grants` are what its drafter may read, such as `vault.read` for
+  a notes folder; it needs no grant to publish, since it never does. See
+  `Drafts`. A
   `notify` job needs `notify.send` in its `grants`. See `Monitor` for the usual
   pairing with a watched folder.
 - **`grants` are the most a job may use.** Each run gets only what the person
@@ -653,6 +660,32 @@ only during a call the person started, and muting closes it.**
   application running while `inCall` is true.
 - The log keeps that a call began and ended, how long it ran and how many
   things were said, never what.
+
+## `Drafts` — what content pipelines drafted, waiting to be published
+
+A `pipeline` job (see `Schedule.addJob`) drafts, reviews and revises a piece
+on its schedule and leaves it here. **The schedule never publishes.** The
+person reads it, and the review, and then publishes it, edits it, or throws it
+away.
+
+| Member | Kind | Notes |
+|---|---|---|
+| `drafts` | Property, notifies `draftsChanged` | Newest first: `id`, `job`, `title`, `brief`, `status` (`waiting`, `published`, `discarded`), `made` (epoch seconds), `target` (where it goes, in words, such as "an email to a@b.co"), `kind` (`note`, `file`, `mail`), `outcome` and `excerpt` |
+| `waitingCount` | Property, notifies `draftsChanged` | For a badge on the navigation |
+| `text(id)`, `review(id)` | Slots → string | The draft in full, and what the critic said about the first version |
+| `edit(id, text)` | Slot → string | Keep the person's changes: `""` or why not |
+| `discard(id)` | Slot → string | Throw it away: `""` or why not |
+| `publish(id, text)` | Slot → string | Publish it as `text`, where `target` says: `""` once started, or why not. **Only from the person's own press of Publish**, with the draft and its `target` in front of them: that press is the confirmation, and is recorded as theirs |
+| `publishing` | Property, notifies `stateChanged` | The id being published, or `""`. One at a time |
+| `note` | Property, notifies `stateChanged` | What the last publish did, or why not, such as a permission to allow |
+
+- Publishing still needs the tool's own grant: `vault.write` for a note's
+  place, `files.write` for a file's, `mail.send` for the sending address. If it
+  is missing, the draft stays waiting and `note` says so; offer the grant, and
+  let the person press Publish again.
+- A draft is never published over a file already there, and never twice.
+- Show `target` beside the Publish button, always: it is part of what the
+  person is agreeing to.
 
 ## `Drawing` — drawings in the chat
 

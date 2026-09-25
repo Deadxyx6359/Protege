@@ -802,8 +802,19 @@ chooses. The `illustrator` role, on the coding model, saves drawings with
 `save_drawing`: `files.write`, a new file only, as .svg or a .png picture, and
 the person sees the drawing rendered before it is saved. A drawing that cannot
 be used is refused with the reason before anyone is asked.
-**E3 ○ Content pipeline** — scheduled multi-step drafting → review → publish,
-with the publish step confirmed by a person.
+**E3 ✅ Content pipeline** — scheduled multi-step drafting → review → publish,
+with the publish step confirmed by a person; `core/making/pipeline.py`, action `pipeline`, bridge `Drafts`
+*Done:* a pipeline is a scheduled job with a brief and a place to publish to: a
+new note in the vault, a new file, or an email from a connected account. Each
+run the `drafter` (which can read, and has no tool that publishes) writes the
+piece, the `critic` reviews it against the brief, and the drafter revises it.
+The result is a draft that waits. The schedule never publishes: the person
+reads the draft and the review, edits it or throws it away, and presses
+Publish. That press is the confirmation the publishing tool asks for, recorded
+as theirs, and the tool's own permission still holds (`vault.write`,
+`files.write`, `mail.send`); without it the draft stays waiting and says what
+to allow. A draft is never published over something already there, and never
+twice. A pipeline that could not run is refused when it is made.
 **E4 ○ LoRA training** — QLoRA on a 7–8B in 4-bit, hours per run, checkpointed
 and resumable.
 
@@ -845,9 +856,10 @@ and resumable.
 | D | D2 Speech out | ✅ |
 | D | D3 Live call | ▶ backend done; its window next (Codex) |
 | E | E2 2D / vector | ✅ drawings in the chat and saved by the illustrator, cleaned first |
-| E | E1, E3, E4 Making | ○ |
+| E | E3 Content pipeline | ✅ drafted, reviewed and revised on a schedule; published only by the person |
+| E | E1 Images, E4 Training | ○ need large downloads, asked for first |
 
-**Tests at last commit:** 2371 passed, 2 skipped, and the two known
+**Tests at last commit:** 2396 passed, 2 skipped, and the two known
 dialog-geometry failures (a window 7 px taller than the test allows);
 `verify_offline.py` passes. Update this line when it changes.
 
