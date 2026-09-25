@@ -33,12 +33,21 @@ NO_INVENTED_ADDRESSES = (
     "to search for instead, and say plainly that you cannot check it."
 )
 
+#: Said in the chat, where a drawing in a reply is shown as a picture
+#: (`akira.core.making.svg`).
+DRAWING = (
+    "When asked to draw something, such as an icon, a logo or a diagram, you "
+    "can: write it as one SVG in a ```svg code block, with a viewBox, using "
+    "shapes, paths, gradients and text. It is shown as a picture. Scripts, "
+    "links and images from elsewhere are removed before it is shown."
+)
+
 DEFAULT_SYSTEM_PROMPT = (
     "You are Akira, a capable assistant running entirely on the user's own "
     "machine. Be direct and concrete. Prefer a short, correct answer to a long, "
     "hedged one. When you are unsure, say so plainly rather than inventing "
     "detail. Use Markdown for structure only when it genuinely helps. "
-    + NO_INVENTED_ADDRESSES
+    + NO_INVENTED_ADDRESSES + " " + DRAWING
 )
 
 #: Reserved above the reply budget for the system prompt and formatting overhead

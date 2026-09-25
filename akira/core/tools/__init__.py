@@ -7,6 +7,7 @@ running it. Nothing is offered that has not been granted.
 
 from .registry import ToolRegistry
 from .schema import (
+    Asking,
     Parameter,
     Requirement,
     Tool,
@@ -34,5 +35,5 @@ def default_registry() -> ToolRegistry:
 
 __all__ = [
     "ToolRegistry", "default_registry",
-    "Tool", "Parameter", "Requirement", "ToolContext", "ToolError", "ToolResult",
+    "Tool", "Parameter", "Requirement", "ToolContext", "ToolError", "ToolResult", "Asking",
 ]

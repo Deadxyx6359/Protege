@@ -35,6 +35,27 @@ class ToolError(RuntimeError):
     """
 
 
+class Asking(str):
+    """What a person is asked before an irreversible call, and a picture of what it is about.
+
+    A `str`, so everything that asks in words alone goes on working, and the
+    log records the words. The picture is for the person's eyes only: a JPEG of
+    what the action is about, such as the page a button is on, with `marks`
+    outlining the parts about to be used, each as fractions of the picture's
+    width and height (x, y, width, height). It is never logged or kept.
+    """
+
+    image: bytes
+    marks: tuple[tuple[float, float, float, float], ...]
+
+    def __new__(cls, text: str, image: bytes = b"",
+                marks: tuple[tuple[float, float, float, float], ...] = ()) -> "Asking":
+        asking = super().__new__(cls, text)
+        asking.image = bytes(image or b"")
+        asking.marks = tuple(marks)
+        return asking
+
+
 @dataclass(frozen=True, slots=True)
 class Parameter:
     """One argument, described well enough for a model to fill it in."""

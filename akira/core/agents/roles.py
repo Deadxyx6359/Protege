@@ -224,6 +224,24 @@ FINANCES = AgentSpec(
     temperature=0.2,
 )
 
+ILLUSTRATOR = AgentSpec(
+    name="illustrator",
+    role=(
+        "You draw, by writing SVG: icons, logos, diagrams, simple illustrations. "
+        "Write one complete <svg> with a viewBox, using shapes, paths, gradients "
+        "and text. Nothing else is kept: no scripts, no links or pictures from "
+        "elsewhere, no fonts to fetch. Save it with save_drawing where the person "
+        "said, as .svg, or as .png if they asked for a picture; if it is refused, "
+        "fix what it says and save again. The person sees the drawing before it "
+        "is saved. Say where it went, what it shows, and anything left out."
+    ),
+    # SVG is code, and the coding model writes it more reliably.
+    route=Route.CODE,
+    tools=("save_drawing", "list_directory"),
+    max_steps=6,
+    temperature=0.4,
+)
+
 #: The research team, in the order they work.
 RESEARCH = (GATHERER, ANALYST, CRITIC, WRITER)
 
@@ -234,5 +252,5 @@ ALL_ROLES = {
     spec.name: spec
     for spec in (GATHERER, ANALYST, CRITIC, WRITER,
                  ARCHITECT, IMPLEMENTER, REVIEWER, SECRETARY, ERRANDS,
-                 COURSEWORK, FINANCES)
+                 COURSEWORK, FINANCES, ILLUSTRATOR)
 }

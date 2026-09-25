@@ -468,7 +468,7 @@ material; reading one is `fetch_page` under `net.http` for that site. When
 DuckDuckGo asks whether a person is searching, the answer is "try later".
 The gatherer may search.
 
-**C3 ▶ Browser and computer use** — `core/net/browser.py`, `core/net/proxy.py`, `client.tunnel`, tools in `core/tools/builtin/browsing.py`; a picture of a page next
+**C3 ✅ Browser and computer use** — `core/net/browser.py`, `core/net/proxy.py`, `client.tunnel`, tools in `core/tools/builtin/browsing.py`
 Playwright driving a real browser: navigate, read, fill, click, scrape without
 APIs. **Every irreversible interaction confirms** — submit, post, purchase,
 apply. Job applications stage a draft and stop.
@@ -522,8 +522,12 @@ password, a card or account number, a code or an identity number; pressing a
 button that pays, by what it says or by a card field in its form; and doing
 anything to an element whose label changed since the page was read. The
 `errands` role uses these, told to stop and say what is left for the person.
-*Next:* a picture of a page for the person to look at, in the confirmation
-(offered to Codex, handoff 30).
+*Done, the picture:* the question before typing or pressing now carries a
+picture of the page as the browser shows it, the fields or button about to be
+used scrolled into view and outlined. It goes to the person with the words and
+is dropped once they answer; the log keeps the words and never the picture. If
+no picture can be taken, the question is asked in words, as before. The
+dialog's side is Codex's (`Confirm.pictureFor`, `marksFor`).
 
 **C4 ✅ Screen capture** — `core/screen.py`, tools in `core/tools/builtin/screen.py`
 *Done:* the whole screen captured with GDI and encoded as PNG with zlib, and
@@ -782,7 +786,22 @@ while a call is on with the main window closed.
 ### Phase E — making
 
 **E1 ○ Image generation** — SDXL-Turbo or SD 1.5 within 6 GB.
-**E2 ○ 2D / vector** — SVG as a code-generation problem.
+**E2 ✅ 2D / vector** — SVG as a code-generation problem; `core/making/svg.py`, tool `save_drawing`, bridge `Drawing`
+*Done:* a model draws by writing SVG, and nothing it writes is shown or saved as
+written. SVG can carry scripts, event handlers, links that fetch when shown,
+whole documents (`foreignObject`), pictures from elsewhere, animations that
+rewrite links and declarations that expand into gigabytes, and a model writes
+whatever the conversation led it to. So every drawing is rebuilt from an
+allowlist: drawing elements, and the attributes that place, colour and style
+them. Links may point only inside the drawing, styles likewise; a link around
+shapes keeps the shapes. What was left out is named, so a model can be told.
+In the chat, the model is told it may answer with a ```svg block, and the
+`Drawing` bridge finds it, cleans it and renders it with Qt's own SVG renderer
+(which fetches nothing) for the view to show, and saves it where the person
+chooses. The `illustrator` role, on the coding model, saves drawings with
+`save_drawing`: `files.write`, a new file only, as .svg or a .png picture, and
+the person sees the drawing rendered before it is saved. A drawing that cannot
+be used is refused with the reason before anyone is asked.
 **E3 ○ Content pipeline** — scheduled multi-step drafting → review → publish,
 with the publish step confirmed by a person.
 **E4 ○ LoRA training** — QLoRA on a 7–8B in 4-bit, hours per run, checkpointed
@@ -820,14 +839,15 @@ and resumable.
 | C | C4 Screen capture | ✅ |
 | C | C2 Web search | ✅ |
 | C | C5 Connectors | ▶ Google, Canvas, banks (SimpleFIN) and texts (Phone Link, reading) done |
-| C | C3 Browser | ▶ reading a page, and typing and pressing on it, each approved; a picture of a page next |
+| C | C3 Browser | ✅ reading a page, and typing and pressing on it, each approved with a picture of the page |
 | C | C8 Purchasing | ▶ a cart handed to the person in a window of their own, to pay for themselves |
 | D | D1 Speech in | ✅ push to talk; no wake word, by the person's choice |
 | D | D2 Speech out | ✅ |
 | D | D3 Live call | ▶ backend done; its window next (Codex) |
-| E | E1–E4 Making | ○ |
+| E | E2 2D / vector | ✅ drawings in the chat and saved by the illustrator, cleaned first |
+| E | E1, E3, E4 Making | ○ |
 
-**Tests at last commit:** 2323 passed, 2 skipped, and the two known
+**Tests at last commit:** 2371 passed, 2 skipped, and the two known
 dialog-geometry failures (a window 7 px taller than the test allows);
 `verify_offline.py` passes. Update this line when it changes.
 

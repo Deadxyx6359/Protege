@@ -155,6 +155,54 @@ def test_every_word_is_shown_first_and_nothing_is_typed_without_a_yes(work):
     assert stand_in.posted == [], "typing sent the form"
 
 
+def _jpeg(data: bytes) -> bool:
+    return data[:3] == b"\xff\xd8\xff" and data[-2:] == b"\xff\xd9"
+
+
+def _inside(mark) -> bool:
+    x, y, w, h = mark
+    return 0 <= x < 1 and 0 <= y < 1 and 0 < w <= 1 - x + 1e-9 and 0 < h <= 1 - y + 1e-9
+
+
+def test_the_person_sees_the_page_with_what_will_be_typed_into_outlined(work, tmp_path):
+    _, context = work
+    ctx, asked = context(answer=False)
+    result = opened(ctx)
+    entries = [f"{number(result, 'field', 'Your name')}: Mark Rose",
+               f"{number(result, 'field', 'Message')}: Hello there"]
+    use("fill_in", {"site": "example.com", "entries": entries}, ctx)
+    [summary] = asked
+    assert _jpeg(summary.image), "no picture of the page came with the question"
+    assert len(summary.marks) == 2 and all(_inside(mark) for mark in summary.marks)
+    # Two fields, one above the other: two different outlines.
+    assert summary.marks[0] != summary.marks[1]
+    # The words are logged; the picture never is.
+    logged = (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+    assert "Type into the page on example.com." in logged
+    assert "/9j/" not in logged and len(logged) < len(summary.image)
+
+
+def test_the_person_sees_the_button_they_are_asked_about(work):
+    _, context = work
+    ctx, asked = context(answer=False)
+    result = opened(ctx)
+    use("press_button", {"site": "example.com", "number": number(result, "button", "Send")},
+        ctx)
+    [summary] = asked
+    assert _jpeg(summary.image) and len(summary.marks) == 1 and _inside(summary.marks[0])
+
+
+def test_without_a_picture_the_question_is_still_asked_in_words(work, monkeypatch):
+    _, context = work
+    ctx, asked = context(answer=False)
+    result = opened(ctx)
+    monkeypatch.setattr(browser.Session, "picture", lambda self, numbers=(): None)
+    use("press_button", {"site": "example.com", "number": number(result, "button", "Send")},
+        ctx)
+    [summary] = asked
+    assert 'Press "Send" on example.com.' in summary and summary.image == b""
+
+
 def test_a_password_is_never_typed_whatever_the_grants(work):
     _, context = work
     ctx, asked = context()

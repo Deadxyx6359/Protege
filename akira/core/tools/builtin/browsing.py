@@ -34,7 +34,7 @@ from __future__ import annotations
 
 from akira.core.net import browser, host_of
 
-from ..schema import Parameter, Requirement, Tool, ToolContext, ToolError, ToolResult
+from ..schema import Asking, Parameter, Requirement, Tool, ToolContext, ToolError, ToolResult
 
 #: Where a context keeps its browser.
 SESSION = "browser"
@@ -195,7 +195,7 @@ def _typing(arguments: dict, context: ToolContext):
     return session, entries, controls
 
 
-def _describe_fill(arguments: dict, context: ToolContext) -> str:
+def _describe_fill(arguments: dict, context: ToolContext) -> Asking:
     session, entries, controls = _typing(arguments, context)
     lines = [f"Type into the page on {session.site}.",
              f"Page: {session.title or '(untitled)'} — {session.url}", ""]
@@ -203,7 +203,7 @@ def _describe_fill(arguments: dict, context: ToolContext) -> str:
         lines.append(f"{controls[number].label or f'Field {number}'}: {text}")
     lines += ["", f"What is typed reaches {session.site} as it is typed, before anything is "
                   "sent."]
-    return "\n".join(lines)
+    return _with_picture("\n".join(lines), session, list(entries))
 
 
 def _run_fill(arguments: dict, context: ToolContext) -> ToolResult:
@@ -267,7 +267,7 @@ def _pressing(arguments: dict, context: ToolContext):
     return session, found, held, sends_to
 
 
-def _describe_press(arguments: dict, context: ToolContext) -> str:
+def _describe_press(arguments: dict, context: ToolContext) -> Asking:
     session, found, held, sends_to = _pressing(arguments, context)
     button = f'"{found.label}"' if found.label else "an unlabelled button"
     lines = [f"Press {button} on {session.site}.",
@@ -280,7 +280,16 @@ def _describe_press(arguments: dict, context: ToolContext) -> str:
         lines.append("It is not part of a form, so what it does is up to the page.")
     lines += ["", "Pressing it may send, post or change something, and that cannot be taken "
                   "back."]
-    return "\n".join(lines)
+    return _with_picture("\n".join(lines), session, [found.number])
+
+
+def _with_picture(text: str, session: browser.Session, numbers: list[int]) -> Asking:
+    """\a text, with a picture of the page and what \a numbers name outlined, when one
+    can be taken. The picture goes to the person and nowhere else."""
+    seen = session.picture(numbers)
+    if seen is None:
+        return Asking(text)
+    return Asking(text, seen.image, seen.marks)
 
 
 def _run_press(arguments: dict, context: ToolContext) -> ToolResult:

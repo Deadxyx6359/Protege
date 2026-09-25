@@ -41,6 +41,7 @@ from akira.ui.bridge import (
     CodingBridge,
     ConfirmBridge,
     DocumentsBridge,
+    DrawingBridge,
     GraphBridge,
     MemoryBridge,
     MonitorBridge,
@@ -88,6 +89,7 @@ class AppContext:
     documents: DocumentsBridge | None = None
     coding: CodingBridge | None = None
     voice: VoiceBridge | None = None
+    drawing: DrawingBridge | None = None
     scheduler: Scheduler | None = None
     service: SchedulerService | None = None
     monitor_service: MonitorService | None = None
@@ -106,7 +108,8 @@ class AppContext:
                           ("Projects", self.projects), ("Graph", self.graph),
                           ("Monitor", self.monitor), ("Place", self.place),
                           ("Accounts", self.accounts), ("Documents", self.documents),
-                          ("Coding", self.coding), ("Voice", self.voice)):
+                          ("Coding", self.coding), ("Voice", self.voice),
+                          ("Drawing", self.drawing)):
             if obj is not None:
                 exposed[name] = obj
         return exposed
@@ -319,6 +322,7 @@ def build_context(*, persist: bool = True) -> AppContext:
         documents=documents,
         coding=coding,
         voice=voice,
+        drawing=DrawingBridge(),
         housekeeping=sweep_indexes,
     )
 

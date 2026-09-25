@@ -85,6 +85,9 @@ SETTLE_S = 3.0
 #: How long typing into one field, or choosing one option, may take.
 FILL_S = 5.0
 
+#: How long taking a picture of the page for a question may take.
+PICTURE_S = 5.0
+
 #: The most of a page's HTML, as the browser has it, that is read.
 MAX_HTML = 5_000_000
 
@@ -184,6 +187,21 @@ class Control:
     """A field for something only the person types."""
     spends: bool = False
     """A button that pays for something."""
+
+
+#: A picture shown with a question: JPEG at this quality, and none bigger than this.
+PICTURE_QUALITY = 70
+MAX_PICTURE_BYTES = 1_500_000
+
+
+@dataclass(frozen=True)
+class Picture:
+    """The page as it looked, for a person deciding whether to let something be done to it."""
+
+    image: bytes
+    """A JPEG of what the browser shows."""
+    marks: tuple[tuple[float, float, float, float], ...] = ()
+    """The parts about to be used: x, y, width and height as fractions of the picture's."""
 
 
 @dataclass(frozen=True)
@@ -525,6 +543,39 @@ class Session:
         return [Field(" ".join(str(item.get("label") or "").split())[:MAX_LABEL],
                       str(item.get("value") or ""), _is_secret(item), _is_card(item))
                 for item in found if isinstance(item, dict)]
+
+    def picture(self, numbers: tuple[int, ...] | list[int] = ()) -> Picture | None:
+        """The page as it looks now, with what \a numbers name outlined, for a question.
+
+        The first of them is scrolled into view, which does nothing to the site.
+        None when no picture can be taken; the question is asked without one.
+        Nothing here is kept: the picture goes to the person and is dropped.
+        """
+        page = self._running()
+        try:
+            located = [self._located(self.control(number)) for number in numbers]
+            if located:
+                located[0].scroll_into_view_if_needed(timeout=PICTURE_S * 1000)
+            size = page.viewport_size or {"width": 1280, "height": 720}
+            width, height = float(size["width"]), float(size["height"])
+            marks = []
+            for locator in located:
+                box = locator.bounding_box()
+                if not box:
+                    continue
+                left, top = max(0.0, box["x"]), max(0.0, box["y"])
+                right = min(width, box["x"] + box["width"])
+                bottom = min(height, box["y"] + box["height"])
+                if right > left and bottom > top:
+                    marks.append((left / width, top / height,
+                                  (right - left) / width, (bottom - top) / height))
+            image = page.screenshot(type="jpeg", quality=PICTURE_QUALITY, animations="disabled",
+                                    caret="hide", timeout=PICTURE_S * 1000)
+        except (PlaywrightError, BrowseError):
+            return None
+        if not image or len(image) > MAX_PICTURE_BYTES:
+            return None
+        return Picture(bytes(image), tuple(marks))
 
     # -- using it -------------------------------------------------------------------------------
 

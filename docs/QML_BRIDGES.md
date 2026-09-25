@@ -69,6 +69,7 @@ before changing it.
 | `Documents` | `DocumentsBridge` | Local folder rows, document text previews and content search |
 | `Coding` | `CodingBridge` | The code workspace; see `## Coding` below |
 | `Voice` | `VoiceBridge` | Push to talk, reading aloud, calls, and the chosen voice |
+| `Drawing` | `DrawingBridge` | Drawings in the chat's replies: found, cleaned, shown, saved |
 
 Registered in `akira/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
@@ -112,6 +113,8 @@ these names, so renaming one is a deliberate, coordinated act.
 | `requested(token, summary)` | Signal | Raise the dialog. `summary` already names the real values: the file, the script, the commit message |
 | `withdrawn(token)` | Signal | Take a stale dialog down. It timed out, or the application is closing |
 | `answer(token, approved)` | Slot | Call on click. A stale or repeated token does nothing, so a double-click cannot approve the *next* request |
+| `pictureFor(token)` | Slot → string | A picture of what the request is about, as a `data:image/jpeg` address for an `Image`, or `""`. Typing into a page and pressing its buttons come with one: the page, with the parts about to be used scrolled into view. Gone once the request is answered |
+| `marksFor(token)` | Slot → list | What to outline on that picture: each `x`, `y`, `width`, `height` as fractions of the picture's size, so they scale with it. Empty when there is nothing to outline |
 | `timeoutSeconds` | Property | 300 |
 | `pendingCount` | Property | How many requests are waiting |
 
@@ -650,6 +653,25 @@ only during a call the person started, and muting closes it.**
   application running while `inCall` is true.
 - The log keeps that a call began and ended, how long it ran and how many
   things were said, never what.
+
+## `Drawing` — drawings in the chat
+
+The model is told it may draw by answering with SVG in a ```svg block. Show
+such a block as a picture rather than as code. What the model wrote is never
+shown or saved as written: every call here cleans it first
+(`akira/core/making/svg.py`), so nothing in it can run a script or fetch
+anything.
+
+| Member | Kind | Notes |
+|---|---|---|
+| `drawingsIn(text)` | Slot → list of strings | Each drawing in a reply, as written: each ```svg block, or else each bare `<svg>…</svg>` |
+| `picture(svg, longest)` | Slot → string | A PNG of it, cleaned, `longest` pixels on its longer side (at most 2048), as a `data:image/png` address for an `Image`; `""` when it cannot be drawn. Kept for the last 64, so scrolling back does not redraw |
+| `check(svg)` | Slot → map | `usable`, `width`, `height`, `removed` (what was left out) and `note`, a sentence for under the picture, or why it cannot be drawn |
+| `save(svg, fileUrl)` | Slot → string | Write it, cleaned, to the file the person chose in a save dialog: a `.svg` file gets the SVG, a `.png` a 1024-pixel picture. `""`, or why not. Their own act, like Save As, so no grant is needed; only ever call it from their click |
+
+- A reply may still be streaming: `drawingsIn` finds a drawing only once its
+  `</svg>` has arrived, so a half-written one is not drawn.
+- Keep a way to see the SVG itself, for someone who wants the code.
 
 ### On the chat bridge, for reading aloud
 

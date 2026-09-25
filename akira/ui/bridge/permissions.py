@@ -35,6 +35,7 @@ False`, kept across a thread boundary.
 
 from __future__ import annotations
 
+import base64
 import secrets
 import threading
 
@@ -62,6 +63,7 @@ class ConfirmBridge(QObject):
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._pending: dict[str, tuple[threading.Event, list]] = {}
+        self._pictures: dict[str, tuple[bytes, tuple]] = {}
         self._lock = threading.Lock()
         self._closing = False
         # The thread this object was built on is the one QML runs on. Recorded
@@ -92,12 +94,18 @@ class ConfirmBridge(QObject):
             if self._closing:
                 return False
             self._pending[token] = (answered, box)
+            # A picture of what it is about, such as the page a button is on,
+            # held only while the question is open.
+            image = getattr(summary, "image", b"")
+            if image:
+                self._pictures[token] = (bytes(image), tuple(getattr(summary, "marks", ())))
 
-        self.requested.emit(token, summary)
+        self.requested.emit(token, str(summary))
 
         if not answered.wait(CONFIRM_TIMEOUT_S):
             with self._lock:
                 self._pending.pop(token, None)
+                self._pictures.pop(token, None)
             self.withdrawn.emit(token)
             return False
 
@@ -110,11 +118,32 @@ class ConfirmBridge(QObject):
         """Called from QML when a person clicks. A stale token does nothing."""
         with self._lock:
             entry = self._pending.pop(token, None)
+            self._pictures.pop(token, None)
         if entry is None:
             return
         answered, box = entry
         box[0] = bool(approved)
         answered.set()
+
+    @Slot(str, result=str)
+    def pictureFor(self, token: str) -> str:
+        """A picture of what request \a token is about, as a `data:` address for an
+        `Image`, or "" when it has none. Gone once the request is answered."""
+        with self._lock:
+            held = self._pictures.get(token)
+        if held is None:
+            return ""
+        return "data:image/jpeg;base64," + base64.b64encode(held[0]).decode("ascii")
+
+    @Slot(str, result="QVariantList")
+    def marksFor(self, token: str) -> list:
+        """The parts of that picture about to be used, to outline: each `x`, `y`,
+        `width` and `height` as fractions of the picture's size."""
+        with self._lock:
+            held = self._pictures.get(token)
+        if held is None:
+            return []
+        return [{"x": x, "y": y, "width": w, "height": h} for x, y, w, h in held[1]]
 
     @Property(int, constant=True)
     def timeoutSeconds(self) -> int:
@@ -127,6 +156,7 @@ class ConfirmBridge(QObject):
         with self._lock:
             pending = list(self._pending.items())
             self._pending.clear()
+            self._pictures.clear()
         for token, (answered, box) in pending:
             box[0] = False
             answered.set()

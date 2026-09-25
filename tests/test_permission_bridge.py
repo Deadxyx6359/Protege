@@ -9,6 +9,7 @@ it is pinned down here instead.
 
 from __future__ import annotations
 
+import base64
 import threading
 import time
 
@@ -108,6 +109,38 @@ def test_the_request_carries_the_summary_it_was_given(app):
     thread.join(timeout=5)
 
     assert "plan.md" in seen[0]
+
+
+def test_a_picture_of_what_it_is_about_is_there_while_asked_and_gone_after(app):
+    from akira.core.tools import Asking
+
+    bridge = ConfirmBridge()
+    tokens: list[str] = []
+    bridge.requested.connect(lambda token, summary: tokens.append((token, summary)))
+    jpeg = b"\xff\xd8\xff\xe0 a page \xff\xd9"
+    thread, box = ask_in_background(bridge, Asking("Press \"Send\" on example.com.", jpeg,
+                                                   ((0.1, 0.2, 0.3, 0.05),)))
+    assert pump_until(app, lambda: bool(tokens))
+    token, summary = tokens[0]
+    assert summary == "Press \"Send\" on example.com." and type(summary) is str
+    assert bridge.pictureFor(token) == ("data:image/jpeg;base64,"
+                                        + base64.b64encode(jpeg).decode("ascii"))
+    assert bridge.marksFor(token) == [{"x": 0.1, "y": 0.2, "width": 0.3, "height": 0.05}]
+    bridge.answer(token, True)
+    thread.join(timeout=5)
+    assert box.get("answer") is True
+    assert bridge.pictureFor(token) == "" and bridge.marksFor(token) == []
+
+
+def test_words_alone_have_no_picture(app):
+    bridge = ConfirmBridge()
+    tokens: list[str] = []
+    bridge.requested.connect(lambda token, summary: tokens.append(token))
+    thread, _ = ask_in_background(bridge)
+    assert pump_until(app, lambda: bool(tokens))
+    assert bridge.pictureFor(tokens[0]) == "" and bridge.marksFor(tokens[0]) == []
+    bridge.close()
+    thread.join(timeout=5)
 
 
 def test_a_second_answer_is_ignored(app):
