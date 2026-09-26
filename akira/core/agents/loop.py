@@ -59,6 +59,18 @@ _ANNOUNCES = re.compile(
     r"\b(?:let me(?! know)|let's|i will|i'll|i am going to|i'm going to|next,? i|"
     r"i need to (?:search|read|look|check|find|list|open))\b.{0,160}$", re.IGNORECASE)
 
+#: Folder permissions an agent is told the folders of, and how it is told.
+_FOLDERS = (("files.read", "Folders you can read (start by searching these)"),
+            ("files.write", "Folders you can write to"))
+
+#: Said once to a grounded agent that answered before reading anything.
+READ_FIRST = ("You answered without reading anything. Search and read what bears on the "
+              "task first, one tool call at a time, and then answer only from what you "
+              "read: no date, name, number or event that it does not give.")
+
+#: Tools that read nothing, so using them is not reading.
+PURE_HELPERS = frozenset({"calculate"})
+
 #: Said once to an agent that answered without using any of its tools.
 NUDGE = ("You answered without using any of your tools. If the task asks you to "
          "find, read, work out, create, save, change or send something, do it now "
@@ -86,6 +98,13 @@ class AgentSpec:
     """
 
     max_steps: int = DEFAULT_MAX_STEPS
+
+    grounded: bool = False
+    """Must read before it answers: an answer given before any tool was used is
+    met with a reminder to search and read first. For the agents whose work is
+    only as good as what they read, a gatherer and a drafter; without it a
+    drafter asked for a newsletter wrote one, dates and news, from nothing."""
+
     temperature: float = 0.4
     """Lower than chat. An agent choosing a tool is making a decision, not
     writing prose, and creativity there shows up as invented arguments."""
@@ -129,13 +148,30 @@ class Agent:
         return self._registry.available(self._context.policy, only=self.spec.tools)
 
     def system_prompt(self) -> str:
+        tools = self._tools()
         parts = [self.spec.role.strip(), "", NO_INVENTED_ADDRESSES, "",
-                 render_tools(self._tools())]
+                 render_tools(tools)]
         if self._context.workspace:
             parts += ["", f"You are working in: {self._context.workspace}"]
+        parts += self._folders(tools)
         # A model has no clock. The place and time zone only with location.read.
         parts += ["", now_line(self._context.policy)]
         return "\n".join(parts)
+
+    def _folders(self, tools) -> list[str]:
+        """Where this agent's file tools reach, from the grants that let them.
+
+        Without it an agent asked to read "the notes" had no folder to start
+        from, guessed "/path/to/notes", and was refused; a refusal ends a run.
+        Only the folders the person granted, and only for tools it holds.
+        """
+        needed = {r.capability for tool in tools for r in tool.requires}
+        lines = []
+        for capability, saying in _FOLDERS:
+            grant = self._context.policy.granted(capability) if capability in needed else None
+            if grant is not None and grant.scopes:
+                lines.append(f"{saying}: " + "; ".join(grant.scopes))
+        return ["", *lines] if lines else []
 
     # -- the loop -------------------------------------------------------------
 
@@ -191,11 +227,13 @@ class Agent:
             # as a team's analyst working from its brief, are left alone.
             unacted = (bool(tools) and not outcome.calls and not nudged
                        and ("```" in reply or any(not tool.reversible for tool in tools)))
-            if announced or unacted:
+            unread = (bool(tools) and not outcome.calls and not nudged and self.spec.grounded
+                      and any(tool.name not in PURE_HELPERS for tool in tools))
+            if announced or unacted or unread:
                 nudged += 1
                 messages.append(ChatMessage(role="assistant", content=reply))
-                messages.append(ChatMessage(role="user",
-                                            content=GO_ON if announced else NUDGE))
+                messages.append(ChatMessage(role="user", content=(
+                    GO_ON if announced else READ_FIRST if unread else NUDGE)))
                 continue
 
             if not calls:

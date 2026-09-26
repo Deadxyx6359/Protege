@@ -687,3 +687,44 @@ def test_the_reviewer_holds_nothing_irreversible():
     for name in REVIEWER.tools:
         assert name in tools, f"the reviewer names a tool that does not exist: {name}"
         assert tools[name].reversible, f"the reviewer can do something irreversible: {name}"
+
+
+# -- a grounded agent reads before it answers ----------------------------------
+
+
+def test_a_grounded_agent_that_answers_unread_is_told_to_read_first(workspace, context):
+    from akira.core.agents.loop import READ_FIRST
+
+    policy = Policy()
+    policy.grant("files.read", (str(workspace),))
+    call = ('<tool_call>{"name": "read_file", "arguments": {"path": "%s"}}</tool_call>'
+            % (workspace / "notes.md").as_posix())
+    agent, router = build_agent(["The answer is 12.", call, "The answer is 41."],
+                                context(policy), grounded=True, tools=("read_file",))
+    outcome = agent.run("What is the answer?")
+    assert outcome.answer == "The answer is 41."
+    assert [c.name for c in outcome.calls] == ["read_file"]
+    assert any(m.content == READ_FIRST for m in router.backend.prompts[1])
+
+
+def test_an_agent_not_grounded_may_answer_from_its_brief(workspace, context):
+    policy = Policy()
+    policy.grant("files.read", (str(workspace),))
+    agent, _ = build_agent(["From the brief: 41."], context(policy), tools=("read_file",))
+    assert agent.run("The brief says 41. What is it?").answer == "From the brief: 41."
+
+
+def test_a_grounded_agent_with_nothing_to_read_with_is_not_told_to(context):
+    agent, _ = build_agent(["It is 4."], context(Policy()), grounded=True,
+                           tools=("read_file", "calculate"))
+    assert agent.run("What is 2 + 2?").answer == "It is 4."
+
+
+def test_an_agent_is_told_the_folders_its_file_tools_may_reach(workspace, context):
+    policy = Policy()
+    policy.grant("files.read", (str(workspace),))
+    reader, _ = build_agent([], context(policy), tools=("read_file",))
+    assert f"Folders you can read (start by searching these): {workspace}" in reader.system_prompt()
+    # Not the folders of a permission its own tools do not use.
+    helper, _ = build_agent([], context(policy), tools=("calculate",))
+    assert "Folders you can" not in helper.system_prompt()

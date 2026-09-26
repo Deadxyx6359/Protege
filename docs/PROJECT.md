@@ -819,8 +819,12 @@ be used is refused with the reason before anyone is asked.
 with the publish step confirmed by a person; `core/making/pipeline.py`, action `pipeline`, bridge `Drafts`
 *Done:* a pipeline is a scheduled job with a brief and a place to publish to: a
 new note in the vault, a new file, or an email from a connected account. Each
-run the `drafter` (which can read, and has no tool that publishes) writes the
-piece, the `critic` reviews it against the brief, and the drafter revises it.
+run the `gatherer` reads what the job's grants reach, the `drafter` (which can
+read, and has no tool that publishes) writes the piece from what was read, the
+`critic` checks every date, name and number against that material as well as
+the brief, and the drafter revises it. The files go on as read, not only as the
+gatherer summarised them: tried with the real models, the summary alone lost
+half a committee's minutes, and a drafter with no material invented a date.
 The result is a draft that waits. The schedule never publishes: the person
 reads the draft and the review, edits it or throws it away, and presses
 Publish. That press is the confirmation the publishing tool asks for, recorded

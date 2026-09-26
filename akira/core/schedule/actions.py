@@ -17,6 +17,7 @@ import json
 from akira.core.agents import Agent, research_team, software_team
 from akira.core.agents.roles import ALL_ROLES
 from akira.core.agents.team import Team
+from akira.core.agents.trace import Kind
 from akira.core.making import pipeline
 from akira.core.models import ModelRouter
 from akira.core.tools import ToolRegistry
@@ -133,10 +134,23 @@ def register_pipeline_action(actions: ActionRegistry, *, router: ModelRouter,
         target = pipeline.target_of(context.arguments["publish"])
 
         def run_one(role: str, task: str) -> tuple[bool, str, str]:
-            outcome = Agent(ALL_ROLES[role], router=router, registry=registry,
-                            context=context.tools, trace=context.trace,
-                            ).run(task, is_cancelled=context.cancelled)
-            return outcome.ok, outcome.answer, outcome.stopped
+            read: list[str] = []
+
+            def heard(event) -> None:
+                if (event.kind is Kind.TOOL_RESULT and event.ok and event.agent == role
+                        and event.tool in pipeline.READING):
+                    read.append(event.text)
+
+            stop = context.trace.listen(heard) if role == "gatherer" else None
+            try:
+                outcome = Agent(ALL_ROLES[role], router=router, registry=registry,
+                                context=context.tools, trace=context.trace,
+                                ).run(task, is_cancelled=context.cancelled)
+            finally:
+                if stop is not None:
+                    stop()
+            answer = pipeline.gathered(outcome.answer, read) if read else outcome.answer
+            return outcome.ok, answer, outcome.stopped
 
         made = pipeline.make(brief, run_one)
         if made.cancelled:

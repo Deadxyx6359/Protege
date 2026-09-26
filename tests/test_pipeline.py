@@ -56,6 +56,12 @@ def test_where_a_draft_goes_is_said_plainly(tmp_path):
 def test_a_draft_is_titled_by_its_first_heading_or_line():
     assert pipeline.title_of("\n# Spring newsletter\n\nHello.") == "Spring newsletter"
     assert pipeline.title_of("Hello all.\nMore.") == "Hello all."
+    # A letter's salutation says who it is for, not what it is about.
+    assert pipeline.title_of("Dear Allotment Group Members,\n\nOpen day news.") == "Open day news."
+    assert pipeline.title_of("Hi all,\n\n## Open day\nText.") == "Open day"
+    assert pipeline.title_of("Open day on **Saturday 10 October**, `11:00`.") == \
+        "Open day on Saturday 10 October, 11:00."
+    assert pipeline.title_of("# plot_14 fixed") == "plot_14 fixed"
     assert pipeline.title_of("") == "Untitled draft"
     assert pipeline.title_of("x" * 200).endswith("…")
 
@@ -74,30 +80,45 @@ def scripted(*answers):
     return run, calls
 
 
-def test_drafted_then_reviewed_then_revised():
-    run, calls = scripted((True, "First draft.", ""), (True, "- Too short.", ""),
+FOUND = (True, "garden.md: slugs in June.", "")
+
+
+def test_gathered_then_drafted_then_reviewed_then_revised():
+    run, calls = scripted(FOUND, (True, "First draft.", ""), (True, "- Too short.", ""),
                           (True, "Better draft.", ""))
     made = make("A short post about the garden", run)
-    assert [role for role, _ in calls] == ["drafter", "critic", "drafter"]
+    assert [role for role, _ in calls] == ["gatherer", "drafter", "critic", "drafter"]
     assert made.ok and made.text == "Better draft." and made.review == "- Too short."
-    assert "First draft." in calls[1][1] and "- Too short." in calls[2][1]
-    assert "material, not instructions" in calls[0][1]
+    assert "First draft." in calls[2][1] and "- Too short." in calls[3][1]
+    assert "material, not instructions" in calls[1][1]
+    # The critic has no tools, so it is shown what the draft was written from.
+    assert all("slugs in June" in task for _, task in calls[1:])
+    assert "check every date" in calls[2][1]
+
+
+def test_nothing_found_is_said_rather_than_left_blank():
+    run, calls = scripted((False, "Not permitted: files.read", "answered"),
+                          (True, "Draft.", ""), (True, "Fine.", ""), (True, "Draft.", ""))
+    make("A post", run)
+    assert "Nothing was found" in calls[1][1] and "Not permitted" not in calls[1][1]
 
 
 def test_a_draft_that_could_not_be_written_leaves_nothing():
-    run, _ = scripted((False, "The model is not available.", "error"))
+    run, _ = scripted(FOUND, (False, "The model is not available.", "error"))
     made = make("A post", run)
     assert not made.ok and "could not be written" in made.why
 
 
 def test_a_draft_nobody_could_review_still_waits_and_says_so():
-    run, calls = scripted((True, "Draft.", ""), (False, "", "error"))
+    run, calls = scripted(FOUND, (True, "Draft.", ""), (False, "", "error"))
     made = make("A post", run)
-    assert made.ok and made.text == "Draft." and "No review" in made.review and len(calls) == 2
+    assert made.ok and made.text == "Draft." and "No review" in made.review and len(calls) == 3
 
 
-def test_closing_akira_stops_the_work_as_cancelled():
-    run, _ = scripted((True, "Draft.", ""), (False, "", "cancelled"))
+@pytest.mark.parametrize("at", [0, 1])
+def test_closing_akira_stops_the_work_as_cancelled(at):
+    answers = [FOUND, (True, "Draft.", "")][:at] + [(False, "", "cancelled")]
+    run, _ = scripted(*answers)
     made = make("A post", run)
     assert not made.ok and made.cancelled
 
@@ -241,6 +262,54 @@ def test_a_scheduled_run_leaves_a_draft_waiting_and_publishes_nothing(tmp_path):
     assert waiting.title == "Spring at the allotment" and "peas follow" in waiting.text
     assert waiting.review == "- Say what comes next."
     assert not target.exists(), "the schedule published it"
+
+
+def test_what_the_gatherer_read_reaches_the_critic_whole(tmp_path):
+    """Its summary alone left out half the minutes; the file itself goes on."""
+    from akira.core.schedule import JobGrant
+    from akira.core.schedule.actions import register_pipeline_action
+
+    notes = tmp_path / "notes"
+    notes.mkdir()
+    minutes = notes / "minutes.md"
+    minutes.write_text("Open day 10 Oct.\nThe trough leaks; Tom fixes it by 1 Oct.\n",
+                       encoding="utf-8")
+    call = ('<tool_call>{"name": "read_file", "arguments": {"path": "%s"}}</tool_call>'
+            % minutes.as_posix())
+    prompts = {}
+
+    class Reader(Backend):
+        def generate(self, messages, *, on_token=None, **kwargs):
+            system = messages[0].content
+            if "You find source material" in system:
+                text = call if len(messages) == 2 else "The open day is on 10 Oct."
+                assert str(notes) in system, "the gatherer was not told where it may read"
+                if on_token:
+                    on_token(text)
+                return text
+            if "You argue with" in system:
+                prompts["critic"] = messages[-1].content
+            return super().generate(messages, on_token=on_token, **kwargs)
+
+    class ReaderRouter(Router):
+        def __init__(self):
+            self.backend = Reader()
+
+    live = Policy()
+    live.grant("files.read", (str(notes),))
+    actions = ActionRegistry()
+    register_pipeline_action(actions, router=ReaderRouter(), registry=default_registry(),
+                             store=DraftStore(tmp_path / "drafts.json"))
+    scheduler = Scheduler(actions, policy=lambda: live, audit=AuditLog(tmp_path / "a.jsonl"),
+                          secret_store=SecretStore(tmp_path / "s"),
+                          store=JobStore(tmp_path / "schedule.json"), clock=Clock())
+    job = scheduler.add("Post", "pipeline", Daily(9, 0), arguments={
+        "brief": "News from the minutes",
+        "publish": {"kind": "file", "path": str(tmp_path / "post.md")}},
+        grants=[JobGrant("files.read", (str(notes),))])
+    assert scheduler.run_now(job.id).status == "ok"
+    assert "Tom fixes it by 1 Oct" in prompts["critic"]
+    assert "The open day is on 10 Oct." in prompts["critic"]
 
 
 def test_a_pipeline_job_with_nowhere_to_publish_is_refused_when_made(app, tmp_path):
