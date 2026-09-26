@@ -161,7 +161,7 @@ def test_notes_for_locked_topics_become_retrievable(tmp_path):
 
 
 @pytest.fixture(scope="module")
-def window(tmp_path_factory, tk_available):
+def window(tmp_path_factory, tk_available, capture_paused):
     """One window for the module.
 
     Deliberately not paired with `clean_root`: a AkiraWindow *is* a `tk.Tk`,
@@ -176,8 +176,9 @@ def window(tmp_path_factory, tk_available):
     ensure_project(vault, "default")
     store.save_manifest(vault, TAUGHT)
     try:
-        win = AkiraWindow(vault, store.load_manifest(vault), Settings(),
-                            store.load_personality(vault))
+        with capture_paused():
+            win = AkiraWindow(vault, store.load_manifest(vault), Settings(),
+                              store.load_personality(vault))
     except tk.TclError:
         if tk_available:
             raise

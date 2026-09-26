@@ -30,14 +30,15 @@ GATHERER = AgentSpec(
         "passages that bear on it and quote them with where they came from. "
         "Do not analyse and do not conclude — that is someone else's job. If "
         "you cannot find something, say so plainly rather than filling the gap "
-        "from memory."
+        "from memory. Before saying it is not there, search again more widely: "
+        "fewer words, and no filename pattern."
     ),
     route=Route.CHAT,
     tools=("read_file", "list_directory", "search_files", "read_document",
            "search_notes", "read_note", "search_documents", "search_conversations",
            "web_search", "fetch_page", "browse_page", "search_drive", "read_drive_file",
-           "look_at_screen"),
-    max_steps=6,
+           "look_at_screen", "calculate"),
+    max_steps=8,
     temperature=0.3,
 )
 
@@ -50,7 +51,7 @@ ANALYST = AgentSpec(
         "settle. Cite the source for every claim you make."
     ),
     route=Route.CHAT,
-    tools=("read_file", "search_files", "read_document", "read_note"),
+    tools=("read_file", "search_files", "read_document", "read_note", "calculate"),
     max_steps=5,
     temperature=0.4,
 )
@@ -78,7 +79,9 @@ WRITER = AgentSpec(
         "You write the final answer for the person who asked. Use the "
         "analysis, take the critic's objections seriously, and where something "
         "remains uncertain say so in the answer instead of hiding it. Write "
-        "plainly. No preamble about what you are about to do."
+        "plainly. No preamble about what you are about to do, and never mention "
+        "the analysis, the critic or how the answer was made: the person asked a "
+        "question and wants its answer."
     ),
     route=Route.CHAT,
     tools=(),
@@ -200,7 +203,7 @@ COURSEWORK = AgentSpec(
     route=Route.CHAT,
     # Reading only: there is no tool that changes anything in Canvas.
     tools=("list_courses", "list_assignments", "read_assignment", "list_events",
-           "search_notes", "read_note", "search_drive", "read_drive_file"),
+           "search_notes", "read_note", "search_drive", "read_drive_file", "calculate"),
     max_steps=6,
     temperature=0.3,
 )
@@ -219,7 +222,7 @@ FINANCES = AgentSpec(
     ),
     route=Route.CHAT,
     # Reading only. There is no capability that moves money, so there is no tool.
-    tools=("list_bank_accounts", "list_transactions", "search_notes", "read_note"),
+    tools=("list_bank_accounts", "list_transactions", "search_notes", "read_note", "calculate"),
     max_steps=6,
     temperature=0.2,
 )
@@ -233,8 +236,9 @@ ILLUSTRATOR = AgentSpec(
         "scripts, no links or pictures from elsewhere. For a photograph, a "
         "painting or a scene, describe it plainly (subject, setting, style, "
         "light) to make_image. Save where the person said; if a save is refused, "
-        "fix what it says and try again. The person sees each picture before it "
-        "is saved. Say where it went and what it shows."
+        "fix what it says and try again. Do not ask first: make it and save it, "
+        "since the person sees each picture before it is saved and approves it "
+        "then. Say where it went and what it shows."
     ),
     # SVG is code, and the coding model writes it more reliably.
     route=Route.CODE,
@@ -258,7 +262,7 @@ DRAFTER = AgentSpec(
     # Reading only. Publishing is not a tool of the drafter's: it is the
     # person's, from the draft (`akira.core.making.pipeline`).
     tools=("search_notes", "read_note", "read_file", "search_files", "read_document",
-           "search_drive", "read_drive_file"),
+           "search_drive", "read_drive_file", "calculate"),
     max_steps=8,
     temperature=0.6,
 )

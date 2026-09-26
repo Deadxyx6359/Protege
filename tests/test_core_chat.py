@@ -222,10 +222,24 @@ def test_title_of_an_empty_conversation():
         ("```\nprint(1)\n```", Route.CODE),
         ("what should I have for dinner", Route.CHAT),
         ("summarise this paragraph", Route.CHAT),
+        # Whole words: none of these is about code.
+        ("What's the capital of Australia?", Route.CHAT),
+        ("I trust you, and I'm frustrated", Route.CHAT),
+        ("What is the function of the liver?", Route.CHAT),
+        ("Book a first class ticket", Route.CHAT),
+        ("Is this API rate limited?", Route.CODE),
+        ("Write a function that sorts names", Route.CODE),
+        ("How do C++ templates work?", Route.CODE),
     ],
 )
 def test_route_heuristic(text, expected):
     assert route_for(text) is expected
+
+
+def test_a_short_follow_up_to_code_stays_with_the_code_model():
+    assert route_for("Show me three example calls", follows_code=True) is Route.CODE
+    assert route_for("Show me three example calls") is Route.CHAT
+    assert route_for("x " * 300, follows_code=True) is Route.CHAT
 
 
 def test_unconfigured_route_falls_back_rather_than_failing(tmp_path):

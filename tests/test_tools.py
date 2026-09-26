@@ -54,8 +54,21 @@ def context(workspace):
 # -- what an agent is shown -------------------------------------------------
 
 
-def test_no_grants_means_no_tools(context):
-    assert default_registry().available(Policy()) == []
+def test_no_grants_means_no_tool_that_touches_anything(context):
+    # Only pure computation is offered without a grant: arithmetic, which reads
+    # and reaches nothing.
+    offered = default_registry().available(Policy())
+    assert [t.name for t in offered] == ["calculate"]
+    assert all(t.pure and not t.requires and t.reversible for t in offered)
+
+
+def test_a_tool_needing_nothing_must_be_pure():
+    from akira.core.tools import Tool, ToolRegistry, ToolResult
+
+    loose = Tool(name="loose", summary="x", parameters=(), requires=(),
+                 run=lambda a, c: ToolResult.success("x"))
+    with pytest.raises(ValueError, match="must be pure"):
+        ToolRegistry().register(loose)
 
 
 def test_a_tool_is_hidden_until_every_capability_it_needs_is_granted(workspace):
@@ -159,7 +172,7 @@ def test_writing_asks_even_when_the_capability_is_granted(workspace, context):
 
     assert not result.ok
     assert not (workspace / "new.txt").exists()
-    assert asked and "write_file" in asked[0]
+    assert asked and "Create a new file" in asked[0] and "new.txt" in asked[0]
 
 
 def test_the_confirmation_prompt_states_the_actual_values(workspace, context):
@@ -226,7 +239,7 @@ def test_a_boolean_is_not_accepted_where_a_number_belongs():
     tool = Tool(
         name="t", summary="s",
         parameters=(Parameter("count", "integer", "how many"),),
-        requires=(), run=lambda a, c: ToolResult.success("ok"))
+        requires=(), pure=True, run=lambda a, c: ToolResult.success("ok"))
     with pytest.raises(ToolError):
         tool.validate({"count": True})
 
@@ -235,7 +248,7 @@ def test_a_numeric_string_is_accepted_where_a_number_belongs():
     tool = Tool(
         name="t", summary="s",
         parameters=(Parameter("count", "integer", "how many"),),
-        requires=(), run=lambda a, c: ToolResult.success("ok"))
+        requires=(), pure=True, run=lambda a, c: ToolResult.success("ok"))
     assert tool.validate({"count": "7"}) == {"count": 7}
 
 
@@ -244,7 +257,7 @@ def test_undeclared_arguments_are_dropped_rather_than_passed_through():
     tool = Tool(
         name="t", summary="s",
         parameters=(Parameter("path", "string", "where"),),
-        requires=(), run=lambda a, c: ToolResult.success("ok"))
+        requires=(), pure=True, run=lambda a, c: ToolResult.success("ok"))
     assert tool.validate({"path": "/a", "recursive": True}) == {"path": "/a"}
 
 
@@ -252,7 +265,7 @@ def test_an_enum_argument_rejects_anything_else():
     tool = Tool(
         name="t", summary="s",
         parameters=(Parameter("mode", "string", "how", enum=("fast", "slow")),),
-        requires=(), run=lambda a, c: ToolResult.success("ok"))
+        requires=(), pure=True, run=lambda a, c: ToolResult.success("ok"))
     with pytest.raises(ToolError):
         tool.validate({"mode": "sideways"})
 
@@ -271,7 +284,7 @@ def test_a_tool_that_raises_does_not_take_the_agent_with_it(context):
 
     registry = ToolRegistry()
     registry.register(Tool(name="explode", summary="s", parameters=(),
-                           requires=(), run=explode))
+                           requires=(), pure=True, run=explode))
     result = registry.invoke("explode", {}, context())
     assert not result.ok and "ZeroDivisionError" in result.content
 
@@ -292,7 +305,7 @@ def test_a_scoped_capability_must_say_which_argument_carries_its_scope():
 
 def test_registering_the_same_name_twice_is_refused():
     registry = ToolRegistry()
-    tool = Tool(name="t", summary="s", parameters=(), requires=(),
+    tool = Tool(name="t", summary="s", parameters=(), requires=(), pure=True,
                 run=lambda a, c: ToolResult.success("ok"))
     registry.register(tool)
     with pytest.raises(ValueError):

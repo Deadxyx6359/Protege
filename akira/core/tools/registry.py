@@ -38,6 +38,12 @@ class ToolRegistry:
             raise ValueError(f"a tool named {tool.name!r} is already registered")
         for requirement in tool.requires:
             get_capability(requirement.capability)  # raises if undeclared
+        if not tool.requires and not (tool.pure and tool.reversible):
+            # Nothing is offered without a grant except what touches nothing.
+            raise ValueError(f"{tool.name!r} needs no capability, so it must be pure: "
+                             "computing from its arguments alone")
+        if tool.pure and tool.requires:
+            raise ValueError(f"{tool.name!r} is marked pure but needs capabilities")
         self._tools[tool.name] = tool
         return tool
 

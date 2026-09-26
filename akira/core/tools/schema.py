@@ -206,6 +206,11 @@ class Tool:
     alone do not say it: a push names the address it goes to and how many
     commits. It may raise `ToolError` to refuse before anyone is asked."""
 
+    pure: bool = False
+    """Touches nothing: no file, no network, no account, no device. It only
+    computes from its arguments, like arithmetic. The one kind of tool offered
+    without a grant, and a tool with no requirements must be one."""
+
     def json_schema(self) -> dict:
         """The tool-call schema handed to the model."""
         return {

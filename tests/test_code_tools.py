@@ -61,7 +61,7 @@ def write(path, body):
 
 def test_the_coding_tools_are_offered_only_once_granted(project):
     registry = default_registry()
-    assert not {t.name for t in registry.available(Policy())}
+    assert not {t.name for t in registry.available(Policy()) if not t.pure}
 
     reading = Policy()
     reading.grant("vcs.read", (str(project),))

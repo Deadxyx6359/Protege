@@ -19,6 +19,7 @@ Three properties worth stating, because each was a decision:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -39,6 +40,31 @@ DEFAULT_MAX_STEPS = 8
 #: A tool result longer than this is trimmed before going back to the model.
 #: The tools cap their own output too; this is the backstop for the total.
 MAX_RESULT_CHARS = 6000
+
+#: Said to an agent whose steps have run out.
+OUT_OF_STEPS = ("You have used all your steps. Do not call a tool. Answer now, from what "
+                "the tools have already shown you, and say what you could not find.")
+
+#: Said to an agent that announced a step and stopped without taking it.
+GO_ON = ("You said what you would do next but did not do it. If a step is left, take "
+         "it now: reply with the tool call alone, in the form given. If you have "
+         "finished, give your answer again, as the person should read it.")
+
+#: At most this many reminders in one run, so a confused agent still stops.
+MAX_NUDGES = 2
+
+#: The end of a reply that announces a step: "Let me read the file.", "I'll search".
+#: On the reply's last line, and not "Let me know if you need anything".
+_ANNOUNCES = re.compile(
+    r"\b(?:let me(?! know)|let's|i will|i'll|i am going to|i'm going to|next,? i|"
+    r"i need to (?:search|read|look|check|find|list|open))\b.{0,160}$", re.IGNORECASE)
+
+#: Said once to an agent that answered without using any of its tools.
+NUDGE = ("You answered without using any of your tools. If the task asks you to "
+         "find, read, work out, create, save, change or send something, do it now "
+         "with tool calls, one at a time in the form given, reading first whatever "
+         "the task depends on. If it truly needs no tool, give your answer again, "
+         "as the person should read it.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +102,9 @@ class Outcome:
     """Why it ended: `answered`, `budget`, `cancelled`, or `failed`."""
 
     calls: list[Call] = field(default_factory=list)
+
+    partial: bool = False
+    """Out of steps, but it said what it had found by then: worth passing on."""
 
 
 class Agent:
@@ -133,6 +162,7 @@ class Agent:
             ChatMessage(role="user", content=task),
         ]
         outcome = Outcome()
+        nudged = 0
 
         for step in range(1, self.spec.max_steps + 1):
             outcome.steps = step
@@ -148,7 +178,25 @@ class Agent:
                 self._trace.emit(Kind.FAILED, name, text=outcome.answer, step=step)
                 return outcome
 
-            calls, prose = parse_calls(reply)
+            calls, prose = parse_calls(reply, frozenset(t.name for t in self._tools()))
+
+            tools = self._tools() if not calls and nudged < MAX_NUDGES else []
+            # "Let me search the files." and nothing more: the step it meant to
+            # take, announced and not taken. It is told to take it.
+            announced = bool(tools) and _ANNOUNCES.search(reply[-300:]) is not None
+            # An agent that can act, answering without having used a tool, has
+            # usually done in words what it should have done: code printed
+            # instead of the file written, an SVG shown instead of saved. It is
+            # asked once whether a tool was needed. Agents that only read, such
+            # as a team's analyst working from its brief, are left alone.
+            unacted = (bool(tools) and not outcome.calls and not nudged
+                       and ("```" in reply or any(not tool.reversible for tool in tools)))
+            if announced or unacted:
+                nudged += 1
+                messages.append(ChatMessage(role="assistant", content=reply))
+                messages.append(ChatMessage(role="user",
+                                            content=GO_ON if announced else NUDGE))
+                continue
 
             if not calls:
                 outcome.answer = prose or reply.strip()
@@ -190,6 +238,23 @@ class Agent:
             f"I used all {self.spec.max_steps} of my steps without finishing. "
             f"Last thing I did: {outcome.calls[-1].name if outcome.calls else 'nothing'}."
         )
+        # What it found is not thrown away: one last turn, with no tool, to say
+        # what it has. In a team the next member works from that rather than
+        # from "I did not finish".
+        if outcome.calls:
+            messages.append(ChatMessage(role="user", content=OUT_OF_STEPS))
+            try:
+                last = self._generate(messages, on_token, is_cancelled, outcome.steps + 1)
+            except Cancelled:
+                outcome.stopped = "cancelled"
+                last = ""
+            except Exception:  # noqa: BLE001 - the budget message stands
+                last = ""
+            prose = parse_calls(last)[1] if last else ""
+            if prose:
+                outcome.partial = True
+                outcome.answer = (f"{prose}\n\n(I ran out of steps before finishing, so "
+                                  "this is from what I had found by then.)")
         self._trace.emit(Kind.FAILED, name, text=outcome.answer, step=outcome.steps)
         return outcome
 

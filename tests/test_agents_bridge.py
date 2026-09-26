@@ -166,7 +166,9 @@ def test_naming_a_folder_grants_nothing(app, make, tmp_path):
 
     prompt = system_prompt(backend)
     assert str(folder.resolve()) in prompt, "the agent was not told where to work"
-    assert "no tools" in prompt.lower(), "a folder name alone handed out tools"
+    # Only arithmetic, which touches nothing, is offered without a grant.
+    for touching in ("read_file", "list_directory", "search_files", "write_file"):
+        assert touching not in prompt, "a folder name alone handed out tools"
 
 
 def test_permissions_are_the_ones_held_when_the_run_starts(app, make, tmp_path):

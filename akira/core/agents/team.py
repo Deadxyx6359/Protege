@@ -124,7 +124,13 @@ class Team:
                     f"\n--- from {previous.name} ---\n"
                     f"({previous.name} could not finish. Work without it.)")
 
-        parts.append(f"\nYou are {spec.name}. Do your part now.")
+        if spec is self.spec.members[-1] and len(self.spec.members) > 1:
+            # The last member's words are the team's answer. Told only "do your
+            # part", it answers the member before it: "the analysis overgeneralises".
+            parts.append(f"\nYou are {spec.name}, the last. Write the answer to what the "
+                         f"team was asked, for the person who asked it: {task}")
+        else:
+            parts.append(f"\nYou are {spec.name}. Do your part now.")
         return "\n".join(parts)
 
     # -- the run --------------------------------------------------------------
@@ -164,7 +170,7 @@ class Team:
                 outcome.ok, outcome.stopped = False, "cancelled"
                 return outcome
 
-            if result.ok and result.answer.strip():
+            if (result.ok or result.partial) and result.answer.strip():
                 outcome.contributions[spec.name] = \
                     result.answer[:MAX_CONTRIBUTION_CHARS]
                 previous_name = spec.name

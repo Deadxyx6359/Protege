@@ -7,6 +7,7 @@ bridge above it.
 
 from __future__ import annotations
 
+import re
 import secrets
 import time
 from dataclasses import dataclass, field
@@ -42,12 +43,27 @@ DRAWING = (
     "links and images from elsewhere are removed before it is shown."
 )
 
+#: Said in the chat, which has no tools. Without it a model asked to set a
+#: reminder answers "Reminder set for 5 PM", and asked to remember something
+#: answers "Noted", and neither happened.
+CHAT_LIMITS = (
+    "In this conversation you can only talk. You cannot set reminders or "
+    "alarms, send messages or email, open, read or change files, browse the "
+    "web, or remember anything after this conversation ends, unless something "
+    "below gives you what you need. Never say or imply that you did any of "
+    "these. Say plainly that you cannot, and what the person can use instead: "
+    "a job in Schedule for a reminder, or an agent in Agents for a task that "
+    "reads their files, mail or the web, or acts."
+)
+
 DEFAULT_SYSTEM_PROMPT = (
     "You are Akira, a capable assistant running entirely on the user's own "
-    "machine. Be direct and concrete. Prefer a short, correct answer to a long, "
-    "hedged one. When you are unsure, say so plainly rather than inventing "
-    "detail. Use Markdown for structure only when it genuinely helps. "
-    + NO_INVENTED_ADDRESSES + " " + DRAWING
+    "machine; if asked what you are, say so. Be direct and concrete. Prefer a "
+    "short, correct answer to a long, hedged one. When you are unsure, say so "
+    "plainly rather than inventing detail. For arithmetic, dates and times, "
+    "work it through step by step and check the result. Use Markdown for "
+    "structure only when it genuinely helps. "
+    + NO_INVENTED_ADDRESSES + " " + CHAT_LIMITS + " " + DRAWING
 )
 
 #: Reserved above the reply budget for the system prompt and formatting overhead
@@ -221,7 +237,7 @@ class Responder:
         return result
 
 
-def route_for(text: str) -> Route:
+def route_for(text: str, follows_code: bool = False) -> Route:
     """Guess which route a message wants.
 
     A keyword heuristic, and honest about it: it exists so that asking about
@@ -230,12 +246,23 @@ def route_for(text: str) -> Route:
     interface. A model-based classifier would be better and costs a round trip
     before every answer, which is the thing this rebuild is trying to avoid.
     """
-    lowered = text.lower()
-    signals = (
-        "code", "function", "class ", "def ", "bug", "traceback", "stack trace",
-        "compile", "refactor", "unit test", "regex", "sql", "api",
-        "python", "javascript", "typescript", "rust", "c++", "qml",
-    )
-    if any(token in lowered for token in signals) or "```" in text:
+    if _CODE_SIGNALS.search(text) or "```" in text:
+        return Route.CODE
+    # A follow-up to an answer that held code ("now make it ignore case") is
+    # still about that code, and switching models mid-thread both costs a
+    # reload and hands the thread to a model that did not write it.
+    if follows_code and len(text) <= _FOLLOW_UP_CHARS:
         return Route.CODE
     return Route.CHAT
+
+
+#: Words that mean code, as whole words: "capital" is not "api", nor "trust" Rust.
+_CODE_SIGNALS = re.compile(
+    r"\b(code|coding|def|bug|debug|traceback|stack trace|compile[rsd]?|refactor\w*|"
+    r"unit tests?|regex|sql|api|python|javascript|typescript|rust|qml|java|golang|"
+    r"html|css|json|yaml|bash|powershell)\b|\bfunctions?\b(?!\s+of\b)|\bc\+\+|"
+    r"\bclass\s+\w+\s*[(:]",
+    re.IGNORECASE)
+
+#: How long a message may be and still count as a follow-up to code.
+_FOLLOW_UP_CHARS = 400

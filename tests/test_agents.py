@@ -173,7 +173,7 @@ def test_having_no_tools_is_stated_plainly_in_the_prompt():
 def test_rendered_tools_name_their_arguments():
     tool = Tool(name="probe", summary="Look at a thing.",
                 parameters=(Parameter("path", "string", "Where to look."),),
-                requires=(), run=lambda a, c: ToolResult.success("ok"))
+                requires=(), pure=True, run=lambda a, c: ToolResult.success("ok"))
     text = render_tools([tool])
     assert "probe" in text and "path" in text and "required" in text
 
@@ -407,7 +407,7 @@ def test_a_tool_failure_does_not_end_the_run(context, workspace):
 
     registry = ToolRegistry()
     registry.register(Tool(name="explode", summary="Break.", parameters=(),
-                           requires=(), run=explode))
+                           requires=(), pure=True, run=explode))
 
     agent, _ = build_agent([
         '<tool_call>{"name": "explode", "arguments": {}}</tool_call>',

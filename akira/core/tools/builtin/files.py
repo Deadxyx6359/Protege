@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import fnmatch
 import os
+import re
 from pathlib import Path
 
 from akira.security.paths import real
@@ -157,11 +158,20 @@ def _run_search(arguments: dict, context: ToolContext) -> ToolResult:
     lowered = needle.lower()
     matches: list[str] = []
     scanned = 0
+    # A phrase is often not written as asked: "allotment open day" in a note
+    # that says "Allotment committee" and, lines later, "Open day moved". So
+    # if the phrase itself is nowhere, the files holding every one of its words
+    # are the next best thing, with the lines that hold any of them.
+    words = list(dict.fromkeys(w for w in re.findall(r"\w+", lowered) if len(w) > 2))
+    # For each file holding some of the words: how many, and its lines with any.
+    loosely: list[tuple[int, list[str]]] = []
+    skipped = 0
 
     for current, dirs, names in os.walk(root):
         dirs[:] = [d for d in dirs if d not in _SKIP_DIRS and not d.startswith(".")]
         for name in names:
             if not fnmatch.fnmatch(name, pattern):
+                skipped += 1
                 continue
             candidate = Path(current) / name
             if candidate.suffix.lower() in _BINARY:
@@ -178,14 +188,33 @@ def _run_search(arguments: dict, context: ToolContext) -> ToolResult:
                     matches.append(f"{candidate}:{number}: {line.strip()[:200]}")
                     if len(matches) >= MAX_MATCHES:
                         break
+            whole = text.lower()
+            held = sum(1 for word in words if word in whole)
+            if not matches and len(words) > 1 and held:
+                lines = [f"{candidate}:{number}: {line.strip()[:200]}"
+                         for number, line in enumerate(text.splitlines(), 1)
+                         if any(word in line.lower() for word in words)]
+                loosely.append((held, lines[:20]))
             if len(matches) >= MAX_MATCHES:
                 break
         if len(matches) >= MAX_MATCHES:
             break
 
-    if not matches:
+    where = f"{scanned} files searched"
+    if skipped:
+        where += (f"; {skipped} other files did not match {pattern!r}, so search again "
+                  "without it if they might hold it")
+    if not matches and loosely:
+        best = max(held for held, _ in loosely)
+        found = [line for held, lines in loosely if held == best for line in lines]
+        which = ("every one of its words" if best == len(words)
+                 else f"{best} of its {len(words)} words, the most any file holds")
         return ToolResult.success(
-            f"No matches for {needle!r} in {root} ({scanned} files searched).")
+            f"No line holds {needle!r} as written in {root} ({where}). These files hold "
+            f"{which}; the lines with any of them:\n\n" + "\n".join(found[:MAX_MATCHES]),
+            data={"count": 0, "loose": len(found)})
+    if not matches:
+        return ToolResult.success(f"No matches for {needle!r} in {root} ({where}).")
     header = f"{len(matches)} match(es) for {needle!r} in {root}"
     if len(matches) >= MAX_MATCHES:
         header += " — stopped at the limit"
@@ -200,7 +229,8 @@ search_files = Tool(
         Parameter("path", "string", "Absolute path to the folder to search."),
         Parameter("text", "string", "The text to look for. Case-insensitive."),
         Parameter("filename_pattern", "string",
-                  "Optional glob to limit which files are searched, e.g. '*.py'.",
+                  "Usually leave this out, to search every text file. Give one only to "
+                  "narrow a search you know the file type of, e.g. '*.md'.",
                   required=False, default="*"),
     ),
     requires=(Requirement("files.read", scope_from="path"),),
@@ -209,6 +239,25 @@ search_files = Tool(
 
 
 # -- write -------------------------------------------------------------------
+
+
+def _describe_write(arguments: dict, context: ToolContext) -> str:
+    """The question before writing: new or replaced, where, and every line of it."""
+    path = real(arguments["path"])
+    content = str(arguments["content"])
+    if path.is_dir():
+        raise ToolError(f"{path} is a directory")
+    if path.exists():
+        try:
+            before = len(path.read_text(encoding="utf-8", errors="replace").splitlines())
+        except OSError:
+            before = 0
+        head = f"Replace the file\n{path}\n(it has {before} lines now; they will be gone)"
+    else:
+        head = f"Create a new file\n{path}"
+    shown = content if len(content) <= 4000 else content[:4000] + "\n… (and more)"
+    count = content.count("\n") + 1
+    return f"{head}\n\nIt will hold {count} line{'' if count == 1 else 's'}:\n\n{shown}"
 
 
 def _run_write(arguments: dict, context: ToolContext) -> ToolResult:
@@ -242,6 +291,7 @@ write_file = Tool(
     # Replacing a file's contents cannot be undone from here, so it asks.
     reversible=False,
     run=_run_write,
+    describe=_describe_write,
 )
 
 

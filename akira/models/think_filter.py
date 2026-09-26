@@ -53,8 +53,21 @@ class ThinkFilter:
     def __init__(self) -> None:
         self._inside = False
         self._carry = ""
+        # Until the reply's first visible character, whitespace is dropped: the
+        # blank lines a model writes after an (empty) think-span would otherwise
+        # open every reply.
+        self._started = False
 
     def feed(self, piece: str) -> str:
+        return self._visible(self._feed(piece))
+
+    def _visible(self, text: str) -> str:
+        if not self._started:
+            text = text.lstrip()
+            self._started = bool(text)
+        return text
+
+    def _feed(self, piece: str) -> str:
         buffer = self._carry + piece
         self._carry = ""
         out: list[str] = []
@@ -94,7 +107,7 @@ class ThinkFilter:
         carry, self._carry = self._carry, ""
         if self._inside:
             return ""
-        return carry
+        return self._visible(carry)
 
 
 def _partial_tail(text: str, tag: str) -> str:

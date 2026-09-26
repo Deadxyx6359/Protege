@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import threading
 
-from akira.core.making.images import ImageError, ImageMaker, Picture
+from akira.core.making.images import SIDES, ImageError, ImageMaker, Picture
 from akira.security.paths import PathViolation, real
 
 from ..schema import Asking, Parameter, Requirement, Tool, ToolContext, ToolError, ToolResult
@@ -22,8 +22,8 @@ _SHOWN_LOCK = threading.Lock()
 
 
 def _key(arguments: dict) -> tuple:
-    return (str(arguments["prompt"]), str(arguments["path"]), int(arguments.get("width") or 512),
-            int(arguments.get("height") or 512), int(arguments.get("seed", -1)))
+    return (str(arguments["prompt"]), str(arguments["path"]), _side(arguments.get("width")),
+            _side(arguments.get("height")), int(arguments.get("seed", -1)))
 
 
 def _target(arguments: dict):
@@ -41,11 +41,21 @@ def _target(arguments: dict):
     return path
 
 
+def _side(value) -> int:
+    """The allowed side nearest \a value: models ask for 800 by 600, and SDXL
+    works in steps of 64, so asking again would only waste a step."""
+    try:
+        wanted = int(value or 512)
+    except (TypeError, ValueError):
+        wanted = 512
+    return min(SIDES, key=lambda side: (abs(side - wanted), side))
+
+
 def _make(arguments: dict) -> Picture:
     try:
         return ImageMaker().make(str(arguments["prompt"]),
-                                 width=int(arguments.get("width") or 512),
-                                 height=int(arguments.get("height") or 512),
+                                 width=_side(arguments.get("width")),
+                                 height=_side(arguments.get("height")),
                                  seed=int(arguments.get("seed", -1)))
     except ImageError as exc:
         raise ToolError(str(exc)) from None
@@ -87,9 +97,11 @@ make_image = Tool(
              "it is saved. Describe what it shows plainly: subject, setting, style, light."),
     parameters=(Parameter("prompt", "string", "What the picture shows."),
                 Parameter("path", "string", "Full path of the new .png file."),
-                Parameter("width", "integer", "Width in pixels, 384 to 1024 in steps of 64.",
+                Parameter("width", "integer", "Width in pixels, 384 to 1024; rounded to a "
+                                              "step of 64.",
                           required=False, default=512),
-                Parameter("height", "integer", "Height in pixels, 384 to 1024 in steps of 64.",
+                Parameter("height", "integer", "Height in pixels, 384 to 1024; rounded to a "
+                                               "step of 64.",
                           required=False, default=512),
                 Parameter("seed", "integer", "A number to make the same picture again; -1 for a "
                                              "new one.", required=False, default=-1)),

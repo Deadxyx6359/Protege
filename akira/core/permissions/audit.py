@@ -104,7 +104,7 @@ class AuditLog:
     """The log. Safe to call from any thread."""
 
     def __init__(self, path: Path | None = None) -> None:
-        self._path = path if path is not None else config_dir() / "audit.jsonl"
+        self._path = Path(path) if path is not None else config_dir() / "audit.jsonl"
         self._lock = threading.Lock()
 
     @property

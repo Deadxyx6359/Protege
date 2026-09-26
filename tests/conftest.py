@@ -27,6 +27,7 @@ why they must not translate one into a skip. See `tk_available`.
 
 from __future__ import annotations
 
+import contextlib
 import gc
 import tkinter as tk
 
@@ -109,6 +110,19 @@ def _collect_on_the_main_thread():
     """
     yield
     gc.collect()
+
+
+@pytest.fixture(scope="session")
+def capture_paused(pytestconfig):
+    """A context in which pytest's fd-level capture is paused.
+
+    A second `tk.Tk` built under that capture intermittently fails to read its
+    own init.tcl ("couldn't read file ... No error"), the flake described
+    above. Building it with capture paused removes the condition rather than
+    excusing the failure.
+    """
+    manager = pytestconfig.pluginmanager.getplugin("capturemanager")
+    return manager.global_and_fixture_disabled if manager is not None else contextlib.nullcontext
 
 
 @pytest.fixture(scope="session")

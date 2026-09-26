@@ -434,3 +434,15 @@ def test_knowledge_web_constructs(root, vault):
     assert dialog._hit
     assert "python_basics" in dialog._hit.values()
     dialog.destroy()
+
+
+def test_the_blank_lines_after_an_empty_think_span_do_not_open_the_reply():
+    from akira.models.think_filter import ThinkFilter
+
+    stream = ThinkFilter()
+    pieces = ["<think>", "\n\n", "</think>", "\n", "\n", "The answer", " is 391.", "\n"]
+    out = "".join(stream.feed(piece) for piece in pieces) + stream.flush()
+    assert out == "The answer is 391.\n"
+    plain = ThinkFilter()
+    assert plain.feed("  Indented only at the start") == "Indented only at the start"
+    assert plain.feed("\n\nkept once it has begun") == "\n\nkept once it has begun"

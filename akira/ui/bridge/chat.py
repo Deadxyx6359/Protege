@@ -305,7 +305,12 @@ class ChatBridge(QObject):
             self._model.appended()
             return
 
-        self._route = route_for(payload)
+        # Whether the last reply held code: a follow-up to it stays with the
+        # model that wrote it.
+        answers = [m for m in self._conversation.messages[:-1]
+                   if m.role == "assistant" and not m.error]
+        self._route = route_for(payload, follows_code=bool(answers)
+                                and "```" in answers[-1].text)
         self.routeChanged.emit()
 
         # The placeholder the stream writes into. Created before the worker

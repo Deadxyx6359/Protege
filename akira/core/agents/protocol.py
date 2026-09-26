@@ -102,11 +102,61 @@ def _balanced_objects(text: str) -> list[str]:
     return spans
 
 
-def parse_calls(text: str) -> tuple[list[Call], str]:
+_PYTHON_CALL = re.compile(r"^[ \t]*([A-Za-z_]\w*)\s*\(", re.MULTILINE)
+
+
+def _python_calls(text: str, known: frozenset[str]) -> tuple[list[Call], str]:
+    """Calls written as Python, `write_file(path="...", content="...")`, the way a
+    coding model reaches for them. Only for tools the agent has, and only with
+    literal keyword arguments: nothing in them is ever run."""
+    import ast
+
+    for match in _PYTHON_CALL.finditer(text):
+        if match.group(1) not in known:
+            continue
+        # The call runs to its closing bracket, however many lines that takes.
+        start, depth, quote, index = match.start(1), 0, "", match.end() - 1
+        while index < len(text):
+            char = text[index]
+            if quote:
+                if char == "\\":
+                    index += 1
+                elif text.startswith(quote, index):
+                    index += len(quote) - 1
+                    quote = ""
+            elif text.startswith(('"""', "'''"), index):
+                quote = text[index:index + 3]
+                index += 2
+            elif char in "\"'":
+                quote = char
+            elif char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            index += 1
+        source = text[start:index + 1]
+        try:
+            node = ast.parse(source.strip(), mode="eval").body
+            if not isinstance(node, ast.Call) or node.args:
+                continue
+            arguments = {kw.arg: ast.literal_eval(kw.value) for kw in node.keywords if kw.arg}
+        except (SyntaxError, ValueError):
+            continue
+        remainder = text.replace(source, "")
+        remainder = re.sub(r"```\w*\s*```", "", remainder)
+        return [Call(match.group(1), arguments)], remainder.strip()
+    return [], text
+
+
+def parse_calls(text: str, known: frozenset[str] = frozenset()) -> tuple[list[Call], str]:
     """Pull tool calls out of \a text.
 
     Returns the calls and the prose with the call syntax removed, so the
     interface never shows a user raw JSON the model meant for the runtime.
+    \a known is the agent's tool names, which lets a call written as Python be
+    recognised too.
     """
     calls: list[Call] = []
     remainder = text
@@ -139,7 +189,39 @@ def parse_calls(text: str) -> tuple[list[Call], str]:
             calls.append(call)
             remainder = remainder.replace(span, "")
 
+    if not calls and known:
+        named = _named_objects(text, known)
+        if named[0]:
+            return named
+        return _python_calls(text, known)
     return calls, remainder.strip()
+
+
+_NAMED_OBJECT = re.compile(r"(?:^|\s)`?([A-Za-z_]\w*)`?\s*[:=]?\s*(?=\{)")
+
+
+def _named_objects(text: str, known: frozenset[str]) -> tuple[list[Call], str]:
+    """A tool's name followed by its arguments as JSON, `save_drawing {"path": ...}`,
+    for tools the agent has."""
+    for match in _NAMED_OBJECT.finditer(text):
+        if match.group(1) not in known:
+            continue
+        spans = _balanced_objects(text[match.end():])
+        if not spans:
+            continue
+        try:
+            arguments = json.loads(spans[0])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(arguments, dict):
+            remainder = text.replace(match.group(0).lstrip() + spans[0], "")
+            return [Call(match.group(1), arguments)], remainder.strip()
+    return [], text
+
+
+def _placeholder(parameter) -> object:
+    return {"integer": 1, "number": 1.0, "boolean": True, "array": ["..."]}.get(
+        parameter.type, "...")
 
 
 def render_tools(tools: list[Tool]) -> str:
@@ -151,11 +233,16 @@ def render_tools(tools: list[Tool]) -> str:
             "not have."
         )
 
+    # The example is one of the agent's own tools with its own argument names:
+    # given `{"argument": "value"}`, a small model copies "argument" verbatim.
+    example = tools[0]
+    arguments = {p.name: _placeholder(p) for p in example.parameters if p.required}
     lines = [
         "You can use tools. To use one, reply with a single call in exactly "
-        "this form and nothing else:",
+        "this form and nothing else, with the tool's own argument names:",
         "",
-        '<tool_call>{"name": "tool_name", "arguments": {"argument": "value"}}</tool_call>',
+        "<tool_call>" + json.dumps({"name": example.name, "arguments": arguments})
+        + "</tool_call>",
         "",
         "Rules:",
         "  - One call at a time. Wait for the result before deciding what to do next.",
