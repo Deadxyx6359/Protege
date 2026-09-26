@@ -77,21 +77,6 @@ before changing it.
 Registered in `akira/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
 
-### Chat workspace ownership
-
-`Chat.workspace` is `chats` (Everyday), `code`, or `research`, notified by
-`titleChanged`. `Chat.switchWorkspace(name) -> bool` saves the current chat and
-restores a distinct in-memory conversation for the requested workspace and open
-project, or creates an empty one. It refuses invalid names and active turns.
-The frontend additionally prevents switching during a voice call. Tool pages
-do not switch conversations. Unsent composer text is kept by the frontend per
-project and workspace for this app session.
-
-Conversations persist a `workspace` field; missing/unknown values in older
-files default to `chats`. `openConversation` restores this field: navigation
-must follow `Chat.workspace` after reopening history. `newChat` keeps the
-current workspace. Recent-history search remains global.
-
 ---
 
 ## `Permissions` — what may be attempted
