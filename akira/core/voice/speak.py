@@ -88,6 +88,79 @@ _RULE = re.compile(r"^\s*(?:[-*_]\s*){3,}$", re.M)
 _TABLE_EDGE = re.compile(r"^\s*\|?\s*:?-{2,}.*$", re.M)
 _SENTENCE_END = re.compile(r"(?<=[.!?…])[\"')\]]*\s+")
 
+#: A piece ending in one of these has not ended its sentence: "Dr." "e.g."
+_ABBREVIATION = re.compile(r"(?:^|\s)(?:mr|mrs|ms|dr|st|vs|no|approx|e\.g|i\.e|etc)\.$",
+                           re.IGNORECASE)
+
+# Clock times. Kokoro reads "11:00" as "eleven zero zero", "09:05" as "zero nine
+# zero five", and drops a dash, so "11:00–15:00" came out as four numbers;
+# "a.m." ends a sentence as far as `pieces` can tell. Found by speaking them
+# and reading back what Kokoro's own phonemizer made of them.
+_CLOCK = r"(\d{1,2}):([0-5]\d)(?:\s*([ap])\.?\s?m\b\.?)?"
+_TIME = re.compile(rf"(?<![\d:.])\b{_CLOCK}(?![\d:])", re.IGNORECASE)
+_TIME_RANGE = re.compile(rf"(?<![\d:.])\b{_CLOCK}\s*(?:[–—-]|\bto\b)\s*{_CLOCK}(?![\d:])",
+                         re.IGNORECASE)
+#: "3–7": an en or em dash between numbers is "to".
+_NUMBER_RANGE = re.compile(r"(?<=\d)\s*[–—]\s*(?=\d)")
+#: 9 a.m., 3pm, 11 AM: said the same, and never taken for a sentence's end.
+_MERIDIEM = re.compile(r"(?<=\d)\s*([ap])\.?\s?m\b\.?", re.IGNORECASE)
+
+
+#: 2026-09-26, which Kokoro reads as "two thousand twenty six dash zero nine dash…".
+_ISO_DATE = re.compile(r"\b(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\b")
+_MONTH_NAMES = ("January", "February", "March", "April", "May", "June", "July", "August",
+                "September", "October", "November", "December")
+#: Read as letters otherwise: "ee jee".
+_SAID_AS = ((re.compile(r"\be\.g\.,?", re.IGNORECASE), "for example,"),
+            (re.compile(r"\bi\.e\.,?", re.IGNORECASE), "that is,"))
+
+
+def _twenty_four(hour: str, suffix: str | None) -> bool:
+    """Written on a 24-hour clock: 15:00, or 09:05 with its leading zero."""
+    return not suffix and (int(hour) > 12 or (len(hour) == 2 and hour[0] == "0"))
+
+
+def _said_time(hour: str, minute: str, suffix: str | None, twenty_four: bool) -> str:
+    h, m = int(hour), int(minute)
+    if h > 23:
+        return f"{hour}:{minute}"
+    if suffix:
+        half = "AM" if suffix.lower() == "a" else "PM"
+    elif twenty_four:
+        if m == 0 and h in (0, 12):
+            return "midnight" if h == 0 else "noon"
+        half, h = ("AM" if h < 12 else "PM"), (h % 12 or 12)
+    else:
+        # 9:30 with nothing after it: morning or evening is the reader's to know.
+        half = ""
+    if m == 0:
+        spoken = f"{h} {half}" if half else f"{h} o'clock"
+    elif m < 10:
+        spoken = f"{h} oh {m} {half}"
+    else:
+        spoken = f"{h}:{m:02d} {half}"
+    return spoken.strip()
+
+
+def _times(text: str) -> str:
+    def both(found: re.Match) -> str:
+        h1, m1, s1, h2, m2, s2 = found.groups()
+        clock = _twenty_four(h1, s1) or _twenty_four(h2, s2)
+        return f"{_said_time(h1, m1, s1, clock)} to {_said_time(h2, m2, s2, clock)}"
+
+    def one(found: re.Match) -> str:
+        hour, minute, suffix = found.groups()
+        return _said_time(hour, minute, suffix, _twenty_four(hour, suffix))
+
+    text = _ISO_DATE.sub(lambda found: f"{_MONTH_NAMES[int(found[2]) - 1]} "
+                                       f"{int(found[3])}, {found[1]}", text)
+    text = _TIME_RANGE.sub(both, text)
+    text = _TIME.sub(one, text)
+    text = _NUMBER_RANGE.sub(" to ", text)
+    for pattern, words in _SAID_AS:
+        text = pattern.sub(words, text)
+    return _MERIDIEM.sub(lambda found: " AM" if found[1].lower() == "a" else " PM", text)
+
 
 def speakable(text: str) -> str:
     """\a text as it should be heard: what is written for the eye taken out."""
@@ -97,6 +170,7 @@ def speakable(text: str) -> str:
     text = _URL.sub("a link", text)
     text = _TAG.sub(" ", text)
     text = _INLINE_CODE.sub(r"\1", text)
+    text = _times(text)
     text = _RULE.sub(" ", text)
     text = _TABLE_EDGE.sub(" ", text)
     text = _LINE_MARK.sub("", text)
@@ -118,9 +192,15 @@ def speakable(text: str) -> str:
 
 def pieces(text: str, longest: int = MAX_PIECE) -> list[str]:
     """\a text in the pieces it is spoken in: sentences, split further if long."""
-    found = []
+    sentences: list[str] = []
     for sentence in _SENTENCE_END.split(text):
         sentence = sentence.strip()
+        if sentences and _ABBREVIATION.search(sentences[-1]):
+            sentences[-1] = f"{sentences[-1]} {sentence}".strip()
+        elif sentence:
+            sentences.append(sentence)
+    found = []
+    for sentence in sentences:
         while len(sentence) > longest:
             cut = sentence.rfind(", ", 0, longest)
             if cut < longest // 3:

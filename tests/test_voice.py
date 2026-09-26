@@ -301,6 +301,38 @@ def test_what_is_written_for_the_eye_is_not_read_out(written, heard):
     assert speak.speakable(written) == heard
 
 
+@pytest.mark.parametrize("written, heard", [
+    # Kokoro read "11:00" as "eleven zero zero" and dropped the dash.
+    ("Open 11:00–15:00.", "Open 11 AM to 3 PM."),
+    ("Run 09:00-17:00 daily.", "Run 9 AM to 5 PM daily."),
+    ("Leave at 14:35, arrive 17:25.", "Leave at 2:35 PM, arrive 5:25 PM."),
+    ("It is 09:05.", "It is 9 oh 5 AM."),
+    ("From 00:30 to 12:00.", "From 12:30 AM to noon."),
+    ("At 00:00.", "At midnight."),
+    # Nothing after it: which half of the day is for the reader to know.
+    ("Meet at 9:30 or 11:00.", "Meet at 9:30 or 11 o'clock."),
+    ("At 2:35 p.m. or 9:05am, and shut at 5pm.", "At 2:35 PM or 9 oh 5 AM, and shut at 5 PM."),
+    ("Pages 3–7.", "Pages 3 to 7."),
+    ("Due 2026-11-14.", "Due November 14, 2026."),
+    ("Fruit, e.g. apples; i.e. not sweets.", "Fruit, for example, apples; that is, not sweets."),
+    # Left alone: not times, not dates, not ranges.
+    ("John 3:16, a ratio of 3:1, 4 amps, 555-1234, 2026-13-40.",
+     "John 3:16, a ratio of 3:1, 4 amps, 555-1234, 2026-13-40."),
+])
+def test_times_dates_and_ranges_are_said_as_a_person_would(written, heard):
+    assert speak.speakable(written) == heard
+
+
+def test_an_abbreviation_does_not_end_the_sentence():
+    assert speak.pieces(speak.speakable("Open from 11 a.m. to 3 p.m. on Saturday. Bring a cake.")) \
+        == ["Open from 11 AM to 3 PM on Saturday.", "Bring a cake."]
+    assert speak.pieces("Dr. Patel said so. Mr. Tom agreed.") == \
+        ["Dr. Patel said so.", "Mr. Tom agreed."]
+    unfolding = speak.Unfolding()
+    assert unfolding.grew("I saw Dr.") == []
+    assert unfolding.grew("I saw Dr. Patel today. Then") == ["I saw Dr. Patel today."]
+
+
 def test_text_is_spoken_a_sentence_at_a_time_and_long_ones_are_split():
     assert speak.pieces("One. Two? Three! Four") == ["One.", "Two?", "Three!", "Four"]
     long = ", ".join(["a phrase of some length"] * 30) + "."
