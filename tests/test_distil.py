@@ -47,7 +47,7 @@ def save_conversation(directory, cid, title, *turns):
         json.dumps({"id": cid, "title": title, "messages": messages}), encoding="utf-8")
 
 
-ALLOTMENT = (("user", "I got plot 14 at the allotment."),
+ALLOTMENT = (("user", "I got plot 14 at the allotment, for my garden."),
              ("assistant", "Congratulations. When do you start?"),
              ("user", "April."),
              ("assistant", "Then plan the beds in March."))
@@ -122,6 +122,23 @@ def test_a_known_subject_becomes_an_addition_of_only_what_is_new(vault_root, cha
     [proposal] = PendingStore().all()
     assert proposal.adds_to and proposal.target == "Garden.md"
     assert "Basil" in proposal.body and "Tomatoes" not in proposal.body
+
+
+def test_nothing_is_added_to_a_note_whose_subject_the_person_did_not_mention(vault_root,
+                                                                             tmp_path):
+    save_conversation(tmp_path / "cfg" / "conversations", "e5f6a7b8", "New job",
+                      ("user", "I start at Brightwater on 5 October."),
+                      ("assistant", "Congratulations! Keep a garden of meeting notes."))
+    report = distil(vault_root, Router("## Garden\n- Scheduled for 18 September.\n"))
+    assert PendingStore().all() == [] and report.proposed == 0
+
+
+def test_the_model_is_told_the_names_of_the_notes_there_are(vault_root, chats):
+    router = Router("NOTHING")
+    distil(vault_root, router)
+    [system, user] = router.backend.calls[0]
+    assert "Notes the person already has: Garden." in system.content
+    assert "not what the assistant suggested" in user.content
 
 
 def test_a_close_name_counts_as_the_same_subject(vault_root, chats):
