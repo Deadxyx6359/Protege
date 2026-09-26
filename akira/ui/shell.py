@@ -24,14 +24,17 @@ from akira.core.brain.recall import ContextAssembler
 from akira.core.config import AppConfig, autoconfigure, migrate_config, config_dir
 from akira.core.connect.inbox import GmailInbox
 from akira.core.context.place import PlaceStore
+from akira.core.conversations import ConversationStore
 from akira.core.context.weather import Weather, WeatherService
+from akira.core.making import images
+from akira.core.making.pipeline import DraftStore
+from akira.core.making.training import Trainer
 from akira.core.models import ModelRouter, Route
 from akira.core.net import browser
 from akira.core.permissions import AuditLog, Policy, SecretStore
 from akira.core.projects import ProjectStore
 from akira.core.review import ensure_review_job, register_review_action
 from akira.core.schedule import ActionRegistry, Scheduler, SchedulerService
-from akira.core.making.pipeline import DraftStore
 from akira.core.schedule.actions import register_agent_actions, register_pipeline_action
 from akira.core.tools import default_registry
 from akira.design import ThemeController
@@ -45,6 +48,7 @@ from akira.ui.bridge import (
     DraftsBridge,
     DrawingBridge,
     GraphBridge,
+    ImagesBridge,
     MemoryBridge,
     MonitorBridge,
     PermissionsBridge,
@@ -53,6 +57,7 @@ from akira.ui.bridge import (
     ScheduleBridge,
     SettingsBridge,
     TraceBridge,
+    TrainingBridge,
     VoiceBridge,
 )
 
@@ -93,6 +98,8 @@ class AppContext:
     voice: VoiceBridge | None = None
     drawing: DrawingBridge | None = None
     drafts: DraftsBridge | None = None
+    images: ImagesBridge | None = None
+    training: TrainingBridge | None = None
     scheduler: Scheduler | None = None
     service: SchedulerService | None = None
     monitor_service: MonitorService | None = None
@@ -112,7 +119,8 @@ class AppContext:
                           ("Monitor", self.monitor), ("Place", self.place),
                           ("Accounts", self.accounts), ("Documents", self.documents),
                           ("Coding", self.coding), ("Voice", self.voice),
-                          ("Drawing", self.drawing), ("Drafts", self.drafts)):
+                          ("Drawing", self.drawing), ("Drafts", self.drafts),
+                          ("Images", self.images), ("Training", self.training)):
             if obj is not None:
                 exposed[name] = obj
         return exposed
@@ -144,6 +152,12 @@ class AppContext:
             self.voice.close()
         if self.drafts is not None:
             self.drafts.close()
+        if self.images is not None:
+            self.images.close()
+        # Training runs for an hour or more in its own process; closing Akira
+        # stops it, and nothing half-trained is kept.
+        if self.training is not None:
+            self.training.close()
         if self.documents is not None:
             self.documents.close()
         if self.coding is not None:
@@ -259,6 +273,9 @@ def build_context(*, persist: bool = True) -> AppContext:
                            secret_store=secret_store, on_review=schedule.on_review,
                            projects=projects.store.policies)
     register_agent_actions(actions, router=router, registry=default_registry())
+    # A picture has the graphics card to itself: the language models are set
+    # aside while it is made, whoever asked for it.
+    images.lend_card(router.set_aside)
     # A pipeline's draft waits for the person, who publishes it under the global
     # grants, as the job that made it ran under them.
     drafts = DraftsBridge(DraftStore(), registry=default_registry(), policy=live_policy,
@@ -335,6 +352,10 @@ def build_context(*, persist: bool = True) -> AppContext:
         voice=voice,
         drawing=DrawingBridge(),
         drafts=drafts,
+        images=ImagesBridge(),
+        training=TrainingBridge(
+            ConversationStore(), Trainer(set_aside=router.set_aside),
+            in_use=lambda: [m.adapter for m in config.models.values() if m.adapter]),
         housekeeping=sweep_indexes,
     )
 

@@ -78,6 +78,8 @@ to read first.
 | 41 | 2026-09-21 | Claude → Codex | [Voice: push to talk and reading aloud](2026-09-21-04-claude-to-codex-voice.md) | Historical; read with 42 |
 | 42 | 2026-09-21 | Claude → Codex | [Calls, and replies read as they stream](2026-09-21-05-claude-to-codex-calls-and-reading-as-it-streams.md) | Read before 43 |
 | 43 | 2026-09-25 | Claude → Codex | [Page pictures in confirmations, and drawings in the chat](2026-09-25-01-claude-to-codex-page-pictures-and-drawings.md) | Read before 44 |
-| 44 | 2026-09-25 | Claude → Codex | [Content pipelines, and the drafts they leave](2026-09-25-02-claude-to-codex-content-pipeline-drafts.md) | **Latest to Codex** |
+| 44 | 2026-09-25 | Claude → Codex | [Content pipelines, and the drafts they leave](2026-09-25-02-claude-to-codex-content-pipeline-drafts.md) | Read before 45 |
+| 45 | 2026-09-25 | Claude → Codex | [Pictures: making one from a description](2026-09-25-03-claude-to-codex-pictures.md) | Read before 47 |
+| 47 | 2026-09-26 | Claude → Codex | [Training adapters, and switching one on](2026-09-26-02-claude-to-codex-training-adapters.md) | **Latest to Codex** |
 
 Add a row when you add a handoff, and move the **Latest** marker.

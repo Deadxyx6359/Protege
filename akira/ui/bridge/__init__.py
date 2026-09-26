@@ -13,6 +13,7 @@ from .documents import DocumentsBridge
 from .drafts import DraftsBridge
 from .drawing import DrawingBridge
 from .graph import GraphBridge
+from .images import ImagesBridge
 from .memory import MemoryBridge
 from .monitor import MonitorBridge
 from .permissions import ConfirmBridge, PermissionsBridge
@@ -21,6 +22,7 @@ from .projects import ProjectsBridge
 from .schedule import ScheduleBridge
 from .settings import SettingsBridge
 from .trace import TraceBridge, TraceListModel
+from .training import TrainingBridge
 from .voice import VoiceBridge
 
 __all__ = [
@@ -29,4 +31,5 @@ __all__ = [
     "TraceBridge", "TraceListModel", "AgentsBridge", "MemoryBridge",
     "ProjectsBridge", "GraphBridge", "MonitorBridge", "PlaceBridge", "AccountsBridge",
     "DocumentsBridge", "CodingBridge", "VoiceBridge", "DrawingBridge", "DraftsBridge",
+    "ImagesBridge", "TrainingBridge",
 ]

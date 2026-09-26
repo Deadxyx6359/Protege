@@ -102,6 +102,10 @@ class ModelRouter:
         # Models whose file changed while something was generating. The next
         # `acquire` unloads them; it holds `_inference`, so it cannot race one.
         self._stale: set[Route] = set()
+        # Why no model may load for now: the graphics card is lent to something
+        # long, such as training, and a caller is told so at once rather than
+        # left waiting for hours. "" when it is not.
+        self._lent = ""
 
     # -- configuration ------------------------------------------------------
 
@@ -115,7 +119,7 @@ class ModelRouter:
             for route in list(self._backends):
                 before = self._model_config(route, self._config)
                 after = self._model_config(route, config)
-                if before.path != after.path:
+                if (before.path, before.adapter) != (after.path, after.adapter):
                     self._stale.add(route)
             self._config = config
         # Free them now if nothing is generating. If something is, the next
@@ -146,6 +150,7 @@ class ModelRouter:
             n_ctx=model.n_ctx,
             n_gpu_layers=model.n_gpu_layers,
             n_threads=model.n_threads,
+            lora=model.adapter,
         )
 
     # -- resolution ---------------------------------------------------------
@@ -236,6 +241,8 @@ class ModelRouter:
         rather than generating over it. Keep the block to the generation.
         """
         resolved = self.resolve(route)
+        if self._lent:
+            raise ModelUnavailable(self._lent)
         with self._inference:
             with self._lock:
                 self._drain_stale()
@@ -245,7 +252,7 @@ class ModelRouter:
             yield backend
 
     def warm(self, route: Route) -> bool:
-        """Load  route now, reporting success rather than raising.
+        """Load \a route now, reporting success rather than raising.
 
         For startup preloading, where a failure is not worth interrupting
         anyone over: the model will be tried again, loudly, on the first
@@ -275,6 +282,38 @@ class ModelRouter:
         finally:
             self._inference.release()
         return True
+
+    @contextmanager
+    def set_aside(self, timeout: float = 600.0, lent_for: str = "") -> Iterator[None]:
+        """Hold every model out of memory while something else uses the graphics card.
+
+        Waits for a running generation to finish, for up to \a timeout, then
+        unloads every model and keeps any from loading until the block ends:
+        the card's six gigabytes are the other program's meanwhile. The first
+        generation afterwards loads its model again. Raises `ModelUnavailable`
+        if a generation is still running after \a timeout.
+
+        For something short, a picture, anything wanting a model waits its turn.
+        For something long, training, pass \a lent_for, the sentence a caller is
+        given instead: `acquire` refuses at once with it until the block ends.
+        """
+        if not self._inference.acquire(timeout=timeout):
+            raise ModelUnavailable("A model is still answering, so the graphics card is busy.")
+        try:
+            with self._lock:
+                for route in list(self._backends):
+                    self._unload(route)
+                self._stale.clear()
+            self._lent = lent_for
+            yield
+        finally:
+            self._lent = ""
+            self._inference.release()
+
+    @property
+    def lent(self) -> str:
+        """Why no model may load for now, or ""."""
+        return self._lent
 
     def close(self) -> None:
         self.unload_all()

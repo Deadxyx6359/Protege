@@ -159,7 +159,9 @@ pytest==8.3.3
 #                                          because pywhispercpp's downloader
 #                                          wants them; nothing Akira runs
 #                                          imports either.
-# huggingface-hub                       -- downloads models at runtime
+# huggingface-hub                       -- downloads models at runtime. It is in
+#                                          requirements-train.txt, for the
+#                                          separate training environment only.
 # sentence-transformers / torch         -- pulls model weights over the network
 #                                          on first use; retrieval uses a pure
 #                                          Python BM25 implementation instead

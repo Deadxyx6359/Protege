@@ -785,7 +785,20 @@ while a call is on with the main window closed.
 
 ### Phase E — making
 
-**E1 ○ Image generation** — SDXL-Turbo or SD 1.5 within 6 GB.
+**E1 ✅ Image generation** — SDXL-Turbo or SD 1.5 within 6 GB; `core/making/images.py`, tool `make_image`, bridge `Images`
+*Done:* SDXL-Turbo, the person's choice, through stable-diffusion.cpp's
+Vulkan build on the RTX card (named by `--backend`, since the integrated
+graphics is listed first): about nine seconds for 512 by 512 in four steps.
+The half-precision model does not fit beside anything, so the first picture
+makes an 8-bit copy (4.18 GB) once. `sd-cli.exe` runs as a program of its
+own with a fixed list of arguments, the prompt in a file rather than on its
+command line, and never `--rpc-servers`, its one way to another machine; the
+server that ships beside it was deleted. While a picture is made the
+language models are set aside (`ModelRouter.set_aside`), and the next answer
+loads its model again. The person makes pictures from the `Images` bridge
+and saves them where they choose; an agent (the illustrator) uses
+`make_image`, which makes the picture first so the person approves the
+picture itself, and saves a new PNG under `files.write`.
 **E2 ✅ 2D / vector** — SVG as a code-generation problem; `core/making/svg.py`, tool `save_drawing`, bridge `Drawing`
 *Done:* a model draws by writing SVG, and nothing it writes is shown or saved as
 written. SVG can carry scripts, event handlers, links that fetch when shown,
@@ -815,8 +828,28 @@ as theirs, and the tool's own permission still holds (`vault.write`,
 `files.write`, `mail.send`); without it the draft stays waiting and says what
 to allow. A draft is never published over something already there, and never
 twice. A pipeline that could not run is refused when it is made.
-**E4 ○ LoRA training** — QLoRA on a 7–8B in 4-bit, hours per run, checkpointed
-and resumable.
+**E4 ✅ LoRA training** — QLoRA on a 7–8B in 4-bit, hours per run, checkpointed
+and resumable; `core/making/training.py`, `akira/training/`, bridge `Training`
+*Done:* on Qwen3-4B, the person's choice: an 8B does not train within the
+card's six gigabytes. The person picks saved conversations, names the adapter
+and starts it; the model learns to answer as the assistant did, and only the
+assistant's words are learned. Training runs in a Python of its own
+(`models/train/env`, `requirements-train.txt`) holding PyTorch and Hugging
+Face's libraries, which carry a downloader and are never installed in Akira's
+own. The trainer puts Akira's network guard up and tells every library it is
+offline before importing any of them, and reads the base model only from its
+folder; `verify_offline.py` holds it to that, and holds every other module to
+never importing it. The card is lent for the length of it
+(`ModelRouter.set_aside(lent_for=...)`): anything wanting a model is told why
+at once. Stopping ends it between steps and keeps nothing; the chosen
+conversations are deleted when it ends, however it ends. The adapter is written
+as the GGUF file llama.cpp loads (`akira/training/lora_gguf.py`, NumPy only),
+and switched on for a route in Settings (`Settings.useAdapter`), where a model
+config's `adapter` goes to llama.cpp as `lora_path`. Tested for real: a small
+run on the card, 10 steps in 19 seconds after a minute of loading, and
+llama.cpp loads the adapter and answers differently with it.
+*Not done:* resuming a stopped run. A run is minutes to an hour on this card,
+so stopping discards it rather than keeping a half-trained adapter.
 
 ### Throughout
 
@@ -857,9 +890,10 @@ and resumable.
 | D | D3 Live call | ▶ backend done; its window next (Codex) |
 | E | E2 2D / vector | ✅ drawings in the chat and saved by the illustrator, cleaned first |
 | E | E3 Content pipeline | ✅ drafted, reviewed and revised on a schedule; published only by the person |
-| E | E1 Images, E4 Training | ○ need large downloads, asked for first |
+| E | E1 Image generation | ✅ SDXL-Turbo on the RTX card, about nine seconds a picture |
+| E | E4 Training | ✅ LoRA on Qwen3-4B from chosen conversations, in its own environment |
 
-**Tests at last commit:** 2396 passed, 2 skipped, and the two known
+**Tests at last commit:** 2445 passed, 2 skipped, and the two known
 dialog-geometry failures (a window 7 px taller than the test allows);
 `verify_offline.py` passes. Update this line when it changes.
 

@@ -91,6 +91,9 @@ class SettingsBridge(QObject):
                     "contextTokens": model.n_ctx,
                     "maxTokens": model.max_tokens,
                     "gpuLayers": model.n_gpu_layers,
+                    # A trained adapter switched on for this route (E4), or "".
+                    "adapter": model.adapter,
+                    "adapterName": Path(model.adapter).parent.name if model.adapter else "",
                 }
             )
         return out
@@ -102,8 +105,39 @@ class SettingsBridge(QObject):
         """Point \a route_name at \a path, or clear it when \a path is empty."""
         route = Route.parse(route_name)
         current = self._config.models.get(route.value, ModelConfig())
-        self._config.models[route.value] = replace(current, path=path)
+        # An adapter is trained for one model, so another model drops it.
+        adapter = current.adapter if path == current.path else ""
+        self._config.models[route.value] = replace(current, path=path, adapter=adapter)
         self._apply()
+
+    @Slot(str, str, str, result=str)
+    def useAdapter(self, route_name: str, model: str, adapter: str) -> str:
+        """Run \a route_name on \a model with a trained \a adapter: "" or why not.
+
+        Only an adapter trained here, from `Training.adapters`, with the model it
+        was trained for.
+        """
+        from akira.core.making import training
+
+        chosen = next((a for a in training.adapters()
+                       if Path(a.gguf) == Path(adapter) and Path(a.model) == Path(model)), None)
+        if chosen is None or not Path(model).is_file():
+            return "That is not an adapter trained here, with its model."
+        route = Route.parse(route_name)
+        current = self._config.models.get(route.value, ModelConfig())
+        self._config.models[route.value] = replace(current, path=str(model),
+                                                   adapter=str(adapter))
+        self._apply()
+        return ""
+
+    @Slot(str)
+    def clearAdapter(self, route_name: str) -> None:
+        """Stop using an adapter on \a route_name; its model stays."""
+        route = Route.parse(route_name)
+        current = self._config.models.get(route.value, ModelConfig())
+        if current.adapter:
+            self._config.models[route.value] = replace(current, adapter="")
+            self._apply()
 
     @Slot(str, str, int)
     def setNumber(self, route_name: str, field: str, value: int) -> None:

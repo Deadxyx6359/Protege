@@ -82,7 +82,7 @@ def model_file(tmp_path_factory):
 
 @pytest.fixture
 def make_bridge(model_file, tmp_path):
-    """Build a ChatBridge whose router yields  backend for every route."""
+    """Build a ChatBridge whose router yields \a backend for every route."""
 
     def build(backend=None, *, configured=True):
         models = (

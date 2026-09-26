@@ -47,12 +47,16 @@ class Asking(str):
 
     image: bytes
     marks: tuple[tuple[float, float, float, float], ...]
+    kind: str
+    """The picture's media type: `image/jpeg`, or `image/png`."""
 
     def __new__(cls, text: str, image: bytes = b"",
-                marks: tuple[tuple[float, float, float, float], ...] = ()) -> "Asking":
+                marks: tuple[tuple[float, float, float, float], ...] = (),
+                kind: str = "image/jpeg") -> "Asking":
         asking = super().__new__(cls, text)
         asking.image = bytes(image or b"")
         asking.marks = tuple(marks)
+        asking.kind = kind if kind in ("image/jpeg", "image/png") else "image/jpeg"
         return asking
 
 

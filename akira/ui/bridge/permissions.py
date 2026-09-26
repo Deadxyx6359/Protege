@@ -63,7 +63,7 @@ class ConfirmBridge(QObject):
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._pending: dict[str, tuple[threading.Event, list]] = {}
-        self._pictures: dict[str, tuple[bytes, tuple]] = {}
+        self._pictures: dict[str, tuple[bytes, tuple, str]] = {}
         self._lock = threading.Lock()
         self._closing = False
         # The thread this object was built on is the one QML runs on. Recorded
@@ -98,7 +98,8 @@ class ConfirmBridge(QObject):
             # held only while the question is open.
             image = getattr(summary, "image", b"")
             if image:
-                self._pictures[token] = (bytes(image), tuple(getattr(summary, "marks", ())))
+                self._pictures[token] = (bytes(image), tuple(getattr(summary, "marks", ())),
+                                         str(getattr(summary, "kind", "image/jpeg")))
 
         self.requested.emit(token, str(summary))
 
@@ -133,7 +134,7 @@ class ConfirmBridge(QObject):
             held = self._pictures.get(token)
         if held is None:
             return ""
-        return "data:image/jpeg;base64," + base64.b64encode(held[0]).decode("ascii")
+        return f"data:{held[2]};base64," + base64.b64encode(held[0]).decode("ascii")
 
     @Slot(str, result="QVariantList")
     def marksFor(self, token: str) -> list:

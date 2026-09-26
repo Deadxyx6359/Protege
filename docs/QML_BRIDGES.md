@@ -71,6 +71,8 @@ before changing it.
 | `Voice` | `VoiceBridge` | Push to talk, reading aloud, calls, and the chosen voice |
 | `Drawing` | `DrawingBridge` | Drawings in the chat's replies: found, cleaned, shown, saved |
 | `Drafts` | `DraftsBridge` | What content pipelines drafted, waiting for the person to publish |
+| `Images` | `ImagesBridge` | Making a picture from a description, and saving it |
+| `Training` | `TrainingBridge` | Teaching a model from chosen conversations, and the adapters trained |
 
 Registered in `akira/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
@@ -114,7 +116,7 @@ these names, so renaming one is a deliberate, coordinated act.
 | `requested(token, summary)` | Signal | Raise the dialog. `summary` already names the real values: the file, the script, the commit message |
 | `withdrawn(token)` | Signal | Take a stale dialog down. It timed out, or the application is closing |
 | `answer(token, approved)` | Slot | Call on click. A stale or repeated token does nothing, so a double-click cannot approve the *next* request |
-| `pictureFor(token)` | Slot → string | A picture of what the request is about, as a `data:image/jpeg` address for an `Image`, or `""`. Typing into a page and pressing its buttons come with one: the page, with the parts about to be used scrolled into view. Gone once the request is answered |
+| `pictureFor(token)` | Slot → string | A picture of what the request is about, as a `data:image/jpeg` or `data:image/png` address for an `Image`, or `""`. An agent saving a picture it made (`make_image`) or a drawing (`save_drawing`) shows it here too. Typing into a page and pressing its buttons come with one: the page, with the parts about to be used scrolled into view. Gone once the request is answered |
 | `marksFor(token)` | Slot → list | What to outline on that picture: each `x`, `y`, `width`, `height` as fractions of the picture's size, so they scale with it. Empty when there is nothing to outline |
 | `timeoutSeconds` | Property | 300 |
 | `pendingCount` | Property | How many requests are waiting |
@@ -686,6 +688,63 @@ away.
 - A draft is never published over a file already there, and never twice.
 - Show `target` beside the Publish button, always: it is part of what the
   person is agreeing to.
+
+## `Images` — making a picture from a description
+
+SDXL-Turbo on the graphics card, about nine seconds for 512 by 512. The
+person's own act: nothing is kept unless they save it.
+
+| Member | Kind | Notes |
+|---|---|---|
+| `available`, `unavailableReason` | Properties, notify `stateChanged` | Whether the picture files are here |
+| `prepared` | Property, notifies `stateChanged` | Whether the 8-bit copy of the model has been made. Until it has, the first picture takes a few minutes longer |
+| `prepare()` | Slot → string | Make it now: `""` once started |
+| `make(prompt, negative, width, height, steps, seed)` | Slot → string | Make one: `""` once started, or why not. Sides 384 to 1024 in steps of 64 (`sides`); 512 by 512 is best. `steps` 1 to 8, 4 is plenty. `seed` below 0 for a new picture, or a number to make the same one again |
+| `busy` | Property, notifies `stateChanged` | `preparing`, `making`, or `""` |
+| `picture` | Property, notifies `pictureChanged` | The last picture, as a `data:image/png` address, or `""` |
+| `details` | Property, notifies `pictureChanged` | `prompt`, `width`, `height`, `steps`, `seed`, `seconds` |
+| `save(fileUrl)` | Slot → string | Write it to the `.png` the person chose in a save dialog: `""` or why not. Only from their click |
+| `clear()` | Slot | Forget the picture |
+| `note` | Property, notifies `stateChanged` | What happened, or why not |
+
+- While a picture is made the language models are set aside: an answer in
+  progress finishes first, and the next answer starts a few seconds late while
+  its model loads again. Worth a line near the Make button.
+- Show the prompt with the picture, and the seed, so a person can make it again.
+
+## `Training` — teaching a model from the person's conversations
+
+An adapter is a small add-on to Qwen3-4B, trained on conversations the person
+picks, so that model answers more the way those conversations went. Training
+runs for minutes to an hour or more on the card, in its own process.
+
+| Member | Kind | Notes |
+|---|---|---|
+| `available`, `unavailableReason` | Properties, notify `stateChanged` | Whether the training environment and files are here |
+| `conversations` | Property, notifies `stateChanged` | Saved conversations to choose from, newest first: `id`, `title`, `turns`, `updated`. Only those with a reply in them |
+| `start(name, ids, epochs, rank)` | Slot → string | `""` once started, or why not. 5 to 2,000 conversations; `epochs` 1 to 5 (2 is a good start); `rank` 8, 16 or 32 (16) |
+| `running`, `progress` | Properties, notify `stateChanged` | `progress`: `stage` (`starting`, `loading`, `training`, `saving`), and while training `step`, `steps`, `epoch`, `loss`, `seconds` |
+| `stop()` | Slot | Ends it between steps. Nothing is kept |
+| `adapters` | Property, notifies `adaptersChanged` | Trained, newest first: `name`, `made`, `examples`, `steps`, `loss`, `seconds`, `model`, `adapter` |
+| `remove(name)` | Slot → string | Delete one; refused while it is switched on |
+| `note` | Property, notifies `stateChanged` | What happened, or why not |
+
+- **While training runs, no model answers.** The card is lent to it, and a chat
+  turn, an agent or a scheduled job is told so at once ("The graphics card is
+  training the adapter …"). Say so before Start, and show `running`
+  somewhere visible across the app.
+- The chosen conversations are written for the trainer and deleted when it
+  ends. Say so near the list: they are the person's own words.
+- Closing Akira stops a training run.
+
+### Switching an adapter on, in Settings
+
+`Settings.routes` entries carry `adapter` (a path, or `""`) and `adapterName`.
+`Settings.useAdapter(route, model, adapter)` runs that route on the adapter's
+`model` with the adapter: `""`, or why not (only adapters from
+`Training.adapters`, with their own model). `Settings.clearAdapter(route)`
+stops using it and keeps the model. Choosing another model for a route with
+`assign` drops its adapter, since an adapter belongs to one model.
 
 ## `Drawing` — drawings in the chat
 

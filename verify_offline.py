@@ -44,6 +44,14 @@ Five checks:
    driver (`.request`, `route.fetch`), which the proxy never sees, or trust any
    certificate.
 
+**The trainer, in a Python of its own.** Training an adapter (E4) needs
+PyTorch and Hugging Face's libraries, which carry a model downloader. They live
+in a separate environment, `models/train/env`, and are never installed in
+Akira's own. The trainer, `akira.training._trainer`, runs there as a process of
+its own, and may import `transformers` only inside `main()` after
+`netguard.install()`, with every library told it is offline. No other module
+may import `akira.training` (`TRAINER`, `TRAINING_PACKAGE`).
+
 A few installed packages import a networking module for something other than
 the network: Playwright reads addresses with `urllib.parse`, llama.cpp names a
 completion with `uuid4`. Each is declared in `THIRD_PARTY_ALLOWED` with its
@@ -286,6 +294,15 @@ EXEMPT_IMPORTS = {
     PROXY: frozenset({"socket"}),
 }
 SOURCE_EXEMPT = frozenset(EXEMPT_IMPORTS)
+
+#: The trainer (E4) runs in a Python of its own, `models/train/env`, which holds
+#: PyTorch and Hugging Face's libraries; Akira's own Python never has them. It
+#: may import `transformers`, a forbidden root because it carries a downloader,
+#: only inside `main()` and only after `netguard.install()` there, with every
+#: library told it is offline. No other module may import `akira.training`.
+TRAINER = "akira.training._trainer"
+TRAINER_ALLOWED = frozenset({"transformers"})
+TRAINING_PACKAGE = "akira.training"
 
 DYNAMIC_IMPORT_CALLS = frozenset({"__import__", "import_module", "load_module", "exec_module"})
 
@@ -696,6 +713,37 @@ def scan_qml(result: ScanResult) -> None:
         result.errors.extend(_qml_findings(text, path))
 
 
+def _trainer_findings(tree: ast.AST, module: str, path: Path) -> list[Finding]:
+    """The trainer's one allowance, held to its conditions (see `TRAINER`)."""
+    findings = []
+    main = next((node for node in ast.walk(tree)
+                 if isinstance(node, ast.FunctionDef) and node.name == "main"), None)
+    guarded = [node.lineno for node in ast.walk(main) if isinstance(node, ast.Call)
+               and _called(node) == "install"] if main is not None else []
+    if not guarded:
+        findings.append(Finding(module, path, 0, "the trainer never installs the network guard"))
+    first_guard = min(guarded) if guarded else float("inf")
+    for site in _imports_in(tree):
+        if site.name.startswith(".") or not is_forbidden(site.name):
+            continue
+        if top_level(site.name) not in TRAINER_ALLOWED:
+            findings.append(Finding(module, path, site.line,
+                                    f"imports networking module {site.name!r}"))
+        elif site.enclosing != "main" or site.line < first_guard:
+            findings.append(Finding(module, path, site.line,
+                                    f"imports {site.name!r} before the network guard is up: "
+                                    "only inside main(), after netguard.install()"))
+    return findings
+
+
+def _training_import_findings(tree: ast.AST, module: str, path: Path) -> list[Finding]:
+    """Akira's own process never imports the trainer's package."""
+    return [Finding(module, path, site.line,
+                    f"imports {site.name!r}, which runs only in the training environment")
+            for site in _imports_in(tree)
+            if site.name == TRAINING_PACKAGE or site.name.startswith(TRAINING_PACKAGE + ".")]
+
+
 def scan_source(result: ScanResult) -> None:
     """Checks 1, 3 and 4: no networking imports in Akira's own source outside
     the exemptions, no other door opened, and no QML engine left open."""
@@ -712,7 +760,12 @@ def scan_source(result: ScanResult) -> None:
             result.errors.append(Finding(module, path, 0, f"cannot parse: {exc}"))
             continue
 
-        if module in SOURCE_EXEMPT:
+        if not module.startswith(TRAINING_PACKAGE):
+            result.errors.extend(_training_import_findings(tree, module, path))
+        if module == TRAINER:
+            result.errors.extend(_trainer_findings(tree, module, path))
+            result.errors.extend(_dynamic_import_findings(tree, module, path))
+        elif module in SOURCE_EXEMPT:
             result.errors.extend(_exempt_findings(tree, module, path))
             result.errors.extend(_dynamic_import_findings(tree, module, path))
         else:

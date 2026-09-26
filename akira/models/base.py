@@ -97,6 +97,8 @@ class ModelSpec:
     n_gpu_layers: int = -1
     n_threads: int = 0
     seed: int = -1
+    lora: str = ""
+    """A LoRA adapter to apply, as a GGUF file, or ""."""
 
     @property
     def label(self) -> str:

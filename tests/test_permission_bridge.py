@@ -43,7 +43,7 @@ def app():
 
 
 def pump_until(app, predicate, timeout=5.0) -> bool:
-    """Run the event loop by hand until  predicate holds.
+    """Run the event loop by hand until \a predicate holds.
 
     The real application pumps continuously; here it is done explicitly so the
     test can interleave with a worker thread deterministically.

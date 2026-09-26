@@ -224,7 +224,7 @@ class LiveMicrophone:
 
 
 def permitted(policy: Policy) -> str:
-    """Why  policy does not allow a call, or "". A call needs both Listen and Speak."""
+    """Why \a policy does not allow a call, or "". A call needs both Listen and Speak."""
     for capability, name in (("audio.record", "listen"), ("audio.play", "speak")):
         decision = policy.allows(capability)
         if not decision:
@@ -330,7 +330,7 @@ class Call:
     def end(self, why: str = "", wait: bool = True) -> None:
         """End the call: the microphone closes at once, and Akira stops speaking.
 
-        Without  wait, returns without waiting for the call's thread, which
+        Without \a wait, returns without waiting for the call's thread, which
         may be making out something said; `on_ended` follows from that thread.
         """
         thread = self._thread

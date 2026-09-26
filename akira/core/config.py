@@ -146,6 +146,8 @@ class ModelConfig:
     temperature: float = 0.7
     top_p: float = 0.95
     max_tokens: int = 1024
+    #: A LoRA adapter trained for this model (E4), as a GGUF file, or "".
+    adapter: str = ""
 
     @property
     def configured(self) -> bool:

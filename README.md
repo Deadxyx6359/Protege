@@ -496,6 +496,43 @@ microphone hears stays in memory and is dropped once it is words; no recording
 is ever written to disk. ONNX Runtime's own usage reporting, which goes through
 Windows rather than a socket, is switched off before Kokoro loads.
 
+### Pictures
+
+Pictures are made by **SDXL-Turbo** through **stable-diffusion.cpp**, the
+Vulkan build, on the RTX card: about nine seconds for a 512-pixel picture.
+Three files, fetched once:
+
+| File | Bytes | SHA-256 | From |
+|---|---|---|---|
+| `models/image/bin/sd-master-2f88688-bin-win-vulkan-x64.zip` (unpacked beside it) | 31,998,883 | `63e84439c20dde75487a933066318ae01353e9e80ee70e031acad48e857e1cb9` | github.com/leejet/stable-diffusion.cpp releases, tag `master-920-2f88688` |
+| `models/image/sd_xl_turbo_1.0_fp16.safetensors` | 6,938,081,905 | `e869ac7d6942cb327d68d5ed83a40447aadf20e0c3358d98b2cc9e270db0da26` | huggingface.co/stabilityai/sdxl-turbo (Stability AI Community License) |
+| `models/image/sdxl_vae.safetensors` | 334,641,162 | `235745af8d86bf4a4c1b5b4f529868b37019a10f7c0b2e79ad0abca3a22bc6e1` | huggingface.co/madebyollin/sdxl-vae-fp16-fix (MIT) |
+
+The first picture turns SDXL-Turbo into an 8-bit copy that fits the card,
+`models/image/sd_xl_turbo_1.0.q8_0.gguf` (4.18 GB), in about fifteen seconds.
+`sd-server.exe`, which the zip also holds, was deleted: Akira runs only
+`sd-cli.exe`, with a fixed list of arguments, and never gives it
+`--rpc-servers`. It is a program of its own, out of the network guard's sight
+like the browser, so the firewall rule below should name it too.
+
+### Training
+
+Adapters are trained on **Qwen3-4B** (Apache 2.0), in a Python of their own,
+`models/train/env` (see `requirements-train.txt`), which holds PyTorch and
+Hugging Face's libraries. Akira's own Python never has them. The trainer puts
+Akira's network guard up and tells every library it is offline before it
+imports any of them.
+
+| File | SHA-256 | From |
+|---|---|---|
+| `models/train/Qwen3-4B/model-00001-of-00003.safetensors` (3.96 GB) | `328a91d3122359d5547f9d79521205bc0a46e1f79a792dfe650e99fc2d651223` | huggingface.co/Qwen/Qwen3-4B, revision `1cfa9a72` |
+| `models/train/Qwen3-4B/model-00002-of-00003.safetensors` (3.99 GB) | `6cd087b316306a68c562436b5492edbcf6e16c6dba3a1308279caa5a58e21ca5` | the same |
+| `models/train/Qwen3-4B/model-00003-of-00003.safetensors` (0.10 GB) | `e4bf436957184f4eeb86a80e9db394503f1f56446b2e6b7edeac5b81470f4ca1` | the same, with its config and tokenizer files |
+| `models/train/Qwen3-4B-Q4_K_M.gguf` (2.50 GB) | `7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5` | huggingface.co/Qwen/Qwen3-4B-GGUF, revision `bc640142` |
+
+The first is what is trained; the last is what an adapter runs beside. While
+training runs, no model answers: the card is the trainer's.
+
 A **call** is hands-free: Akira listens, sends what you say to the chat, and
 reads the reply as it is written. The microphone is open only during a call you
 started, and mute closes it. There is no wake word. On speakers Akira waits

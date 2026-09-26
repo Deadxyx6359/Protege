@@ -215,7 +215,7 @@ def test_a_file_already_there_is_never_replaced(tmp_path):
 
 
 def test_the_illustrator_draws_and_saves_and_nothing_more():
-    assert set(ILLUSTRATOR.tools) == {"save_drawing", "list_directory"}
+    assert set(ILLUSTRATOR.tools) == {"save_drawing", "make_image", "list_directory"}
     assert default_registry().get("save_drawing").reversible is False
 
 

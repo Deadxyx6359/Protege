@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 from typing import Any, Callable, Sequence
 
 import llama_cpp
@@ -70,6 +71,13 @@ class LlamaBackend(ModelBackend):
             kwargs["n_threads"] = self.spec.n_threads
         if self.spec.seed is not None and self.spec.seed >= 0:
             kwargs["seed"] = self.spec.seed
+        lora = getattr(self.spec, "lora", "")
+        if lora:
+            # An adapter trained for this model (E4). Missing, it is said so,
+            # rather than the model quietly answering without it.
+            if not Path(lora).is_file():
+                raise ModelUnavailable(f"The adapter {Path(lora).name} is not there any more.")
+            kwargs["lora_path"] = lora
 
         try:
             self._llama = llama_cpp.Llama(**kwargs)

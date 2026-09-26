@@ -193,3 +193,46 @@ def test_a_generation_that_raises_does_not_keep_the_model(tmp_path, llama):
     after = in_thread(work, router, Route.CHAT)
     after.join(2)
     assert not after.is_alive(), "the lock was left held after an exception"
+
+
+# -- lending the graphics card ---------------------------------------------------------------------
+
+
+def test_setting_models_aside_unloads_them_and_keeps_them_out_until_done(tmp_path, llama):
+    from akira.core.models import ModelUnavailable
+
+    router = ModelRouter(config_for(tmp_path, chat="chat.gguf"))
+    work(router, Route.CHAT)
+    loaded = llama.created[0]
+    with router.set_aside():
+        assert loaded.closed, "the model stayed on the card"
+        waiting = in_thread(work, router, Route.CHAT)
+        time.sleep(0.2)
+        assert waiting.is_alive() and len(llama.created) == 1, "a model loaded meanwhile"
+    waiting.join(5)
+    assert not waiting.is_alive() and len(llama.created) == 2, "the next answer loads it again"
+
+    hold, entered = threading.Event(), threading.Event()
+    running = in_thread(work, router, Route.CHAT, hold=hold, entered=entered)
+    assert entered.wait(5)
+    with pytest.raises(ModelUnavailable, match="still answering"):
+        with router.set_aside(timeout=0.2):
+            pass
+    assert not llama.created[-1].closed, "it unloaded a model mid-generation"
+    hold.set()
+    running.join(5)
+
+
+def test_while_the_card_is_lent_for_long_work_a_caller_is_told_at_once(tmp_path, llama):
+    from akira.core.models import ModelUnavailable
+
+    router = ModelRouter(config_for(tmp_path, chat="chat.gguf"))
+    with router.set_aside(lent_for="The graphics card is training an adapter until it ends."):
+        started = time.monotonic()
+        with pytest.raises(ModelUnavailable, match="training an adapter"):
+            with router.acquire(Route.CHAT):
+                pass
+        assert time.monotonic() - started < 0.5, "it waited instead of saying why"
+        assert router.lent
+    assert router.lent == ""
+    work(router, Route.CHAT)

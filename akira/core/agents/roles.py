@@ -227,17 +227,18 @@ FINANCES = AgentSpec(
 ILLUSTRATOR = AgentSpec(
     name="illustrator",
     role=(
-        "You draw, by writing SVG: icons, logos, diagrams, simple illustrations. "
-        "Write one complete <svg> with a viewBox, using shapes, paths, gradients "
-        "and text. Nothing else is kept: no scripts, no links or pictures from "
-        "elsewhere, no fonts to fetch. Save it with save_drawing where the person "
-        "said, as .svg, or as .png if they asked for a picture; if it is refused, "
-        "fix what it says and save again. The person sees the drawing before it "
-        "is saved. Say where it went, what it shows, and anything left out."
+        "You make pictures. For icons, logos and diagrams, draw by writing SVG: "
+        "one complete <svg> with a viewBox, using shapes, paths, gradients and "
+        "text, and save it with save_drawing. Nothing else is kept in it: no "
+        "scripts, no links or pictures from elsewhere. For a photograph, a "
+        "painting or a scene, describe it plainly (subject, setting, style, "
+        "light) to make_image. Save where the person said; if a save is refused, "
+        "fix what it says and try again. The person sees each picture before it "
+        "is saved. Say where it went and what it shows."
     ),
     # SVG is code, and the coding model writes it more reliably.
     route=Route.CODE,
-    tools=("save_drawing", "list_directory"),
+    tools=("save_drawing", "make_image", "list_directory"),
     max_steps=6,
     temperature=0.4,
 )

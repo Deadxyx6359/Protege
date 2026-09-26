@@ -369,3 +369,35 @@ def test_protege_qml_brings_no_connection_of_its_own():
 def test_verifier_exits_zero_on_source_only_scan(capsys):
     assert vo.main(["--source-only", "--quiet"]) == 0
     assert "PASS" in capsys.readouterr().out
+
+
+# --- the trainer, in its own environment ------------------------------------
+
+
+GUARDED = ("def main(argv):\n"
+           "    from akira.security import netguard\n"
+           "    netguard.install()\n"
+           "    import transformers\n")
+
+
+def test_the_trainer_may_bring_in_transformers_only_after_the_guard():
+    where = vo.REPO_ROOT / "akira" / "training" / "_trainer.py"
+    assert vo._trainer_findings(_parse(GUARDED), vo.TRAINER, where) == []
+    early = ("import transformers\n" + GUARDED)
+    assert "before the network guard" in vo._trainer_findings(_parse(early), vo.TRAINER,
+                                                               where)[0].detail
+    first = ("def main(argv):\n    import transformers\n    from akira.security import netguard\n"
+             "    netguard.install()\n")
+    assert vo._trainer_findings(_parse(first), vo.TRAINER, where)
+    other = GUARDED + "    import requests\n"
+    assert "'requests'" in vo._trainer_findings(_parse(other), vo.TRAINER, where)[0].detail
+    unguarded = "def main(argv):\n    import torch\n"
+    assert "never installs" in vo._trainer_findings(_parse(unguarded), vo.TRAINER,
+                                                    where)[0].detail
+
+
+def test_nothing_in_akira_imports_the_training_package():
+    tree = _parse("from akira.training import _trainer\nimport akira.training.lora_gguf\n")
+    findings = vo._training_import_findings(tree, "akira.core.making.training",
+                                            vo.REPO_ROOT / "x.py")
+    assert len(findings) == 2 and "training environment" in findings[0].detail
