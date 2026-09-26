@@ -75,3 +75,22 @@ def test_easter_is_worked_out(year, easter):
     from akira.core.context.dates import _easter
 
     assert _easter(year) == easter
+
+
+def test_clock_times_in_a_message_are_counted_from_now():
+    """Told 17:11, the model said a shop shutting at 6pm had shut nine minutes before."""
+    from datetime import datetime
+
+    from akira.core.context.dates import clock_lines
+
+    now = datetime(2026, 9, 26, 17, 11)
+    lines = clock_lines("Is it too late to phone a shop that shuts at 6pm?", now)
+    assert lines.startswith("Clock times in the message, counted from now (17:11)")
+    assert "- 6pm (18:00): in 49 minutes" in lines
+    lines = clock_lines("between 9:30am and 18:00, or at noon or 5 p.m.", now)
+    assert "- 9:30am (09:30): 7 hours 41 minutes ago" in lines
+    assert "- 18:00 (18:00): in 49 minutes" in lines and "(12:00)" in lines
+    assert "- 5 p.m. (17:00): 11 minutes ago" in lines
+    assert lines.count("09:30") == 1, "9:30am was counted twice"
+    assert clock_lines("at 12am or 12pm", now).count("\n- ") == 2
+    assert clock_lines("no times, a ratio of 3:1, 24:00 or 7:75", now) == ""

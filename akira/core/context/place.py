@@ -200,11 +200,13 @@ def describe_now(now: datetime, *, place: Place | None = None, located: bool = F
     if wrong is not None:
         # Windows is set to another zone than the place's. The place is what
         # the person told Akira; the clock may never have been set.
+        # Its time is not given: offered both, the model used the wrong one,
+        # and said a shop open for another hour had shut.
         bits.append(f"The time zone there is {weather.zone or 'the place’s own'} "
-                    f"({utc_label(shown)}). This computer's clock is set to "
-                    f"{zone or 'another zone'} ({utc_label(local)}) and shows "
-                    f"{local.strftime('%H:%M')}. If the time or the clock comes up, tell the "
-                    "person their Windows time zone may be set wrong.")
+                    f"({utc_label(shown)}); that is the time to use for everything. This "
+                    f"computer's clock is set to another zone, {zone or utc_label(local)}: "
+                    "only if the person asks about their clock or time zones, say their "
+                    "Windows time zone may be set wrong.")
     elif offset:
         label = utc_label(local)
         bits.append(f"The local time zone is {zone} ({label})." if zone and zone != label
@@ -223,6 +225,22 @@ def now_line(policy, *, store: PlaceStore | None = None,
              clock: Callable[[], datetime] | None = None,
              weather: WeatherStore | None = None) -> str:
     """`describe_now` for \a policy: the place, time zone and weather only with `location.read`."""
+    moment, place, located, reading = _situation(policy, store, clock, weather)
+    return describe_now(moment, place=place, located=located, weather=reading)
+
+
+def local_now(policy, *, store: PlaceStore | None = None,
+              clock: Callable[[], datetime] | None = None,
+              weather: WeatherStore | None = None) -> datetime:
+    """Now, as `now_line` tells it: in the place's own zone when the computer's
+    clock is set to another, so sums on the time agree with the time given."""
+    moment, _, located, reading = _situation(policy, store, clock, weather)
+    local = moment if moment.tzinfo is not None else moment.astimezone()
+    wrong = zone_mismatch(local, reading) if located else None
+    return local if wrong is None else local.astimezone(wrong)
+
+
+def _situation(policy, store, clock, weather):
     located = bool(policy.allows("location.read"))
     place = (store if store is not None else PlaceStore()).load() if located else None
     moment = clock() if clock is not None else datetime.now().astimezone()
@@ -230,4 +248,4 @@ def now_line(policy, *, store: PlaceStore | None = None,
     if place is not None and place.coordinates is not None:
         reading = (weather if weather is not None else WeatherStore()).current(
             place.coordinates, moment.timestamp())
-    return describe_now(moment, place=place, located=located, weather=reading)
+    return moment, place, located, reading

@@ -14,7 +14,7 @@ did not already have; this only does sums on it.
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import date, datetime
 
 #: A message asking for a span: "how many days", "how long until", "weeks left".
 _ASKS = re.compile(
@@ -153,6 +153,56 @@ def span_lines(message: str, texts: list[str], today: date) -> str:
         return ""
     return ("Counted exactly from today, for this question (use these numbers, do not "
             "count again):\n" + "\n".join(lines))
+
+
+#: 6pm, 6 p.m., 6:30pm; 18:00; noon, midnight.
+_CLOCK_12 = re.compile(r"\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*([ap])\.?\s?m\b\.?", re.IGNORECASE)
+_CLOCK_24 = re.compile(r"(?<![\d:])\b([01]?\d|2[0-3]):([0-5]\d)\b(?![\d:])")
+_CLOCK_NAMED = re.compile(r"\b(noon|midday|midnight)\b", re.IGNORECASE)
+
+#: At most this many clock times are counted.
+MAX_TIMES = 4
+
+
+def clock_lines(message: str, now: datetime) -> str:
+    """How long until, or since, each clock time the message names, or "".
+
+    Told 17:11, asked whether a shop that shuts at 6pm is still open, the
+    model said it had shut nine minutes before. Counted here instead, today,
+    from \a now, which is the time the model was told.
+    """
+    found: list[tuple[int, str, int]] = []
+    for match in _CLOCK_12.finditer(message):
+        hour = int(match[1]) % 12 + (12 if match[3].lower() == "p" else 0)
+        found.append((match.start(), match[0].strip(), hour * 60 + int(match[2] or 0)))
+    for match in _CLOCK_24.finditer(message):
+        if not _CLOCK_12.match(message, match.start()):
+            found.append((match.start(), match[0], int(match[1]) * 60 + int(match[2])))
+    for match in _CLOCK_NAMED.finditer(message):
+        found.append((match.start(), match[0], 0 if match[1].lower() == "midnight" else 720))
+    minutes_now = now.hour * 60 + now.minute
+    seen: set[int] = set()
+    lines = []
+    for _, written, minutes in sorted(found):
+        if minutes in seen or len(lines) >= MAX_TIMES:
+            continue
+        seen.add(minutes)
+        lines.append(f"- {written} ({minutes // 60:02d}:{minutes % 60:02d}): "
+                     f"{_minutes_apart(minutes - minutes_now)}")
+    if not lines:
+        return ""
+    return (f"Clock times in the message, counted from now ({now:%H:%M}) for today (use these, "
+            "do not count again):\n" + "\n".join(lines))
+
+
+def _minutes_apart(minutes: int) -> str:
+    if minutes == 0:
+        return "now"
+    hours, rest = divmod(abs(minutes), 60)
+    span = " ".join(part for part in (
+        f"{hours} hour{'s' * (hours != 1)}" if hours else "",
+        f"{rest} minute{'s' * (rest != 1)}" if rest else "") if part)
+    return f"in {span}" if minutes > 0 else f"{span} ago"
 
 
 def _counted(day: date, today: date) -> str:

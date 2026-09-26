@@ -264,8 +264,15 @@ def test_a_computer_set_to_the_wrong_zone_is_told_the_places_time(tmp_path):
     said = line()
     assert said.startswith("It is Saturday 26 September 2026, 16:45 in Logan, New Mexico")
     assert "The time zone there is America/Denver (UTC-06:00)" in said
-    assert "set to Central Daylight Time (UTC-05:00) and shows 17:45" in said
+    assert "set to another zone, Central Daylight Time" in said
+    assert "17:45" not in said, "the wrong time was offered beside the right one"
     assert "The weather there at 16:40" in said
+
+    # Sums on the time use the same time as was given.
+    from akira.core.context.place import local_now
+
+    assert local_now(policy, store=kept, clock=lambda: moment,
+                     weather=readings).strftime("%H:%M %z") == "16:45 -0600"
 
     readings.save(Reading("clear", "clear sky", 29.5, 10.0, moment.timestamp() - 300, *logan,
                           "America/Chicago", -5 * 3600))
