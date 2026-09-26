@@ -142,7 +142,9 @@ output = folder / 'Expedition report.md'
 write = '<tool_call>' + json.dumps({'name': 'write_file', 'arguments': {'path': str(output), 'content': 'Written report.\n' + literal}}) + '</tool_call>'
 ctx.permissions.policy.grant('files.write', (str(folder),))
 ctx.agents._confirm = lambda summary: True  # Approves only this isolated fixture write.
-ctx.agents._router = Router(['Plan', write, 'Implementation', 'Review of the local project.'])
+# The architect and the reviewer read before they answer (grounded agents).
+look = '<tool_call>' + json.dumps({'name': 'list_directory', 'arguments': {'path': str(folder)}}) + '</tool_call>'
+ctx.agents._router = Router([look, 'Plan', write, 'Implementation', look, 'Review of the local project.'])
 ctx.agents.runTeam('software', 'Build a local expedition notebook.', str(folder))
 settle_until(lambda: not ctx.agents.busy)
 software_id = ctx.agents.currentRun['id']

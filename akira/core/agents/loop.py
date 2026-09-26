@@ -51,7 +51,16 @@ GO_ON = ("You said what you would do next but did not do it. If a step is left, 
          "finished, give your answer again, as the person should read it.")
 
 #: At most this many reminders in one run, so a confused agent still stops.
-MAX_NUDGES = 2
+#: Each kind is given once, except a step announced and not taken.
+MAX_NUDGES = 3
+
+#: Where a model starts writing a tool's result itself.
+_INVENTED = re.compile(r"<tool_response\b", re.IGNORECASE)
+
+#: Said once to an agent that wrote a tool's result instead of waiting for it.
+INVENTED = ("You wrote a tool's result yourself, so it was thrown away: only a real result "
+            "counts. Call the tool, one call in the form given, and stop there; its result "
+            "will come back to you.")
 
 #: The end of a reply that announces a step: "Let me read the file.", "I'll search".
 #: On the reply's last line, and not "Let me know if you need anything".
@@ -198,7 +207,7 @@ class Agent:
             ChatMessage(role="user", content=task),
         ]
         outcome = Outcome()
-        nudged = 0
+        reminded: list[str] = []
 
         for step in range(1, self.spec.max_steps + 1):
             outcome.steps = step
@@ -214,26 +223,48 @@ class Agent:
                 self._trace.emit(Kind.FAILED, name, text=outcome.answer, step=step)
                 return outcome
 
-            calls, prose = parse_calls(reply, frozenset(t.name for t in self._tools()))
+            # A result the model wrote itself is not a result. An implementer
+            # once went on past its call to write the file it had asked for,
+            # with a test that did not exist, and answered from that.
+            invented = _INVENTED.search(reply)
+            if invented is not None:
+                reply = reply[:invented.start()].rstrip()
 
-            tools = self._tools() if not calls and nudged < MAX_NUDGES else []
+            by_name = {tool.name: tool for tool in self._tools()}
+            calls, prose = parse_calls(reply, frozenset(by_name))
+
+            tools = list(by_name.values()) if not calls and len(reminded) < MAX_NUDGES else []
+            can_act = any(not tool.reversible for tool in tools)
+            acted = any(call.name in by_name and not by_name[call.name].reversible
+                        for call in outcome.calls)
             # "Let me search the files." and nothing more: the step it meant to
             # take, announced and not taken. It is told to take it.
             announced = bool(tools) and _ANNOUNCES.search(reply[-300:]) is not None
             # An agent that can act, answering without having used a tool, has
             # usually done in words what it should have done: code printed
             # instead of the file written, an SVG shown instead of saved. It is
-            # asked once whether a tool was needed. Agents that only read, such
-            # as a team's analyst working from its brief, are left alone.
-            unacted = (bool(tools) and not outcome.calls and not nudged
-                       and ("```" in reply or any(not tool.reversible for tool in tools)))
-            unread = (bool(tools) and not outcome.calls and not nudged and self.spec.grounded
+            # asked once whether a tool was needed. So is one that read and then
+            # printed code it could have saved. Agents that only read, such as a
+            # team's analyst working from its brief, are left alone.
+            unacted = bool(tools) and "unacted" not in reminded and (
+                (not outcome.calls and ("```" in reply or can_act))
+                or (can_act and not acted and "```" in reply))
+            unread = (bool(tools) and not outcome.calls and "unread" not in reminded
+                      and self.spec.grounded
                       and any(tool.name not in PURE_HELPERS for tool in tools))
-            if announced or unacted or unread:
-                nudged += 1
-                messages.append(ChatMessage(role="assistant", content=reply))
-                messages.append(ChatMessage(role="user", content=(
-                    GO_ON if announced else READ_FIRST if unread else NUDGE)))
+            made_up = bool(tools) and invented is not None and "invented" not in reminded
+            for kind, due, saying in (("invented", made_up, INVENTED),
+                                      ("announced", announced, GO_ON),
+                                      ("unread", unread, READ_FIRST),
+                                      ("unacted", unacted, NUDGE)):
+                if due:
+                    reminded.append(kind)
+                    messages.append(ChatMessage(role="assistant", content=reply or "…"))
+                    messages.append(ChatMessage(role="user", content=saying))
+                    break
+            else:
+                saying = ""
+            if saying:
                 continue
 
             if not calls:

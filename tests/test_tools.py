@@ -186,6 +186,35 @@ def test_the_confirmation_prompt_states_the_actual_values(workspace, context):
     assert "x.txt" in asked[0]
 
 
+def test_read_files_line_numbers_are_not_written_back(workspace, context):
+    """A model wrote a test file back as read_file shows it, numbers and all."""
+    from akira.core.tools.builtin.files import without_line_numbers
+
+    policy = Policy()
+    policy.grant("files.read", (str(workspace),))
+    policy.grant("files.write", (str(workspace),))
+    asked = []
+    ctx = context(policy, confirm=lambda summary: asked.append(summary) or True)
+    shown = default_registry().invoke("read_file", {"path": str(workspace / "src" / "main.py")}, ctx)
+    assert "numbers are not part of the file" in default_registry().get("read_file").summary
+    numbered = shown.content.split("\n\n", 1)[1] + "\n"
+
+    result = default_registry().invoke(
+        "write_file", {"path": str(workspace / "copy.py"), "content": numbered}, ctx)
+    assert result.ok and "line numbers read_file shows were taken out" in result.content
+    written = (workspace / "copy.py").read_text(encoding="utf-8")
+    assert written == (workspace / "src" / "main.py").read_text(encoding="utf-8").rstrip("\n") + "\n"
+    assert "    1  " not in asked[0], "the person was shown other content than was written"
+
+    # A blank line the model added among them stays blank; new lines may be numbered on.
+    assert without_line_numbers("   11  x = 1\n\n   12  def f():\n   13      return 2") == \
+        "x = 1\n\ndef f():\n    return 2"
+    # Only read_file's own gutter, on every line, the numbers going up.
+    for text in ("1  a\n2  b", "    1  a\n    1  b", "    1  one line", "plain\n",
+                 "    1  a\nunnumbered\n    2  b"):
+        assert without_line_numbers(text) == text
+
+
 def test_approving_lets_it_through(workspace, context):
     policy = Policy()
     policy.grant("files.write", (str(workspace),))

@@ -48,6 +48,33 @@ def test_the_tagged_form_still_wins():
     assert call.name == "read_file" and call.arguments == {"path": "a.md"}
 
 
+def test_data_with_a_name_in_code_is_not_a_call():
+    """An architect's test data, `{"name": "canes", ...}`, was run as a tool called "canes"."""
+    text = ('Here is the test:\n```python\n'
+            'items = [{"name": "canes", "price": 0.5, "quantity": 20}]\n```')
+    assert parse_calls(text, KNOWN) == ([], text)
+    fenced = '```json\n{"name": "canes", "price": 1}\n```'
+    assert parse_calls(fenced, KNOWN) == ([], fenced)
+    # A misnamed call still reaches the registry, which says there is no such tool.
+    [call], _ = parse_calls('{"name": "reed_file", "arguments": {"path": "a"}}', KNOWN)
+    assert call.name == "reed_file"
+
+
+def test_a_file_written_in_triple_quotes_or_with_raw_line_breaks_is_still_written():
+    """A coding model's write_file was lost this way, and it said the function was added."""
+    escaped = ('```python\n{"name": "write_file", "arguments": {"path": "a.py", "content": '
+               '"""\\"\\"\\"Doc.\\"\\"\\"\\n\\ndef f():\\n    return {\\"a\\": 1}\\n"""}}\n```')
+    [call], _ = parse_calls(escaped, KNOWN | {"write_file"})
+    assert call.arguments["content"] == '"""Doc."""\n\ndef f():\n    return {"a": 1}\n'
+    plain = ('{"name": "write_file", "arguments": {"path": "a.py", "content": """def f():\n'
+             '    return "x"\n"""}}')
+    [call], _ = parse_calls(plain, KNOWN | {"write_file"})
+    assert call.arguments["content"] == 'def f():\n    return "x"\n'
+    raw_lines = '{"name": "write_file", "arguments": {"path": "a.py", "content": "a\nb"}}'
+    [call], _ = parse_calls(raw_lines, KNOWN | {"write_file"})
+    assert call.arguments["content"] == "a\nb"
+
+
 def test_the_example_call_uses_a_real_tool_and_its_real_argument_names():
     tools = [default_registry().get("list_directory"), default_registry().get("read_file")]
     rendered = render_tools(tools)

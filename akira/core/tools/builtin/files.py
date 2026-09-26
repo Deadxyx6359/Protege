@@ -91,9 +91,44 @@ def _run_read(arguments: dict, context: ToolContext) -> ToolResult:
         data={"path": str(path), "lines": len(lines)})
 
 
+def without_line_numbers(content: str) -> str:
+    """\a content with `read_file`'s line numbers taken out, when every line has them.
+
+    A model given a file as `read_file` shows it wrote it back that way, numbers
+    and all, and the test file it made could not be imported. Only the gutter
+    `read_file` draws is removed: a number right-aligned in five columns and two
+    spaces, on every line that is not blank, the numbers going up. A blank line
+    the model added among them stays a blank line.
+    """
+    lines = content.split("\n")
+    while lines and not lines[-1].strip():
+        lines.pop()
+    kept, last, numbered = [], 0, 0
+    for line in lines:
+        line = line.rstrip("\r")
+        if not line.strip():
+            kept.append("")
+            continue
+        found = _GUTTER.match(line)
+        if found is None or int(found[1]) <= last:
+            return content
+        last, numbered = int(found[1]), numbered + 1
+        kept.append(line[7:])
+    if numbered < 2:
+        return content
+    return "\n".join(kept) + ("\n" if content.endswith("\n") else "")
+
+
+#: `read_file`'s gutter: a number in five columns, then two spaces or the line's end.
+_GUTTER = re.compile(r"^(?=[ \d]{5}(?:  |\s*$))\s*(\d{1,5})(?:  |\s*$)")
+
+
 read_file = Tool(
     name="read_file",
-    summary="Read a text file and return its contents with line numbers.",
+    # The header is matched exactly by the Documents preview, so the note that
+    # the numbers are not the file's goes here, where every agent reads it.
+    summary=("Read a text file. Each line comes back with its number on the left; the "
+             "numbers are not part of the file, so never write them back into it."),
     parameters=(
         Parameter("path", "string", "Absolute path to the file."),
     ),
@@ -244,7 +279,7 @@ search_files = Tool(
 def _describe_write(arguments: dict, context: ToolContext) -> str:
     """The question before writing: new or replaced, where, and every line of it."""
     path = real(arguments["path"])
-    content = str(arguments["content"])
+    content = without_line_numbers(str(arguments["content"]))
     if path.is_dir():
         raise ToolError(f"{path} is a directory")
     if path.exists():
@@ -262,7 +297,9 @@ def _describe_write(arguments: dict, context: ToolContext) -> str:
 
 def _run_write(arguments: dict, context: ToolContext) -> ToolResult:
     path = real(arguments["path"])
-    content = arguments["content"]
+    written = str(arguments["content"])
+    # The same content the person was shown before saying yes.
+    content = without_line_numbers(written)
 
     existed = path.exists()
     if existed and path.is_dir():
@@ -276,7 +313,9 @@ def _run_write(arguments: dict, context: ToolContext) -> ToolResult:
 
     verb = "Updated" if existed else "Created"
     lines = content.count("\n") + 1
-    return ToolResult.success(f"{verb} {path} ({lines} lines).",
+    note = ("" if content == written else
+            " The line numbers read_file shows were taken out: they are not part of a file.")
+    return ToolResult.success(f"{verb} {path} ({lines} lines).{note}",
                               data={"path": str(path), "created": not existed})
 
 

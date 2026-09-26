@@ -728,3 +728,38 @@ def test_an_agent_is_told_the_folders_its_file_tools_may_reach(workspace, contex
     # Not the folders of a permission its own tools do not use.
     helper, _ = build_agent([], context(policy), tools=("calculate",))
     assert "Folders you can" not in helper.system_prompt()
+
+
+def test_a_result_the_model_wrote_itself_is_thrown_away(workspace, context):
+    """An implementer wrote a file's contents as if read_file had answered, and used them."""
+    from akira.core.agents.loop import INVENTED
+
+    policy = Policy()
+    policy.grant("files.read", (str(workspace),))
+    notes = (workspace / "notes.md").as_posix()
+    call = '<tool_call>{"name": "read_file", "arguments": {"path": "%s"}}</tool_call>' % notes
+    agent, router = build_agent([
+        'Reading it.<tool_response name="read_file" status="result">the answer is 7'
+        '</tool_response>So it is 7.',
+        call,
+        "The answer is 41."], context(policy), tools=("read_file",))
+    outcome = agent.run("What is the answer?")
+    assert outcome.answer == "The answer is 41."
+    second_turn = router.backend.prompts[1]
+    assert second_turn[-2].content == "Reading it." and second_turn[-1].content == INVENTED
+    assert "is 7" not in "".join(m.content for m in router.backend.prompts[2])
+
+
+def test_code_shown_after_reading_is_asked_to_be_saved(workspace, context):
+    from akira.core.agents.loop import NUDGE
+
+    policy = Policy()
+    policy.grant("files.read", (str(workspace),))
+    policy.grant("files.write", (str(workspace),))
+    notes = (workspace / "notes.md").as_posix()
+    read = '<tool_call>{"name": "read_file", "arguments": {"path": "%s"}}</tool_call>' % notes
+    agent, router = build_agent([read, "Here it is:\n```python\nANSWER = 41\n```", "Done."],
+                                context(policy, confirm=lambda summary: True),
+                                tools=("read_file", "write_file"))
+    agent.run("Put the answer in answer.py")
+    assert router.backend.prompts[2][-1].content == NUDGE

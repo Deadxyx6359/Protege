@@ -66,6 +66,54 @@ def _coerce(raw: dict) -> Call | None:
     return Call(name.strip(), arguments)
 
 
+#: A value in Python's triple quotes, where JSON wants one pair: `"content": """…"""`.
+_TRIPLE_QUOTED = re.compile(r'(:\s*)"""(.*?)"""(\s*[,}])', re.DOTALL)
+
+
+def _loads(span: str):
+    """A call's JSON, forgiving the two ways small models get it wrong.
+
+    Raw line breaks inside a string, which `strict=False` accepts; and a file's
+    content wrapped in triple quotes, as a coding model wrote a `write_file`
+    call: the call was lost, and it reported a function added that was never
+    written. The inside of the quotes is taken as already escaped when that
+    reads, and as plain text otherwise. Raises `json.JSONDecodeError` when
+    neither helps.
+    """
+    try:
+        return json.loads(span)
+    except json.JSONDecodeError as first:
+        error = first
+    try:
+        return json.loads(span, strict=False)
+    except json.JSONDecodeError:
+        pass
+    if '"""' in span:
+        for as_written in (True, False):
+            repaired = _TRIPLE_QUOTED.sub(
+                lambda found: found[1] + (f'"{found[2]}"' if as_written
+                                          else json.dumps(found[2])) + found[3], span)
+            try:
+                return json.loads(repaired, strict=False)
+            except json.JSONDecodeError:
+                continue
+    raise error
+
+
+def _meant(raw: dict, call: Call, known: frozenset[str]) -> bool:
+    """Whether an untagged object is a call rather than data with a "name".
+
+    Writing a test, an architect put `{"name": "canes", "price": 0.5}` in its
+    code; it was taken for a call to a tool called "canes" and cut out of the
+    code. With the agent's tools known, an object is a call when it names one
+    of them, or says what its arguments are: a call to a tool that does not
+    exist still reaches the registry, which says so.
+    """
+    if not known:
+        return True
+    return call.name in known or any(key in raw for key in ("arguments", "parameters"))
+
+
 def _balanced_objects(text: str) -> list[str]:
     """Every top-level {...} span, tracking string literals.
 
@@ -162,22 +210,27 @@ def parse_calls(text: str, known: frozenset[str] = frozenset()) -> tuple[list[Ca
     remainder = text
 
     for pattern in (_TOOL_CALL_TAG, _FENCED):
+        taken = []
         for match in pattern.finditer(remainder):
             try:
-                call = _coerce(json.loads(match.group(1)))
+                raw = _loads(match.group(1))
             except json.JSONDecodeError:
                 continue
-            if call is not None:
+            call = _coerce(raw)
+            # A tag is always meant as a call; a ```json block may be data.
+            if call is not None and (pattern is _TOOL_CALL_TAG or _meant(raw, call, known)):
                 calls.append(call)
+                taken.append(match.group(0))
         if calls:
-            remainder = pattern.sub("", remainder)
+            for whole in taken:
+                remainder = remainder.replace(whole, "")
             return calls, remainder.strip()
 
     # Nothing tagged or fenced. Accept a bare object only when it really looks
     # like a call, so ordinary prose containing JSON is not mistaken for one.
     for span in _balanced_objects(remainder):
         try:
-            raw = json.loads(span)
+            raw = _loads(span)
         except json.JSONDecodeError:
             continue
         if not isinstance(raw, dict):
@@ -185,7 +238,7 @@ def parse_calls(text: str, known: frozenset[str] = frozenset()) -> tuple[list[Ca
         if not ({"name", "tool", "function"} & set(raw)):
             continue
         call = _coerce(raw)
-        if call is not None:
+        if call is not None and _meant(raw, call, known):
             calls.append(call)
             remainder = remainder.replace(span, "")
 
@@ -210,7 +263,7 @@ def _named_objects(text: str, known: frozenset[str]) -> tuple[list[Call], str]:
         if not spans:
             continue
         try:
-            arguments = json.loads(spans[0])
+            arguments = _loads(spans[0])
         except json.JSONDecodeError:
             continue
         if isinstance(arguments, dict):

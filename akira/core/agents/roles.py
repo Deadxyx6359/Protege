@@ -92,6 +92,12 @@ WRITER = AgentSpec(
 
 # -- software ---------------------------------------------------------------
 
+#: The software team runs on the chat model. Tried on a small change, the coding
+#: model (Qwen2.5-Coder 7B) never once wrote a file through a tool in three runs:
+#: it printed the code, rewrote files from memory, and once invented a file's
+#: contents. The chat model (Qwen3-8B) read, wrote, ran the tests and passed.
+SOFTWARE_ROUTE = Route.CHAT
+
 ARCHITECT = AgentSpec(
     name="architect",
     role=(
@@ -100,8 +106,9 @@ ARCHITECT = AgentSpec(
         "and name the approach you rejected along with the reason. Do not "
         "write the implementation."
     ),
-    route=Route.CODE,
+    route=SOFTWARE_ROUTE,
     tools=("read_file", "list_directory", "search_files", "git_status", "git_log"),
+    grounded=True,
     max_steps=6,
     temperature=0.3,
 )
@@ -115,7 +122,7 @@ IMPLEMENTER = AgentSpec(
         "are in the code, stop and say so rather than improvising a different "
         "change."
     ),
-    route=Route.CODE,
+    route=SOFTWARE_ROUTE,
     # It may propose a commit and a push, as a person working in the repository
     # would; whether either happens is still the person's call, asked each time.
     tools=("read_file", "list_directory", "search_files", "write_file",
@@ -132,10 +139,11 @@ REVIEWER = AgentSpec(
         "what you find; do not fix it. Say plainly when a change is fine — a "
         "review that always finds something teaches people to ignore reviews."
     ),
-    route=Route.CODE,
+    route=SOFTWARE_ROUTE,
     # Read-only on purpose. See the module docstring.
     tools=("read_file", "list_directory", "search_files", "check_syntax",
            "git_status", "git_diff"),
+    grounded=True,
     max_steps=6,
     temperature=0.3,
 )

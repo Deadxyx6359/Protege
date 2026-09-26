@@ -16,8 +16,10 @@
 > python shell.py
 > ```
 >
-> It uses **Qwen3-8B** for everyday work and **Qwen2.5-Coder-7B** for code,
-> both fully resident on the 6 GB card at 34–38 tok/s. The 24B this file
+> It uses **Qwen3-8B** for everyday work and **Qwen2.5-Coder-7B** for code
+> questions in chat and for drawings, both fully resident on the 6 GB card at
+> 34–38 tok/s. The software team runs on Qwen3-8B, which uses its tools; the
+> coding model printed code instead of saving it. The 24B this file
 > describes is still on disk and still selectable, but it is no longer the
 > default: it ran at 2.2 tok/s.
 
