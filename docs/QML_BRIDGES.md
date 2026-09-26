@@ -77,6 +77,21 @@ before changing it.
 Registered in `akira/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
 
+### Chat workspace ownership
+
+`Chat.workspace` is `chats` (Everyday), `code`, or `research`, notified by
+`titleChanged`. `Chat.switchWorkspace(name) -> bool` saves the current chat and
+restores a distinct in-memory conversation for the requested workspace and open
+project, or creates an empty one. It refuses invalid names and active turns.
+The frontend additionally prevents switching during a voice call. Tool pages
+do not switch conversations. Unsent composer text is kept by the frontend per
+project and workspace for this app session.
+
+Conversations persist a `workspace` field; missing/unknown values in older
+files default to `chats`. `openConversation` restores this field: navigation
+must follow `Chat.workspace` after reopening history. `newChat` keeps the
+current workspace. Recent-history search remains global.
+
 ---
 
 ## `Permissions` — what may be attempted
@@ -494,6 +509,7 @@ Schedule.addJob({
 | `weather` | Property, notifies `weatherChanged` | **Bind `SceneHost.weather` to `Place.weather \|\| "clear"`.** One of the scenes' names, or `""` when there is no current reading |
 | `weatherSummary`, `weatherAt` | Properties, notify `weatherChanged` | e.g. "14°C, light rain", and when it was read (epoch seconds). Empty and 0 without a reading |
 | `weatherNote` | Property, notifies `weatherChanged` | Why there is no current reading, written for the person, or `""` |
+| `clockNote` | Property, notifies `weatherChanged` | When Windows' time zone is not the place's (known from its weather), what is wrong and where to fix it, e.g. "This computer's clock is set to Central Daylight Time (UTC-05:00), but Logan, New Mexico is on America/Denver time (UTC-06:00): it is 16:45 there, not 17:45. …"; `""` when they agree or nothing is known. Worth showing beside the place in Settings, and anywhere a clock is drawn from the computer's time |
 | `weatherSite` | Constant | `open-meteo.com`, the site to offer for `net.http` |
 | `refreshWeather()` | Slot → string | Read it now, on a worker. `""` once started, or why not |
 

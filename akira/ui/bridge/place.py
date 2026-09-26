@@ -15,12 +15,13 @@ results cross back on queued signals.
 from __future__ import annotations
 
 import threading
-from datetime import date
+from datetime import date, datetime
+from typing import Callable
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
 from akira.core.context.place import (MAX_NAME_CHARS, PlaceError, PlaceStore, check_place,
-                                        season)
+                                        season, utc_label, zone_mismatch)
 from akira.core.context.weather import SITE, Found, Weather, WeatherError
 
 NO_WEATHER = "Weather is not available here."
@@ -38,8 +39,10 @@ class PlaceBridge(QObject):
     _looked = Signal(object, str)
 
     def __init__(self, store: PlaceStore | None = None, weather: Weather | None = None,
-                 parent: QObject | None = None) -> None:
+                 parent: QObject | None = None, *,
+                 clock: Callable[[], datetime] | None = None) -> None:
         super().__init__(parent)
+        self._now = clock or (lambda: datetime.now().astimezone())
         self._store = store if store is not None else PlaceStore()
         self._place = self._store.load()
         self._weather = weather
@@ -217,6 +220,28 @@ class PlaceBridge(QObject):
         """e.g. "14°C, light rain", or "" when there is no current reading."""
         reading = self._reading()
         return reading.summary if reading is not None else ""
+
+    @Property(str, notify=weatherChanged)
+    def clockNote(self) -> str:
+        """When the computer's time zone is not the place's, what to change; else "".
+
+        e.g. "This computer's clock is set to Central Daylight Time (UTC-05:00),
+        but Logan, New Mexico is on America/Denver time (UTC-06:00): it is 16:45
+        there, not 17:45. …". Known from the place's weather, so "" until the
+        weather has been read.
+        """
+        reading = self._reading()
+        local = self._now()
+        wrong = zone_mismatch(local, reading)
+        if wrong is None:
+            return ""
+        there = local.astimezone(wrong)
+        name = self.name or "your place"
+        return (f"This computer's clock is set to {local.tzname() or 'another time zone'} "
+                f"({utc_label(local)}), but {name} is on {reading.zone or 'another'} time "
+                f"({utc_label(there)}): it is {there:%H:%M} there, not {local:%H:%M}. "
+                "Akira tells its models the time there. To fix the computer's clock, "
+                "choose the right zone in Windows Settings, Time & language, Date & time.")
 
     @Property(float, notify=weatherChanged)
     def weatherAt(self) -> float:

@@ -212,6 +212,69 @@ def test_forgetting_drops_the_reading(tmp_path, allowed, web, clock):
 # -- what models hear ---------------------------------------------------------------------------
 
 
+def test_the_places_time_zone_is_read_with_its_weather(tmp_path, allowed, web, clock):
+    body = json.loads(forecast().body)
+    body.update(timezone="Europe/London", timezone_abbreviation="BST", utc_offset_seconds=3600)
+    web.answer = Response(weather_module.FORECAST, 200, "OK", "application/json",
+                          json.dumps(body).encode())
+    reading = reader(tmp_path, allowed, web, clock).refresh()
+    [address] = web.asked
+    assert "timezone=auto" in address
+    assert (reading.zone, reading.utc_offset) == ("Europe/London", 3600)
+    assert WeatherStore(tmp_path / "weather.json").load() == reading
+
+
+@pytest.mark.parametrize("zone, offset", [
+    ("<b>London</b>", 3600), ("Europe/London", 99_999), ("Europe/London", 61), (None, "x")])
+def test_a_time_zone_that_is_not_one_is_left_out(tmp_path, allowed, web, clock, zone, offset):
+    body = json.loads(forecast().body)
+    body.update(timezone=zone, utc_offset_seconds=offset)
+    web.answer = Response(weather_module.FORECAST, 200, "OK", "application/json",
+                          json.dumps(body).encode())
+    reading = reader(tmp_path, allowed, web, clock).refresh()
+    assert reading.zone in ("", "Europe/London") and reading.zone != "<b>London</b>"
+    assert reading.utc_offset in (None, 3600) and reading.utc_offset != 99_999
+
+
+def test_a_reading_kept_before_time_zones_still_loads(tmp_path):
+    path = tmp_path / "weather.json"
+    path.write_text(json.dumps({"condition": "rain", "description": "light rain",
+                                "temperature": 14.2, "wind": 12.3, "at": 1.0,
+                                "latitude": 51.45, "longitude": -2.59}), encoding="utf-8")
+    reading = WeatherStore(path).load()
+    assert reading is not None and (reading.zone, reading.utc_offset) == ("", None)
+
+
+def test_a_computer_set_to_the_wrong_zone_is_told_the_places_time(tmp_path):
+    """Windows set to Central in New Mexico: the model was told Central, an hour ahead."""
+    logan = (35.4, -103.4)
+    kept = PlaceStore(tmp_path / "place.json")
+    kept.save(check_place("Logan, New Mexico", "", *logan))
+    readings = WeatherStore(tmp_path / "weather.json")
+    central = timezone(timedelta(hours=-5), "Central Daylight Time")
+    moment = datetime(2026, 9, 26, 17, 45, tzinfo=central)
+    policy = Policy()
+    policy.grant("location.read")
+
+    def line():
+        return now_line(policy, store=kept, clock=lambda: moment, weather=readings)
+
+    readings.save(Reading("clear", "clear sky", 29.5, 10.0, moment.timestamp() - 300, *logan,
+                          "America/Denver", -6 * 3600))
+    said = line()
+    assert said.startswith("It is Saturday 26 September 2026, 16:45 in Logan, New Mexico")
+    assert "The time zone there is America/Denver (UTC-06:00)" in said
+    assert "set to Central Daylight Time (UTC-05:00) and shows 17:45" in said
+    assert "The weather there at 16:40" in said
+
+    readings.save(Reading("clear", "clear sky", 29.5, 10.0, moment.timestamp() - 300, *logan,
+                          "America/Chicago", -5 * 3600))
+    said = line()
+    assert said.startswith("It is Saturday 26 September 2026, 17:45 (")
+    assert "The local time zone is Central Daylight Time (UTC-05:00)." in said
+    assert "may be set wrong" not in said
+
+
 def test_models_hear_the_weather_only_while_located_fresh_and_for_that_place(tmp_path):
     kept = PlaceStore(tmp_path / "place.json")
     kept.save(check_place("Bristol, UK", "", *BRISTOL))

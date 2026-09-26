@@ -27,11 +27,12 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import re
 import tempfile
 import threading
 import time
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -45,6 +46,9 @@ from akira.core import files
 SITE = "open-meteo.com"
 FORECAST = "https://api.open-meteo.com/v1/forecast"
 GEOCODER = "https://geocoding-api.open-meteo.com/v1/search"
+
+#: A time zone name as the site gives one: America/Denver, Europe/London, UTC.
+_ZONE_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_+-]{0,30}(?:/[A-Za-z0-9_+-]{1,30}){0,2}")
 
 #: How often the weather is read, and how old a reading may be and still be now.
 EVERY_S = 30 * 60
@@ -141,13 +145,26 @@ class Reading:
     latitude: float
     longitude: float
 
+    zone: str = ""
+    """The place's time zone as Open-Meteo names it, such as America/Denver."""
+
+    utc_offset: int | None = None
+    """The place's offset from UTC when read, in seconds, daylight saving included.
+
+    Windows can be set to a zone that is not the person's: a machine in New
+    Mexico set to Central time told the model it was an hour later than it was,
+    in "Central Daylight Time". The place's own offset lets that be caught.
+    """
+
     @property
     def summary(self) -> str:
         return f"{int(round(self.temperature))}°C, {self.description}"
 
     def sentence(self) -> str:
-        """For a model."""
-        when = datetime.fromtimestamp(self.at).strftime("%H:%M")
+        """For a model. The time is the place's own, when its offset is known."""
+        there = (timezone(timedelta(seconds=self.utc_offset))
+                 if self.utc_offset is not None else None)
+        when = datetime.fromtimestamp(self.at, there).strftime("%H:%M")
         return (f"The weather there at {when} was {self.description}, "
                 f"{int(round(self.temperature))}°C, with the wind at "
                 f"{int(round(self.wind))} km/h.")
@@ -177,9 +194,11 @@ class WeatherStore:
     def load(self) -> Reading | None:
         try:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
+            offset = raw.get("utc_offset")
             reading = Reading(str(raw["condition"]), str(raw["description"]),
                               float(raw["temperature"]), float(raw["wind"]), float(raw["at"]),
-                              float(raw["latitude"]), float(raw["longitude"]))
+                              float(raw["latitude"]), float(raw["longitude"]),
+                              str(raw.get("zone") or ""), _offset(offset))
         except (OSError, ValueError, KeyError, TypeError):
             return None
         return reading if reading.condition in WEATHER else None
@@ -213,7 +232,21 @@ def forecast_address(latitude: float, longitude: float) -> str:
     about eleven kilometres, and nothing else about the person."""
     return with_query(FORECAST, {"latitude": f"{latitude:.1f}", "longitude": f"{longitude:.1f}",
                                  "current": "temperature_2m,weather_code,wind_speed_10m",
-                                 "wind_speed_unit": "kmh"})
+                                 "wind_speed_unit": "kmh",
+                                 # The zone is worked out there from the position;
+                                 # asking for it tells the site nothing more.
+                                 "timezone": "auto"})
+
+
+def _offset(value) -> int | None:
+    """A UTC offset in seconds, if \a value is one a place on Earth can have."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        seconds = int(value)
+    except (TypeError, ValueError):
+        return None
+    return seconds if -12 * 3600 <= seconds <= 14 * 3600 and seconds % 900 == 0 else None
 
 
 def _json(response) -> object:
@@ -238,7 +271,11 @@ def _reading(data, coordinates: tuple[float, float], at: float) -> Reading:
     if not (-90.0 < temperature < 60.0 and 0.0 <= wind < 400.0):
         raise WeatherError(f"{SITE}'s answer did not make sense, so it was not used.")
     name, words = condition(code, wind)
-    return Reading(name, words, round(temperature, 1), round(wind, 1), at, *coordinates)
+    zone = data.get("timezone") if isinstance(data, dict) else None
+    zone = zone if isinstance(zone, str) and _ZONE_NAME.fullmatch(zone) else ""
+    offset = _offset(data.get("utc_offset_seconds")) if isinstance(data, dict) else None
+    return Reading(name, words, round(temperature, 1), round(wind, 1), at, *coordinates,
+                   zone, offset)
 
 
 class Weather:

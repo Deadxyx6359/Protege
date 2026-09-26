@@ -29,7 +29,7 @@ import json
 import os
 import tempfile
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -164,19 +164,49 @@ class PlaceStore:
             self.path.unlink()
 
 
+def utc_label(moment: datetime) -> str:
+    offset = moment.strftime("%z")
+    return f"UTC{offset[:3]}:{offset[3:]}" if offset else "UTC"
+
+
+def zone_mismatch(local: datetime, weather: Reading | None) -> timezone | None:
+    """The place's own zone, when the computer's clock is set to a different one.
+
+    The place's offset comes with its weather (`Reading.utc_offset`). None when
+    they agree, or when there is no reading to tell.
+    """
+    if weather is None or weather.utc_offset is None or local.utcoffset() is None:
+        return None
+    if int(local.utcoffset().total_seconds()) == weather.utc_offset:
+        return None
+    offset = timedelta(seconds=weather.utc_offset)
+    return timezone(offset, weather.zone) if weather.zone else timezone(offset)
+
+
 def describe_now(now: datetime, *, place: Place | None = None, located: bool = False,
                  weather: Reading | None = None) -> str:
     """When it is, and where and what the weather is if \a located, for a model to read."""
     local = now if now.tzinfo is not None else now.astimezone()
-    text = (f"It is {local.strftime('%A')} {local.day} {local.strftime('%B %Y')}, "
-            f"{local.strftime('%H:%M')} ({part_of_day(local)}).")
+    wrong = zone_mismatch(local, weather) if located else None
+    shown = local if wrong is None else local.astimezone(wrong)
+    there = f" in {place.name}" if wrong is not None and place is not None and place.name else ""
+    text = (f"It is {shown.strftime('%A')} {shown.day} {shown.strftime('%B %Y')}, "
+            f"{shown.strftime('%H:%M')}{there} ({part_of_day(shown)}).")
     if not located:
         return text
     bits = [text]
     offset = local.strftime("%z")
     zone = local.tzname() or ""
-    if offset:
-        label = f"UTC{offset[:3]}:{offset[3:]}"
+    if wrong is not None:
+        # Windows is set to another zone than the place's. The place is what
+        # the person told Akira; the clock may never have been set.
+        bits.append(f"The time zone there is {weather.zone or 'the place’s own'} "
+                    f"({utc_label(shown)}). This computer's clock is set to "
+                    f"{zone or 'another zone'} ({utc_label(local)}) and shows "
+                    f"{local.strftime('%H:%M')}. If the time or the clock comes up, tell the "
+                    "person their Windows time zone may be set wrong.")
+    elif offset:
+        label = utc_label(local)
         bits.append(f"The local time zone is {zone} ({label})." if zone and zone != label
                     else f"The local time zone is {label}.")
     if place is not None and place.name:
