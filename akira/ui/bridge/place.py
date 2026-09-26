@@ -223,11 +223,11 @@ class PlaceBridge(QObject):
 
     @Property(str, notify=weatherChanged)
     def clockNote(self) -> str:
-        """When the computer's time zone is not the place's, what to change; else "".
+        """When the computer's time zone is not the place's, one short line; else "".
 
-        e.g. "This computer's clock is set to Central Daylight Time (UTC-05:00),
-        but Logan, New Mexico is on America/Denver time (UTC-06:00): it is 16:45
-        there, not 17:45. …". Known from the place's weather, so "" until the
+        e.g. "Windows is set to Central Daylight Time; Logan, New Mexico is on
+        America/Denver (16:45)." Short, as the interface is now to be (Codex's
+        handoff 2026-09-26-06). Known from the place's weather, so "" until the
         weather has been read.
         """
         reading = self._reading()
@@ -236,12 +236,9 @@ class PlaceBridge(QObject):
         if wrong is None:
             return ""
         there = local.astimezone(wrong)
-        name = self.name or "your place"
-        return (f"This computer's clock is set to {local.tzname() or 'another time zone'} "
-                f"({utc_label(local)}), but {name} is on {reading.zone or 'another'} time "
-                f"({utc_label(there)}): it is {there:%H:%M} there, not {local:%H:%M}. "
-                "Akira tells its models the time there. To fix the computer's clock, "
-                "choose the right zone in Windows Settings, Time & language, Date & time.")
+        return (f"Windows is set to {local.tzname() or utc_label(local)}; "
+                f"{self.name or 'your place'} is on {reading.zone or utc_label(there)} "
+                f"({there:%H:%M}).")
 
     @Property(float, notify=weatherChanged)
     def weatherAt(self) -> float:

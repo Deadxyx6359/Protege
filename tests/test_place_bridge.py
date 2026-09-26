@@ -73,11 +73,8 @@ def test_a_clock_set_to_another_zone_than_the_place_is_pointed_out(tmp_path, app
     assert bridge.clockNote == "", "no reading yet, so nothing is known about the zone"
     weather.reading = Reading("clear", "clear sky", 29.5, 10.0, 0.0, 35.4, -103.4,
                               "America/Denver", -6 * 3600)
-    note = bridge.clockNote
-    assert note.startswith("This computer's clock is set to Central Daylight Time (UTC-05:00), "
-                           "but Logan, New Mexico is on America/Denver time (UTC-06:00): "
-                           "it is 16:45 there, not 17:45.")
-    assert "Windows Settings" in note
+    assert bridge.clockNote == ("Windows is set to Central Daylight Time; "
+                                "Logan, New Mexico is on America/Denver (16:45).")
     weather.reading = Reading("clear", "clear sky", 29.5, 10.0, 0.0, 35.4, -103.4,
                               "America/Chicago", -5 * 3600)
     assert bridge.clockNote == ""
