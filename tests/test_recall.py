@@ -76,6 +76,25 @@ def test_granted_notes_are_found_cited_and_framed_as_material(tmp_path, vault):
     assert '"chat"' in logged(tmp_path) and "search_notes" in logged(tmp_path)
 
 
+def test_notes_searched_and_found_empty_is_said_so(tmp_path, vault):
+    policy = Policy()
+    policy.grant("vault.read", (str(vault),))
+    context = assembler(tmp_path, policy, vault=vault)("what is my dentist called")
+    assert context.sources == []
+    assert "You searched the person's notes for this message and found nothing" in context.text
+    assert "I couldn't find that in your notes." in context.text
+
+
+def test_a_question_of_how_long_gets_the_days_counted(tmp_path, vault):
+    (vault / "Car.md").write_text("# Car\n\nMOT due 14 November 2026.\n", encoding="utf-8")
+    policy = Policy()
+    policy.grant("vault.read", (str(vault),))
+    context = assembler(tmp_path, policy, vault=vault)("how many days until my car MOT is due")
+    # Friday 11 September to Saturday 14 November.
+    assert "- 14 November 2026 (Saturday 14 November 2026): in 64 days" in context.text
+    assert "Counted" not in assembler(tmp_path, policy, vault=vault)("when is my car MOT").text
+
+
 def test_the_place_is_given_only_with_location_permission(tmp_path):
     place = PlaceStore(tmp_path / "place.json")
     place.save(Place("Bristol, UK", "north"))
