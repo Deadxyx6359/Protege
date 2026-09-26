@@ -702,6 +702,7 @@ person's own act: nothing is kept unless they save it.
 | `prepare()` | Slot → string | Make it now: `""` once started |
 | `make(prompt, negative, width, height, steps, seed)` | Slot → string | Make one: `""` once started, or why not. Sides 384 to 1024 in steps of 64 (`sides`); 512 by 512 is best. `steps` 1 to 8, 4 is plenty. `seed` below 0 for a new picture, or a number to make the same one again |
 | `busy` | Property, notifies `stateChanged` | `preparing`, `making`, or `""` |
+| `stop()` | Slot → string | Stop what `busy` says: `""` once asked (`note` "Stopping…"), or "Nothing is being made." `busy` clears when it has stopped, with `note` "Stopped."; nothing of it is kept and the last finished picture stays. A stopped preparation starts from the beginning next time. For a Stop button beside the busy indicator |
 | `picture` | Property, notifies `pictureChanged` | The last picture, as a `data:image/png` address, or `""` |
 | `details` | Property, notifies `pictureChanged` | `prompt`, `width`, `height`, `steps`, `seed`, `seconds` |
 | `save(fileUrl)` | Slot → string | Write it to the `.png` the person chose in a save dialog: `""` or why not. Only from their click |

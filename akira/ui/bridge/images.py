@@ -130,6 +130,21 @@ class ImagesBridge(QObject):
         self._start(self._prepare)
         return ""
 
+    @Slot(result=str)
+    def stop(self) -> str:
+        """Stop what `busy` says is running: "" once asked, or why not.
+
+        `busy` stays set until it has stopped, then clears with `note` "Stopped."
+        Nothing of a stopped picture is kept; the last finished one stays. A
+        stopped preparation is started again from the beginning next time.
+        """
+        if not self._busy:
+            return "Nothing is being made."
+        self._maker.stop()
+        self._note = "Stopping…"
+        self.stateChanged.emit()
+        return ""
+
     @Slot(str, result=str)
     def save(self, where: str) -> str:
         """Write the last picture to the .png file the person chose: "" or why not."""

@@ -213,6 +213,85 @@ def test_the_8_bit_copy_is_made_once_and_only_kept_whole(in_place):
     assert not (in_place / "sd_xl_turbo_1.0.q8_0.part.gguf").exists()
 
 
+# -- stopping ------------------------------------------------------------------------------------
+
+
+def waits_to_be_stopped(runs, started):
+    """Stands in for `run_stoppable` on a long job: returns only when stopped."""
+    def run(arguments, **options):
+        if arguments[1:] == ["--list-devices"]:
+            return Ran(0, b"", LISTED)
+        runs.append(arguments)
+        if "-o" in arguments:
+            Path(arguments[arguments.index("-o") + 1]).write_bytes(b"half")
+        started.set()
+        assert options["stop"].wait(5), "it was never stopped"
+        raise images.Stopped()
+    return run
+
+
+def test_a_picture_being_made_can_be_stopped_and_nothing_is_left(in_place):
+    import threading
+
+    runs, started, outcome = [], threading.Event(), {}
+    maker = ImageMaker(run=waits_to_be_stopped(runs, started))
+
+    def work():
+        try:
+            maker.make("a fox")
+        except ImageError as exc:
+            outcome["error"] = exc
+
+    worker = threading.Thread(target=work)
+    worker.start()
+    assert started.wait(5)
+    folder = Path(runs[0][runs[0].index("-o") + 1]).parent
+    maker.stop()
+    worker.join(5)
+    assert isinstance(outcome.get("error"), images.Stopped) and str(outcome["error"]) == "Stopped."
+    assert not folder.exists(), "the half-made picture was left behind"
+
+
+def test_stopping_the_8_bit_copy_leaves_no_part_of_it(in_place):
+    import threading
+
+    (in_place / "sd_xl_turbo_1.0.q8_0.gguf").unlink()
+    (in_place / "sd_xl_turbo_1.0_fp16.safetensors").write_bytes(b"x")
+    runs, started = [], threading.Event()
+    maker = ImageMaker(run=waits_to_be_stopped(runs, started))
+    threading.Timer(0.05, lambda: started.wait(5) and maker.stop()).start()
+    with pytest.raises(images.Stopped):
+        maker.prepare()
+    assert len(runs) == 1, "a stopped copy was tried again"
+    assert not (in_place / "sd_xl_turbo_1.0.q8_0.part.gguf").exists()
+    assert not maker.prepared
+
+
+def test_a_stop_asked_for_when_idle_does_not_stop_the_next_picture(in_place):
+    maker = ImageMaker(run=stand_in([]))
+    maker.stop()
+    assert maker.make("a fox").png == PNG
+
+
+def test_the_runner_really_ends_a_stopped_process_and_one_out_of_time():
+    import sys
+    import threading
+    import time
+
+    sleeper = [sys.executable, "-c", "import time; time.sleep(30)"]
+    stop = threading.Event()
+    threading.Timer(0.3, stop.set).start()
+    began = time.monotonic()
+    with pytest.raises(images.Stopped):
+        images.run_stoppable(sleeper, timeout=60, cwd=".", stop=stop)
+    assert time.monotonic() - began < 5
+    with pytest.raises(subprocess.TimeoutExpired):
+        images.run_stoppable(sleeper, timeout=0.5, cwd=".", stop=threading.Event())
+    done = images.run_stoppable([sys.executable, "-c", "print('made')"], timeout=30, cwd=".",
+                                capture_output=True)
+    assert done.returncode == 0 and done.stdout.strip() == b"made"
+
+
 # -- for real ------------------------------------------------------------------------------------
 
 

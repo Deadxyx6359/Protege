@@ -73,6 +73,43 @@ class ImageError(Exception):
     """Why a picture cannot be made, said so a person, or an agent, can act on it."""
 
 
+class Stopped(ImageError):
+    """The person stopped it."""
+
+    def __init__(self) -> None:
+        super().__init__("Stopped.")
+
+
+#: How often a running `sd-cli` is checked for having been stopped.
+POLL_S = 0.25
+
+
+def run_stoppable(arguments: list[str], *, timeout: float, cwd: str,
+                  stop: threading.Event | None = None, **options) -> subprocess.CompletedProcess:
+    """`subprocess.run` with output captured, which \a stop ends early.
+
+    A stopped process is killed and `Stopped` raised; one past \a timeout is
+    killed and `subprocess.TimeoutExpired` raised, as `run` would.
+    """
+    options.pop("capture_output", None)
+    process = subprocess.Popen(arguments, cwd=cwd, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, **options)
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            out, err = process.communicate(timeout=POLL_S)
+        except subprocess.TimeoutExpired:
+            stopped = stop is not None and stop.is_set()
+            if not stopped and time.monotonic() < deadline:
+                continue
+            process.kill()
+            process.communicate()
+            if stopped:
+                raise Stopped() from None
+            raise subprocess.TimeoutExpired(arguments, timeout) from None
+        return subprocess.CompletedProcess(arguments, process.returncode, out, err)
+
+
 @dataclass(frozen=True)
 class Picture:
     png: bytes
@@ -167,9 +204,15 @@ class ImageMaker:
                  run: Callable[..., Any] | None = None,
                  clock: Callable[[], float] = time.monotonic) -> None:
         self._set_aside = set_aside
-        self._run = run if run is not None else subprocess.run
+        self._run = run if run is not None else run_stoppable
         self._clock = clock
         self._device: str | None = None
+        self._stop = threading.Event()
+
+    def stop(self) -> None:
+        """End the picture, or the 8-bit copy, being made now: `Stopped` is raised
+        from it. Nothing is kept of it. Does nothing when nothing is being made."""
+        self._stop.set()
 
     @property
     def prepared(self) -> bool:
@@ -184,6 +227,8 @@ class ImageMaker:
                 if isinstance(output, bytes):
                     output = output.decode("utf-8", "replace")
                 self._device = pick_device(str(output or ""))
+            except Stopped:
+                raise  # Not an answer about the card; asked again next time.
             except ImageError:
                 self._device = ""
         return self._device
@@ -192,9 +237,11 @@ class ImageMaker:
         stray = _flags(arguments) - ALLOWED_FLAGS
         if stray:
             raise ImageError(f"sd-cli was about to be given {sorted(stray)}, which it never is.")
+        if self._stop.is_set():
+            raise Stopped()
         try:
             return self._run(arguments, capture_output=True, timeout=timeout, cwd=str(cwd),
-                             stdin=subprocess.DEVNULL,
+                             stdin=subprocess.DEVNULL, stop=self._stop,
                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         except subprocess.TimeoutExpired:
             raise ImageError("Making the picture took too long, so it was stopped.") from None
@@ -203,6 +250,11 @@ class ImageMaker:
 
     def prepare(self) -> None:
         """Make the 8-bit copy of SDXL-Turbo that fits the card, once. Slow: minutes."""
+        self._stop.clear()
+        with _ONE_AT_A_TIME:
+            self._prepare()
+
+    def _prepare(self) -> None:
         if self.prepared:
             return
         problem = unavailable()
@@ -212,8 +264,13 @@ class ImageMaker:
         part = QUANTIZED.with_name(QUANTIZED.stem + ".part.gguf")
         # Once more if it fails: reading 7 GB while the computer is busy can.
         for attempt in range(2):
-            done = self._launch([str(PROGRAM), "-M", "convert", "-m", str(SDXL), "-o",
-                                 str(part), "--type", "q8_0"], PREPARE_S, IMAGE_DIR)
+            try:
+                done = self._launch([str(PROGRAM), "-M", "convert", "-m", str(SDXL), "-o",
+                                     str(part), "--type", "q8_0"], PREPARE_S, IMAGE_DIR)
+            except Stopped:
+                with contextlib.suppress(OSError):
+                    part.unlink()
+                raise
             if done.returncode == 0 and part.is_file() and part.stat().st_size >= 1_000_000:
                 part.replace(QUANTIZED)
                 return
@@ -230,10 +287,11 @@ class ImageMaker:
         problem = unavailable()
         if problem:
             raise ImageError(problem)
+        self._stop.clear()
         with _ONE_AT_A_TIME:
             # The half-precision original does not fit the card beside anything,
             # so the first picture makes the 8-bit copy: minutes, once.
-            self.prepare()
+            self._prepare()
             return self._make(prompt, negative, int(width), int(height), int(steps), seed)
 
     def _make(self, prompt: str, negative: str, width: int, height: int, steps: int,
