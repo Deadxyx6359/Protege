@@ -16,6 +16,8 @@ TODAY = date(2026, 9, 26)
     ("How long until the open day?", True),
     ("weeks left before the MOT", True),
     ("how many weeks since I serviced the car", True),
+    ("What day of the week was 1 January 2000?", True),
+    ("which day is the open day", True),
     ("when is the open day?", False),
     ("what did the committee decide", False),
 ])

@@ -20,7 +20,7 @@ from datetime import date
 _ASKS = re.compile(
     r"\bhow (?:many|much) (?:days|weeks|months|time)\b|\bhow long\b|\bhow soon\b|"
     r"\b(?:days|weeks|months) (?:until|till|to go|left|away|ago|since|from|before|after)\b|"
-    r"\bcount ?down\b",
+    r"\bcount ?down\b|\b(?:what|which) day\b|\bday of the week\b",
     re.IGNORECASE)
 
 _MONTHS = {name: number for number, names in enumerate((
