@@ -101,8 +101,12 @@ def _run_search(arguments: dict, context: ToolContext) -> ToolResult:
                                   f"{_without_search(context)}", data={"hits": []})
     lines = [f"{i}. {hit.title}\n   {hit.url}" + (f"\n   {hit.snippet}" if hit.snippet else "")
              for i, hit in enumerate(hits, 1)]
+    which = ("" if hits[0].kind != "instant" else
+             " DuckDuckGo's results page asked whether a person was searching, so these are "
+             "its instant answers instead: fewer, and a summary is not the page it summarises. "
+             "Read the page with fetch_page before relying on a detail.")
     return ToolResult.success(
-        f"Results for {query!r}.\n\n{SEARCH_FRAME}\n\n" + "\n\n".join(lines),
+        f"Results for {query!r}.{which}\n\n{SEARCH_FRAME}\n\n" + "\n\n".join(lines),
         data={"hits": [{"title": h.title, "url": h.url, "snippet": h.snippet} for h in hits]})
 
 

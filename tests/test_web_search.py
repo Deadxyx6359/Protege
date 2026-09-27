@@ -35,6 +35,10 @@ RESULTS = b"""<html><body>
 </body></html>"""
 
 PATH = "/html/?q=tomato+blight"
+INSTANT = "/?q=tomato+blight&format=json&no_html=1&skip_disambig=1"
+#: What the Instant Answer API says when it has nothing: 202, and empty fields.
+def instant(body=b'{"Abstract": "", "AbstractURL": "", "Results": []}'):
+    return Reply(202, body, {"Content-Type": "application/x-javascript"})
 
 
 @pytest.fixture(autouse=True)
@@ -103,7 +107,7 @@ def test_the_words_searched_for_are_not_in_the_log(wire, tmp_path):
     html(b"<html><body>wait</body></html>", status=202),
 ])
 def test_a_check_that_a_person_is_searching_is_not_got_round(wire, reply):
-    wire({(SEARCH_HOST, PATH): reply})
+    wire({(SEARCH_HOST, PATH): reply, (search_module.INSTANT_HOST, INSTANT): instant()})
     with pytest.raises(SearchError, match="whether a person is searching"):
         search("tomato blight", policy=allowed(("web.search",)))
 
@@ -111,7 +115,8 @@ def test_a_check_that_a_person_is_searching_is_not_got_round(wire, reply):
 def test_an_agent_whose_search_was_refused_is_told_what_it_can_still_open(wire, tmp_path):
     """Told only "no results", a model said it could not reach Wikipedia, which it
     could, and answered from memory with a figure years out of date."""
-    wire({(SEARCH_HOST, PATH): html(b"<div class='anomaly-modal'>Are you a person?</div>")})
+    wire({(SEARCH_HOST, PATH): html(b"<div class='anomaly-modal'>Are you a person?</div>"),
+          (search_module.INSTANT_HOST, INSTANT): instant()})
 
     def run(*grants):
         context = ToolContext(policy=allowed(*grants), audit=AuditLog(tmp_path / "a.jsonl"),
@@ -123,7 +128,8 @@ def test_an_agent_whose_search_was_refused_is_told_what_it_can_still_open(wire, 
     assert "open pages on en.wikipedia.org yourself" in opened.content
     assert "https://en.wikipedia.org/wiki/" in opened.content
     assert "do not answer from memory" in opened.content
-    wire({(SEARCH_HOST, PATH): html(b"<div class='anomaly-modal'>Are you a person?</div>")})
+    wire({(SEARCH_HOST, PATH): html(b"<div class='anomaly-modal'>Are you a person?</div>"),
+          (search_module.INSTANT_HOST, INSTANT): instant()})
     closed = run(("web.search",))
     assert "Do not answer from memory" in closed.content and "fetch_page" not in closed.content
 
@@ -146,3 +152,29 @@ def test_an_agent_gets_results_framed_as_material(wire, tmp_path):
         ToolContext(policy=Policy(), audit=AuditLog(tmp_path / "b.jsonl"),
                     secrets=SecretStore(tmp_path / "s")))
     assert not refused.ok and "Not permitted" in refused.content
+
+
+def test_asked_whether_a_person_is_searching_it_uses_duckduckgos_instant_answers(wire, tmp_path):
+    """The results page asked on every search Akira made. It is not got round:
+    DuckDuckGo's own Instant Answer API answers programs, and only it is asked."""
+    body = (b'{"Heading": "Tomato blight", "AbstractSource": "Wikipedia", '
+            b'"AbstractText": "Blight is a disease of tomatoes.", '
+            b'"AbstractURL": "https://en.wikipedia.org/wiki/Tomato_blight", '
+            b'"Results": [{"Text": "Official site", "FirstURL": "https://blight.example.org/"}, '
+            b'{"Text": "A DuckDuckGo page", "FirstURL": "https://duckduckgo.com/Tomato"}]}')
+    site = wire({(SEARCH_HOST, PATH): html(b"<div class='anomaly-modal'>Are you a person?</div>"),
+                 (search_module.INSTANT_HOST, INSTANT): instant(body)})
+    hits = search("tomato blight", policy=allowed(("web.search",)))
+    assert [(h.title, h.url, h.kind) for h in hits] == [
+        ("Tomato blight (Wikipedia)", "https://en.wikipedia.org/wiki/Tomato_blight", "instant"),
+        ("Official site", "https://blight.example.org/", "instant")]
+    assert hits[0].snippet == "Blight is a disease of tomatoes."
+    context = ToolContext(policy=allowed(("web.search",)), audit=AuditLog(tmp_path / "a.jsonl"),
+                          secrets=SecretStore(tmp_path / "s"), actor="gatherer")
+    wire({(SEARCH_HOST, PATH): html(b"<div class='anomaly-modal'>Are you a person?</div>"),
+          (search_module.INSTANT_HOST, INSTANT): instant(body)})
+    result = default_registry().invoke("web_search", {"query": "tomato blight"}, context)
+    assert result.ok and "these are its instant answers instead" in result.content
+    # Still only DuckDuckGo, and only under web.search.
+    with pytest.raises(SearchError, match="Not permitted"):
+        search("tomato blight", policy=Policy())
