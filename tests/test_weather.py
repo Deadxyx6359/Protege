@@ -295,7 +295,7 @@ def test_models_hear_the_weather_only_while_located_fresh_and_for_that_place(tmp
 
     assert "rain" not in line()
     policy.grant("location.read")
-    assert "was light rain, 14°C, with the wind at 12 km/h." in line()
+    assert "was light rain, 14°C (58°F), with the wind at 12 km/h (8 mph)." in line()
     assert "rain" not in line(moment + timedelta(seconds=STALE_S + 1)), \
         "stale weather was given as the weather now"
     kept.save(check_place("Sydney", "", -33.87, 151.21))

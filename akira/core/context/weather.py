@@ -165,9 +165,12 @@ class Reading:
         there = (timezone(timedelta(seconds=self.utc_offset))
                  if self.utc_offset is not None else None)
         when = datetime.fromtimestamp(self.at, there).strftime("%H:%M")
+        # Both scales: told only °C and km/h, a model answered a person in New
+        # Mexico in units they do not use.
+        fahrenheit = round(self.temperature * 9 / 5 + 32)
         return (f"The weather there at {when} was {self.description}, "
-                f"{int(round(self.temperature))}°C, with the wind at "
-                f"{int(round(self.wind))} km/h.")
+                f"{int(round(self.temperature))}°C ({fahrenheit}°F), with the wind at "
+                f"{int(round(self.wind))} km/h ({round(self.wind * 0.621371)} mph).")
 
     def near(self, coordinates: tuple[float, float] | None) -> bool:
         """Whether this was read for \a coordinates, to the precision it was asked at."""
