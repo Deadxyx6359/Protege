@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 import threading
+import time
 from typing import TYPE_CHECKING, Callable
 
 from PySide6.QtCore import (
@@ -46,6 +47,9 @@ from akira.ui.history_search import HistorySearch
 if TYPE_CHECKING:
     from akira.core.brain.recall import TurnContext
     from akira.core.brain.research import Findings
+
+#: The longest name a person may give a chat.
+MAX_TITLE = 120
 
 #: How much of the conversation a research turn is told, for what a follow-up
 #: such as "what about Webb?" refers to.
@@ -158,6 +162,14 @@ class MessageListModel(QAbstractListModel):
     @Property(int, notify=countChanged)
     def count(self) -> int:
         return len(self._messages)
+
+
+def _older_than(days: int):
+    """Chats not touched in \a days days; every chat for 0."""
+    if days <= 0:
+        return lambda summary: True
+    cutoff = time.time() - days * 86_400
+    return lambda summary: summary.updated < cutoff
 
 
 class ChatBridge(QObject):
@@ -376,6 +388,100 @@ class ChatBridge(QObject):
             self.titleChanged.emit()
         self._refresh_recents()
 
+    # -- the person's changes to their chats (the sidebar's right-click menu) ---
+
+    @Slot(str, str, result=str)
+    def renameConversation(self, conversation_id: str, title: str) -> str:
+        """Give a chat a name of the person's own: "" or why not."""
+        name = " ".join(str(title or "").split())
+        if not name:
+            return "Give the chat a name."
+        if len(name) > MAX_TITLE:
+            return f"A chat's name is at most {MAX_TITLE} characters."
+        return self._change(conversation_id, title=name)
+
+    @Slot(str, bool, result=str)
+    def pinConversation(self, conversation_id: str, pinned: bool) -> str:
+        """Keep a chat at the top of the list, or stop: "" or why not."""
+        return self._change(conversation_id, pinned=bool(pinned))
+
+    @Slot(str, str, result=str)
+    def moveConversation(self, conversation_id: str, project_id: str) -> str:
+        """File a chat under another project, or "" for none: "" or why not.
+
+        Where it is filed decides which project's work may find it again (see
+        `search_conversations`) and where memory files what is kept from it.
+        Moving the open chat does not change the project open: the interface
+        switches to it, as it does when a chat is opened.
+        """
+        if self._busy and conversation_id == self._conversation.id:
+            return "Wait for the reply to finish first."
+        return self._change(conversation_id, project=str(project_id or ""))
+
+    @Slot("QVariantList", result=int)
+    def deleteConversations(self, conversation_ids: list) -> int:
+        """Delete these chats, for good. Returns how many were deleted."""
+        return self._delete_where(lambda summary: summary.id in {str(i) for i in conversation_ids},
+                                  keep_pinned=False)
+
+    @Slot(bool, result=int)
+    def deleteAllConversations(self, keep_pinned: bool) -> int:
+        """Delete every chat, for good, or every one but the pinned. Returns how many."""
+        return self._delete_where(_older_than(0), keep_pinned=keep_pinned)
+
+    @Slot(int, bool, result=int)
+    def deleteConversationsOlderThan(self, days: int, keep_pinned: bool) -> int:
+        """Delete chats not touched in \a days days, for good. Returns how many."""
+        if days < 1:
+            return 0
+        return self._delete_where(_older_than(days), keep_pinned=keep_pinned)
+
+    @Slot(int, bool, result=int)
+    def countConversations(self, days: int, keep_pinned: bool) -> int:
+        """How many chats a bulk delete would take, to say so before asking.
+
+        \a days 0 counts for `deleteAllConversations`, more for
+        `deleteConversationsOlderThan`.
+        """
+        return len(self._doomed(_older_than(days), keep_pinned=keep_pinned))
+
+    def _change(self, conversation_id: str, **changes) -> str:
+        if conversation_id == self._conversation.id:
+            if not any(m.role == "user" and m.text.strip() for m in self._conversation.messages):
+                return "Say something in the chat first; an empty chat is not kept."
+            # The open chat: changed here too, so its next save keeps the change.
+            for key, value in changes.items():
+                setattr(self._conversation, key, value)
+            self.titleChanged.emit()
+        try:
+            self._store.update(conversation_id, **changes)
+        except ConversationError:
+            # The open chat's first reply is still coming, and it is saved
+            # when that is done; any other is gone.
+            if conversation_id != self._conversation.id:
+                return "That chat is not saved any more."
+        self._refresh_recents()
+        return ""
+
+    def _doomed(self, chosen, *, keep_pinned: bool) -> list:
+        # The chat still answering is left out: its reply would save it again.
+        return [summary for summary in self._store.list(limit=100_000)
+                if chosen(summary) and not (keep_pinned and summary.pinned)
+                and not (self._busy and summary.id == self._conversation.id)]
+
+    def _delete_where(self, chosen, *, keep_pinned: bool) -> int:
+        doomed = self._doomed(chosen, keep_pinned=keep_pinned)
+        open_one = any(summary.id == self._conversation.id for summary in doomed)
+        for summary in doomed:
+            self._store.delete(summary.id)
+        if open_one:
+            self._conversation = Conversation()
+            self._previous = None
+            self._model.reset(self._conversation.messages)
+            self._set_sources([], "")
+            self.titleChanged.emit()
+        self._refresh_recents()
+        return len(doomed)
 
     @Slot(str)
     def send(self, text: str) -> None:
@@ -679,6 +785,8 @@ class ChatBridge(QObject):
                 "title": summary.title,
                 "when": relative_time(summary.updated),
                 "turns": summary.turns,
+                "pinned": summary.pinned,
+                "project": summary.project,
             }
             for summary in self._store.list(limit=200)
         ]

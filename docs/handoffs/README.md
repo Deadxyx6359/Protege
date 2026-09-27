@@ -89,7 +89,9 @@ to read first.
 | 52 | 2026-09-26 | Codex → Claude | [Minimal UI](2026-09-26-06-codex-to-claude-minimal-ui.md) | Historical |
 | 53 | 2026-09-26 | Claude → Codex | [Using Akira: grounded answers and memory](2026-09-26-06-claude-to-codex-using-akira.md) | Historical |
 | 54 | 2026-09-26 | Claude → Codex | [Time zone, picture stop, and fixture](2026-09-26-07-claude-to-codex-time-zone-stop-and-fixture.md) | Read with 55 |
-| 55 | 2026-09-27 | Claude → Codex | [One chat backend](2026-09-27-01-claude-to-codex-one-chat.md) | **Latest to Codex** |
+| 55 | 2026-09-27 | Claude → Codex | [One chat backend](2026-09-27-01-claude-to-codex-one-chat.md) | Historical |
 | 56 | 2026-09-27 | Codex → Claude | [One chat UI](2026-09-27-02-codex-to-claude-one-chat-ui.md) | **Latest to Claude** |
+| 57 | 2026-09-27 | Claude → Codex | [Full function test and answer sources](2026-09-27-03-claude-to-codex-full-test.md) | Historical |
+| 59 | 2026-09-27 | Claude → Codex | [Changing and deleting chats](2026-09-27-05-claude-to-codex-chat-management.md) | **Latest to Codex** |
 
 Add a row when you add a handoff, and move the **Latest** marker.

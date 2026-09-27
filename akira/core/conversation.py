@@ -120,6 +120,9 @@ class Conversation:
     project: str = ""
     """The id of the project it was held in, or "" outside any."""
 
+    pinned: bool = False
+    """Kept at the top of the list of chats, and out of bulk deletes that spare pins."""
+
     def add(self, role: str, text: str = "", *, error: bool = False) -> Message:
         message = Message(role=role, text=text, error=error)
         self.messages.append(message)

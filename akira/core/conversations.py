@@ -45,6 +45,9 @@ class Summary:
     title: str
     updated: float
     turns: int
+    project: str = ""
+    """The id of the project it was held in, or "" outside any."""
+    pinned: bool = False
 
 
 def conversations_dir() -> Path:
@@ -90,6 +93,7 @@ class ConversationStore:
             # The project it was held in, so what is distilled from it is filed
             # under that project. Empty outside any project.
             "project": conversation.project,
+            "pinned": conversation.pinned,
             "messages": [
                 {
                     "id": m.id,
@@ -154,6 +158,7 @@ class ConversationStore:
             id=str(data.get("id") or conversation_id),
             title=str(data.get("title") or ""),
             project=str(data.get("project") or ""),
+            pinned=data.get("pinned") is True,
         )
         prompt = data.get("system_prompt")
         if isinstance(prompt, str) and prompt:
@@ -206,11 +211,41 @@ class ConversationStore:
                     title=str(data.get("title") or "Untitled"),
                     updated=stat.st_mtime,
                     turns=len(messages) if isinstance(messages, list) else 0,
+                    project=str(data.get("project") or ""),
+                    pinned=data.get("pinned") is True,
                 )
             )
 
-        found.sort(key=lambda s: s.updated, reverse=True)
+        # Pinned first, then the most recent.
+        found.sort(key=lambda s: (not s.pinned, -s.updated))
         return found[:limit]
+
+    # -- the person's changes -------------------------------------------------
+
+    def update(self, conversation_id: str, *, title: str | None = None,
+               pinned: bool | None = None, project: str | None = None) -> None:
+        """Rename, pin or move a saved conversation, and nothing else.
+
+        Its place in the list is kept: renaming a chat is not talking in it, so
+        the file's time is put back as it was. Raises `ConversationError`.
+        """
+        path = self._path(conversation_id)
+        try:
+            before = path.stat()
+        except OSError as exc:
+            raise ConversationError("That conversation is not saved.") from exc
+        conversation = self.load(conversation_id)
+        if title is not None:
+            conversation.title = title
+        if pinned is not None:
+            conversation.pinned = pinned
+        if project is not None:
+            conversation.project = project
+        self.save(conversation)
+        try:
+            os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
+        except OSError:
+            pass
 
 
 #: Thresholds for `relative_time`, longest-lived last.

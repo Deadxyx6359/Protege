@@ -879,6 +879,32 @@ A short follow-up keeps the kind of the turn before it ("and in Rust?",
   end with "Correction: … is wrong; it comes to …". Show both as the rest of
   the reply.
 
+### Changing and deleting chats — 2026-09-27
+
+For the sidebar's right-click menu on a chat, and a Chats section in Settings.
+Every action is the person's own, on their own files, so none of them asks
+`Confirm`; the interface confirms deletes itself (see the handoff).
+
+| Member | Kind | Notes |
+|---|---|---|
+| `recents` entries | Existing | Now also `pinned` (bool) and `project` (the project ID it is filed under, `""` for none). Pinned chats come first, then the most recent |
+| `renameConversation(id, title)` | Slot → string | `""` when done, else why not ("Give the chat a name.", at most 120 characters). Spaces are tidied. Renaming does not move the chat in the list |
+| `pinConversation(id, pinned)` | Slot → string | `""` or why not. Keeps it at the top, and out of bulk deletes that spare pinned chats |
+| `moveConversation(id, projectId)` | Slot → string | `""` or why not. File it under another project, `""` for none. That decides which project's work can find it again. Refused for the open chat while it is answering. It does not switch project: when the moved chat is the open one, switch as `openRecent` does |
+| `deleteConversation(id)` | Existing slot | One chat, for good |
+| `deleteConversations(ids)` | Slot → int | These chats, for good; how many went |
+| `deleteAllConversations(keepPinned)` | Slot → int | Every chat, or every one but the pinned; how many went |
+| `deleteConversationsOlderThan(days, keepPinned)` | Slot → int | Chats not touched in that many days (1 or more); how many went |
+| `countConversations(days, keepPinned)` | Slot → int | How many a bulk delete would take, for the question before it: `days` 0 for all, else as `deleteConversationsOlderThan` |
+
+- The string slots return `"That chat is not saved any more."` for a chat
+  that has gone, and `"Say something in the chat first; an empty chat is not
+  kept."` for a new, empty one. Show the reason where the action was taken.
+- Changing the open chat changes `title` (notifies `titleChanged`). Deleting
+  the open chat, one or in bulk, starts a new empty one, as `newChat` does.
+  A chat that is still answering is left out of bulk deletes.
+- All of them refresh `recents` and an open history search.
+
 ## Documents
 
 Implemented by Codex after the coordination handoff dated 2026-09-12 (19).
