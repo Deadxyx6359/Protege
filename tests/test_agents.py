@@ -750,6 +750,31 @@ def test_a_result_the_model_wrote_itself_is_thrown_away(workspace, context):
     assert "is 7" not in "".join(m.content for m in router.backend.prompts[2])
 
 
+def test_an_answer_that_adds_up_wrong_is_sent_back(context):
+    from akira.core.agents.loop import RECOUNT
+
+    agent, router = build_agent(["It comes to 12.5 + 6.8 + 30 = 59.3.",
+                                 "It comes to 12.5 + 6.8 + 30 = 49.3."], context(Policy()),
+                                tools=("calculate",))
+    assert agent.run("Add them up").answer == "It comes to 12.5 + 6.8 + 30 = 49.3."
+    assert router.backend.prompts[1][-1].content == RECOUNT.format(
+        "12.5 + 6.8 + 30 = 59.3 is wrong: it comes to 49.3")
+
+
+def test_working_out_a_sum_is_not_reading(workspace, context):
+    """A gatherer called calculate with nothing to add, then asked for the figures."""
+    from akira.core.agents.loop import READ_FIRST
+
+    policy = Policy()
+    policy.grant("files.read", (str(workspace),))
+    sum_call = '<tool_call>{"name": "calculate", "arguments": {"expression": "1 + 1"}}</tool_call>'
+    agent, router = build_agent([sum_call, "Please tell me the figures.", "Read it: 41."],
+                                context(policy), grounded=True,
+                                tools=("read_file", "calculate"))
+    agent.run("What is the answer?")
+    assert router.backend.prompts[2][-1].content == READ_FIRST
+
+
 def test_a_page_named_that_could_be_opened_is_opened(context):
     """"If you know the address, e.g. https://en.wikipedia.org/wiki/…, I can fetch it."""
     from akira.core.agents.loop import OPEN_IT

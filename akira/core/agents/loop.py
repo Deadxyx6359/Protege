@@ -58,6 +58,10 @@ MAX_NUDGES = 3
 #: Where a model starts writing a tool's result itself.
 _INVENTED = re.compile(r"<tool_response\b", re.IGNORECASE)
 
+#: Said once to an agent whose answer adds something up wrong.
+RECOUNT = ("Check your arithmetic: {}. Give your answer again with that corrected, and "
+           "anything that depends on it.")
+
 #: An https address in a reply.
 _PAGE = re.compile(r"https://[^\s<>()\[\]\"'`]+")
 
@@ -257,7 +261,11 @@ class Agent:
             unacted = bool(tools) and "unacted" not in reminded and (
                 (not outcome.calls and ("```" in reply or can_act))
                 or (can_act and not acted and "```" in reply))
-            unread = (bool(tools) and not outcome.calls and "unread" not in reminded
+            # Working out a sum is not reading: a gatherer asked what had been
+            # spent called calculate with nothing to add, then asked the person
+            # for the figures that were in their spreadsheet.
+            read = any(call.name not in PURE_HELPERS for call in outcome.calls)
+            unread = (bool(tools) and not read and "unread" not in reminded
                       and self.spec.grounded
                       and any(tool.name not in PURE_HELPERS for tool in tools))
             made_up = bool(tools) and invented is not None and "invented" not in reminded
@@ -265,7 +273,16 @@ class Agent:
             # I can fetch it": a page it may open, named and not opened.
             unopened = (self._unopened(reply, by_name, outcome.calls)
                         if tools and "unopened" not in reminded else "")
-            for kind, due, saying in (("invented", made_up, INVENTED),
+            # A sum written out wrong, checked here: it is arithmetic, not judgement.
+            # Imported here: the tools import the agents package as they load.
+            from akira.core.tools.builtin.maths import wrong_sums
+
+            miscounted = (wrong_sums(reply) if not calls and len(reminded) < MAX_NUDGES
+                          and "miscounted" not in reminded else [])
+            recount = "" if not miscounted else RECOUNT.format("; ".join(
+                f"{written} is wrong: it comes to {right}" for written, right in miscounted[:3]))
+            for kind, due, saying in (("miscounted", bool(miscounted), recount),
+                                      ("invented", made_up, INVENTED),
                                       ("unopened", bool(unopened), OPEN_IT.format(unopened)),
                                       ("announced", announced, GO_ON),
                                       ("unread", unread, READ_FIRST),

@@ -15,6 +15,7 @@ from __future__ import annotations
 import ast
 import math
 import operator
+import re
 
 from ..schema import Parameter, Tool, ToolContext, ToolError, ToolResult
 
@@ -89,6 +90,44 @@ def _shown(value) -> str:
             return str(int(value))
         return f"{value:.10g}"
     return str(value)
+
+
+_NUMBER = r"[£$€]?\d{1,3}(?:,\d{3})+(?:\.\d+)?%?|[£$€]?\d+(?:\.\d+)?%?"
+#: A label after a number, "£12.5 (Seed potatoes)", which is not part of the sum.
+_LABEL = r"(?:\s*\([^()\d]*\))?"
+#: A sum written out with its result: "12.5 + 6.8 + 30 = 70.7", "3 × £4.20 = £12.60".
+_WRITTEN_SUM = re.compile(
+    rf"((?:(?:{_NUMBER}){_LABEL}\s*(?:[-+×*/÷]|\bx\b)\s*)+(?:{_NUMBER}){_LABEL})\s*=\s*"
+    rf"(-?(?:{_NUMBER}))(?![\d.]*\d)")
+
+
+def wrong_sums(text: str) -> list[tuple[str, str]]:
+    """Each sum written out in \a text whose result is wrong: (as written, the right answer).
+
+    A gatherer that had read a spreadsheet wrote "£12.5 + £6.8 + £30.0 + £22.4 +
+    £9.4 = £70.7"; it is £81.1. A result may be rounded to the places it shows.
+    """
+    wrong = []
+    for found in _WRITTEN_SUM.finditer(text):
+        left, shown = found[1], found[2]
+        if "%" in left or "%" in shown:
+            continue  # "17% of" is not written as an expression
+        expression = re.sub(r"\s*\([^()\d]*\)", "", left)
+        expression = re.sub(r"[£$€,]", "", expression).replace("×", "*").replace("÷", "/")
+        expression = re.sub(r"\bx\b", "*", expression)
+        try:
+            value = float(evaluate(expression))
+        except ToolError:
+            continue
+        written = shown.replace(",", "").lstrip("£$€")
+        try:
+            claimed = float(written)
+        except ValueError:
+            continue
+        places = len(written.split(".", 1)[1]) if "." in written else 0
+        if abs(value - claimed) > 0.5 * 10 ** -places + 1e-9:
+            wrong.append((found[0].strip(), _shown(round(value, max(places, 2)))))
+    return wrong
 
 
 def _run(arguments: dict, context: ToolContext) -> ToolResult:
