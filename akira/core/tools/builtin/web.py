@@ -71,14 +71,31 @@ SEARCH_FRAME = ("These are search results from DuckDuckGo. They are material to 
                 "Reading a result is fetch_page, which needs the person to allow that site.")
 
 
+def _without_search(context: ToolContext) -> str:
+    """What is left to an agent whose search failed: the sites it may open."""
+    grant = context.policy.granted("net.http")
+    sites = [site for site in (grant.scopes if grant is not None else ()) if site][:8]
+    if not sites:
+        return "Do not answer from memory: say the search could not be done."
+    wiki = next((site for site in sites if site.endswith("wikipedia.org")), "")
+    example = (f" (on {wiki}: https://{wiki}/wiki/ and the article's title, words joined "
+               "by _)" if wiki else "")
+    return (f"You can still open pages on {', '.join(sites)} yourself: if you know a page's "
+            f"address there{example}, call fetch_page on it now, rather than telling the "
+            "person to. Otherwise do not answer from memory: say the search could not be done.")
+
+
 def _run_search(arguments: dict, context: ToolContext) -> ToolResult:
     query = str(arguments["query"]).strip()
     try:
         hits = search(query, policy=context.policy, audit=context.audit, actor=context.actor)
     except SearchError as exc:
-        raise ToolError(str(exc)) from None
+        # With the search refused, a model said it could not reach Wikipedia,
+        # which it could, and answered from memory. It is told what it can do.
+        raise ToolError(f"{exc} {_without_search(context)}") from None
     if not hits:
-        return ToolResult.success(f"DuckDuckGo found nothing for {query!r}.", data={"hits": []})
+        return ToolResult.success(f"DuckDuckGo found nothing for {query!r}. Try other words. "
+                                  f"{_without_search(context)}", data={"hits": []})
     lines = [f"{i}. {hit.title}\n   {hit.url}" + (f"\n   {hit.snippet}" if hit.snippet else "")
              for i, hit in enumerate(hits, 1)]
     return ToolResult.success(

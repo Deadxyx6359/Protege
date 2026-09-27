@@ -26,6 +26,7 @@ from typing import Callable
 from akira.core.context.place import now_line
 from akira.core.conversation import NO_INVENTED_ADDRESSES, Cancelled
 from akira.core.models import ModelRouter, Route
+from akira.core.net import host_of
 from akira.core.tools import ToolContext, ToolRegistry
 from akira.models.base import ChatMessage
 from akira.models.think_filter import ThinkFilter
@@ -56,6 +57,13 @@ MAX_NUDGES = 3
 
 #: Where a model starts writing a tool's result itself.
 _INVENTED = re.compile(r"<tool_response\b", re.IGNORECASE)
+
+#: An https address in a reply.
+_PAGE = re.compile(r"https://[^\s<>()\[\]\"'`]+")
+
+#: Said once to an agent that named a page it may open instead of opening it.
+OPEN_IT = ("You named {} and you can open it yourself. Do not ask the person to: call "
+           "fetch_page on it now, and answer from what it says.")
 
 #: Said once to an agent that wrote a tool's result instead of waiting for it.
 INVENTED = ("You wrote a tool's result yourself, so it was thrown away: only a real result "
@@ -253,7 +261,12 @@ class Agent:
                       and self.spec.grounded
                       and any(tool.name not in PURE_HELPERS for tool in tools))
             made_up = bool(tools) and invented is not None and "invented" not in reminded
+            # "If you know the page's address, e.g. https://en.wikipedia.org/…,
+            # I can fetch it": a page it may open, named and not opened.
+            unopened = (self._unopened(reply, by_name, outcome.calls)
+                        if tools and "unopened" not in reminded else "")
             for kind, due, saying in (("invented", made_up, INVENTED),
+                                      ("unopened", bool(unopened), OPEN_IT.format(unopened)),
                                       ("announced", announced, GO_ON),
                                       ("unread", unread, READ_FIRST),
                                       ("unacted", unacted, NUDGE)):
@@ -326,6 +339,25 @@ class Agent:
                                   "this is from what I had found by then.)")
         self._trace.emit(Kind.FAILED, name, text=outcome.answer, step=outcome.steps)
         return outcome
+
+    def _unopened(self, reply: str, by_name: dict, calls: list[Call]) -> str:
+        """The first https page \a reply names that this agent may open and has not."""
+        opener = "fetch_page" if "fetch_page" in by_name else (
+            "browse_page" if "browse_page" in by_name else "")
+        if not opener:
+            return ""
+        opened = {str(call.arguments.get("url", "")) for call in calls}
+        for url in _PAGE.findall(reply):
+            url = url.rstrip(".,;:!?)]'\"")
+            if url in opened:
+                continue
+            try:
+                allowed = self._context.policy.allows("net.http", host_of(url))
+            except Exception:  # noqa: BLE001 - an address that cannot be read is not one
+                continue
+            if allowed:
+                return url
+        return ""
 
     def _generate(self, messages, on_token, is_cancelled, step: int) -> str:
         """One model turn, with reasoning blocks filtered out of the stream."""

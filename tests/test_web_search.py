@@ -108,6 +108,26 @@ def test_a_check_that_a_person_is_searching_is_not_got_round(wire, reply):
         search("tomato blight", policy=allowed(("web.search",)))
 
 
+def test_an_agent_whose_search_was_refused_is_told_what_it_can_still_open(wire, tmp_path):
+    """Told only "no results", a model said it could not reach Wikipedia, which it
+    could, and answered from memory with a figure years out of date."""
+    wire({(SEARCH_HOST, PATH): html(b"<div class='anomaly-modal'>Are you a person?</div>")})
+
+    def run(*grants):
+        context = ToolContext(policy=allowed(*grants), audit=AuditLog(tmp_path / "a.jsonl"),
+                              secrets=SecretStore(tmp_path / "s"), actor="gatherer")
+        return default_registry().invoke("web_search", {"query": "tomato blight"}, context)
+
+    opened = run(("web.search",), ("net.http", "en.wikipedia.org"))
+    assert not opened.ok and "whether a person is searching" in opened.content
+    assert "open pages on en.wikipedia.org yourself" in opened.content
+    assert "https://en.wikipedia.org/wiki/" in opened.content
+    assert "do not answer from memory" in opened.content
+    wire({(SEARCH_HOST, PATH): html(b"<div class='anomaly-modal'>Are you a person?</div>")})
+    closed = run(("web.search",))
+    assert "Do not answer from memory" in closed.content and "fetch_page" not in closed.content
+
+
 def test_a_request_under_another_capability_must_name_its_hosts():
     with pytest.raises(ValueError, match="must name the hosts"):
         net.fetch("https://example.com/", policy=Policy(), capability="web.search")

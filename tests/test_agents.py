@@ -750,6 +750,23 @@ def test_a_result_the_model_wrote_itself_is_thrown_away(workspace, context):
     assert "is 7" not in "".join(m.content for m in router.backend.prompts[2])
 
 
+def test_a_page_named_that_could_be_opened_is_opened(context):
+    """"If you know the address, e.g. https://en.wikipedia.org/wiki/…, I can fetch it."""
+    from akira.core.agents.loop import OPEN_IT
+
+    page = "https://en.wikipedia.org/wiki/Hubble_Space_Telescope"
+    offer = f"I cannot check the web. If you want, I can fetch {page}."
+    policy = Policy()
+    policy.grant("net.http", ("en.wikipedia.org",))
+    agent, router = build_agent([offer, "Answered."], context(policy), tools=("fetch_page",))
+    agent.run("When was Hubble launched?")
+    assert router.backend.prompts[1][-1].content == OPEN_IT.format(page)
+    # A site it may not open is left as a mention.
+    agent, router = build_agent([offer.replace("en.wikipedia.org", "example.com")],
+                                context(policy), tools=("fetch_page",))
+    assert agent.run("When was Hubble launched?").answer.startswith("I cannot check")
+
+
 def test_code_shown_after_reading_is_asked_to_be_saved(workspace, context):
     from akira.core.agents.loop import NUDGE
 
