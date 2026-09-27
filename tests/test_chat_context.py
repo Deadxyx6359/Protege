@@ -33,8 +33,9 @@ class Recorder:
     is_loaded = True
     n_ctx = 4096
 
-    def __init__(self):
+    def __init__(self, reply="Answer."):
         self.prompts = []
+        self.reply = reply
 
     def count_tokens(self, text):
         return max(1, len(text) // 4)
@@ -42,8 +43,8 @@ class Recorder:
     def generate(self, messages, *, on_token=None, **_):
         self.prompts.append(list(messages))
         if on_token is not None:
-            on_token("Answer.")
-        return GenerationResult(text="Answer.")
+            on_token(self.reply)
+        return GenerationResult(text=self.reply)
 
     def close(self):
         pass
@@ -88,7 +89,8 @@ def last_text(bridge):
 
 
 def test_the_turns_context_reaches_the_model_and_is_not_saved(qt_app, tmp_path):
-    backend, asked = Recorder(), []
+    # A source stays a source when the answer cites it (see `chat.cited`).
+    backend, asked = Recorder("Stake them in June [notes: Garden.md › Tomatoes]."), []
 
     def context(message):
         asked.append(message)

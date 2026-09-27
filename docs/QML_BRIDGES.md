@@ -812,7 +812,7 @@ stage are new:
 
 | Member | Kind | Notes |
 |---|---|---|
-| `lastSources` | Property, notifies `sourcesChanged` | What the last turn drew on: `source` (`notes`, `documents` or `conversations`) and `cite`, where to find it. Empty when nothing was used |
+| `lastSources` | Property, notifies `sourcesChanged` | What the last turn drew on: `source` (`notes`, `documents`, `conversations`, and for research `web`, `files`, `drive`) and `cite`, where to find it. While the turn runs it lists what was found; when the answer ends, a searched passage (`notes`, `documents`, `conversations`) stays only if the answer cites it. What research read stays. Empty when nothing was used |
 | `lastContextNote` | Property, notifies `sourcesChanged` | What the search found and what it could not search, in a sentence. Also carries the reason when looking failed |
 | `conversationProject` | Property, notifies `titleChanged` | Stored project ID of the loaded conversation; empty for personal/new unsent chats. QML uses it to restore the project when opening a recent chat |
 | `stage` | Existing property | Now also `Looking through your notes` before the model starts |

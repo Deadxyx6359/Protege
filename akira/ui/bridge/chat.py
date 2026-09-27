@@ -50,6 +50,26 @@ if TYPE_CHECKING:
 #: such as "what about Webb?" refers to.
 EARLIER_CHARS = 1_500
 
+#: Sources found by searching before the answer, kept only when it cites them.
+#: What research read (`web`, `files`, `drive`) was read for the answer and stays.
+SEARCHED = frozenset({"notes", "documents", "conversations"})
+
+
+def cited(sources: list, reply: str) -> list:
+    """\a sources without the passages searched for and not drawn on in \a reply.
+
+    A passage counts as drawn on when the reply names it as it was labelled,
+    "[notes: Garden.md › Tomatoes]", or names its note or file, "Garden.md".
+    """
+    text = reply.lower()
+    kept = []
+    for source in sources:
+        cite = str(source.get("cite", "")).strip().lower()
+        if source.get("source") not in SEARCHED or (
+                cite and (cite in text or cite.split(" › ")[0] in text)):
+            kept.append(source)
+    return kept
+
 
 class MessageListModel(QAbstractListModel):
     """The transcript, as a list model QML can repeat over."""
@@ -564,6 +584,10 @@ class ChatBridge(QObject):
             finished = "" if problem or last.error else last.text
         else:
             finished = ""
+        if finished:
+            # What was looked through but not drawn on is not a source of the
+            # answer: a note about the allotment was shown under "15% of 240".
+            self._set_sources(cited(self._sources, finished), self._context_note)
         # A follow-up to this turn keeps its kind.
         self._previous = self._intent
 

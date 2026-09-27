@@ -198,3 +198,41 @@ def test_a_follow_up_is_told_where_the_last_answer_was_found(chat):
     assert looker.looked_in == []
     say(bridge, "what about Webb?")
     assert looker.looked_in == ["https://en.wikipedia.org/wiki/Hubble"]
+
+
+def test_only_the_passages_an_answer_draws_on_stay_its_sources():
+    """A note about the allotment was listed under "What is 15% of 240?"."""
+    from akira.ui.bridge.chat import cited
+
+    sources = [{"source": "notes", "cite": "Garden.md › Tomatoes"},
+               {"source": "notes", "cite": "Allotment.md › Open day"},
+               {"source": "conversations", "cite": "An old chat › its question"},
+               {"source": "web", "cite": "https://en.wikipedia.org/wiki/Hubble"},
+               {"source": "files", "cite": "budget.xlsx"}]
+    kept = cited(sources, "Stake them in June [notes: Garden.md › Tomatoes].")
+    assert [s["cite"] for s in kept] == ["Garden.md › Tomatoes",
+                                         "https://en.wikipedia.org/wiki/Hubble", "budget.xlsx"]
+    # Named by its note alone is drawn on too.
+    assert cited(sources[1:2], "The open day is in Allotment.md.") == sources[1:2]
+
+
+def test_a_searched_note_the_answer_did_not_use_is_not_shown(qt_app, tmp_path):
+    from akira.core.brain.recall import TurnContext
+
+    path = tmp_path / "fake.gguf"
+    path.write_bytes(b"gguf")
+    config = AppConfig(models={"chat": ModelConfig(path=str(path))})
+    router = ModelRouter(config)
+    backend = Backend()
+
+    @contextmanager
+    def acquire(route):
+        yield backend
+
+    router.acquire = acquire
+    found = TurnContext(text="passages", note="1 passage from notes",
+                        sources=[{"source": "notes", "cite": "Allotment.md › Open day"}])
+    bridge = ChatBridge(router, config, ConversationStore(tmp_path / "chats"),
+                        context=lambda message: found)
+    say(bridge, "What is 15% of 240?")
+    assert bridge.lastSources == [] and bridge.lastContextNote == "1 passage from notes"
