@@ -42,6 +42,7 @@ from akira.design import ThemeController
 from akira.ui.bridge import (
     AccountsBridge,
     AgentsBridge,
+    AllowBridge,
     ChatBridge,
     CodingBridge,
     ConfirmBridge,
@@ -85,6 +86,7 @@ class AppContext:
     settings: SettingsBridge
     permissions: PermissionsBridge | None = None
     confirm: ConfirmBridge | None = None
+    allow: AllowBridge | None = None
     trace: TraceBridge | None = None
     schedule: ScheduleBridge | None = None
     agents: AgentsBridge | None = None
@@ -114,6 +116,7 @@ class AppContext:
         """The name → object map exposed to QML."""
         exposed = {"Chat": self.chat, "Settings": self.settings}
         for name, obj in (("Permissions", self.permissions), ("Confirm", self.confirm),
+                          ("Allow", self.allow),
                           ("AgentTrace", self.trace), ("Schedule", self.schedule),
                           ("Agents", self.agents), ("Memory", self.memory),
                           ("Projects", self.projects), ("Graph", self.graph),
@@ -169,6 +172,8 @@ class AppContext:
             self.agents.stop()
         if self.confirm is not None:
             self.confirm.close()
+        if self.allow is not None:
+            self.allow.close()
         if self.weather_service is not None:
             self.weather_service.stop()
         # Stop looking for changes before stopping what would act on them.
@@ -225,6 +230,15 @@ def build_context(*, persist: bool = True) -> AppContext:
     permissions = PermissionsBridge(Policy.load(), audit)
     confirm = ConfirmBridge()
     projects = ProjectsBridge(ProjectStore(), audit)
+
+    # "Always", when asked in place for a site or folder, widens the grant that
+    # holds the capability: the global one, or else the open project's.
+    def widen_grant(capability: str, scope: str) -> str:
+        if permissions.policy.granted(capability) is not None:
+            return permissions.widen(capability, scope)
+        return projects.widen(capability, scope)
+
+    allow = AllowBridge(extend=widen_grant)
 
     # The scheduler reads the very policy the permission screen edits, so a
     # revocation in Settings reaches the next scheduled run. It is the global
@@ -289,7 +303,7 @@ def build_context(*, persist: bool = True) -> AppContext:
 
     agents = AgentsBridge(router, default_registry(), policy=working_policy,
                           audit=audit, secret_store=secret_store, trace=trace,
-                          confirm=confirm.ask,
+                          confirm=confirm.ask, ask_scope=allow.ask,
                           project=lambda: {"id": projects.currentId, "name": projects.currentName},
                           model_for=model_for,
                           archive=RunArchive(config_dir() / "investigations.json" if persist else None))
@@ -335,7 +349,7 @@ def build_context(*, persist: bool = True) -> AppContext:
 
     researcher = Researcher(router=router, registry=default_registry(), policy=working_policy,
                             audit=audit, secrets=secret_store, workspace=open_folder,
-                            project=projects.store.current_id)
+                            project=projects.store.current_id, ask=allow.ask)
     chat = ChatBridge(router, config, context=assembler, project=projects.store.current_id,
                       researcher=researcher)
     # Replies are read aloud as they stream in, and a call talks to this chat.
@@ -349,6 +363,7 @@ def build_context(*, persist: bool = True) -> AppContext:
         settings=SettingsBridge(config, router),
         permissions=permissions,
         confirm=confirm,
+        allow=allow,
         trace=TraceBridge(trace),
         schedule=schedule,
         scheduler=scheduler,

@@ -31,6 +31,7 @@ Select 1.0 Select.qml
 SettingsSheet 1.0 SettingsSheet.qml
 ActionButton 1.0 ActionButton.qml
 ConfirmDialog 1.0 ConfirmDialog.qml
+AllowPrompt 1.0 AllowPrompt.qml
 LinkPrompt 1.0 LinkPrompt.qml
 PermissionsSheet 1.0 PermissionsSheet.qml
 AgentsView 1.0 AgentsView.qml

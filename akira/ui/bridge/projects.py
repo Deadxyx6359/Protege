@@ -13,6 +13,7 @@ from __future__ import annotations
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
 from akira.core.permissions import AuditLog, Policy
+from akira.core.permissions.asking import widen
 from akira.core.projects import ProjectError, ProjectStore
 from akira.security.paths import PathViolation, real
 
@@ -164,6 +165,22 @@ class ProjectsBridge(QObject):
         policy.save()
         self._audit.permission_change(capability_id, granted=True, scopes=scoped,
                                       note=f"in the project {project.name}")
+        self.grantsChanged.emit()
+        return ""
+
+    def widen(self, capability_id: str, scope: str) -> str:
+        """Add \a scope to the open project's grant: "always", when asked in place."""
+        project = self._store.current()
+        if project is None:
+            return "No project is open."
+        policy = self._store.policy(project.id)
+        try:
+            widen(policy, capability_id, scope)
+        except (KeyError, ValueError) as exc:
+            return str(exc) or "that could not be added"
+        policy.save()
+        self._audit.permission_change(capability_id, granted=True, scopes=(scope,),
+                                      note=f"allowed when asked, in the project {project.name}")
         self.grantsChanged.emit()
         return ""
 

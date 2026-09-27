@@ -870,20 +870,50 @@ A short follow-up keeps the kind of the turn before it ("and in Rust?",
 - **Show the choice quietly.** Beside the composer, for example
   "Research · Qwen3-8B", and give a small Auto / Everyday / Code / Research
   switch. The person corrects a wrong guess by pinning a kind.
-- **Research asks nothing new.** It reads only what the grants already allow,
-  and nothing it can do asks for confirmation. With nothing allowed, the
-  answer says so. The stage lines are the progress to show while it reads.
+- **Research asks one thing only.** It reads what the grants already allow,
+  and nothing it can do asks for confirmation. A page on a site not allowed
+  yet, found through a search, raises `Allow` (below). With nothing allowed,
+  the answer says so. The stage lines are the progress to show while it reads.
 - **Reply text may carry notes.** A research reply may end with "Note:
   nothing from Wikipedia was read for this answer…". That note is part of the
   reply, added when the answer names a source it did not read. Any reply may
   end with "Correction: … is wrong; it comes to …". Show both as the rest of
   the reply.
 
+### `Allow` — may this work read here too — 2026-09-27
+
+When an agent or a research turn reaches a site or folder next to what a grant
+allows, the person is asked there and then instead of the work stopping. Built
+by Claude: `AllowPrompt.qml`, a card at the top of the window. It is not a
+modal; the work waits for it.
+
+| Member | Kind | Notes |
+|---|---|---|
+| `requested(token, request)` | Signal | `request`: `title` ("Read a page on www.bbc.co.uk?"), `detail` (the whole address or path), `always` (what always adds: `bbc.co.uk`, or a folder), `kind` (`site` or `folder`), `who` (the agent), `why` (what its tool does) |
+| `withdrawn(token)` | Signal | Answered elsewhere, timed out, or closing: take it down |
+| `answer(token, choice)` | Slot | `once`, `always`, or anything else for no |
+| `timeoutSeconds` | Constant | Unanswered for this long is no |
+
+- **Once** covers this piece of work only and is saved nowhere. **Always** adds
+  the site or folder to the grant that holds the capability, the global one or
+  else the open project's, and the permission screen shows it.
+- Only reading is asked about: `net.http`, `files.read`, `docs.read`,
+  `vault.read`, `vcs.read`, and only where one is granted somewhere already.
+  A web page is asked about only when its address came from the person's own
+  words, a search result or a page already read; an address the model wrote
+  is refused, and the agent is told to search for it. Akira's settings,
+  application data, key folders such as `.ssh`, and whole drives or home
+  folders are never asked about. At most six questions per piece of work, and
+  never twice for the same thing.
+- Scheduled jobs and watches never ask: they run unattended.
+- Focus starts on "Don't allow"; Escape is no.
+
 ### Changing and deleting chats — 2026-09-27
 
-For the sidebar's right-click menu on a chat, and a Chats section in Settings.
-Every action is the person's own, on their own files, so none of them asks
-`Confirm`; the interface confirms deletes itself (see the handoff).
+For the sidebar's right-click menu on a chat, and a Chats section in Settings,
+both built by Claude: `ChatMenu.qml` and the Chats section of
+`SettingsSheet.qml`. Every action is the person's own, on their own files, so
+none of them asks `Confirm`; the interface asks before deleting.
 
 | Member | Kind | Notes |
 |---|---|---|

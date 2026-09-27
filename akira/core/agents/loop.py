@@ -28,6 +28,7 @@ from akira.core.conversation import NO_INVENTED_ADDRESSES, Cancelled
 from akira.core.excerpt import excerpt
 from akira.core.models import ModelRouter, Route
 from akira.core.net import host_of
+from akira.core.permissions.asking import SEARCH_FIRST, note_seen
 from akira.core.tools import ToolContext, ToolRegistry
 from akira.models.base import ChatMessage
 from akira.models.think_filter import ThinkFilter
@@ -222,6 +223,8 @@ class Agent:
              is_cancelled: Callable[[], bool] | None) -> Outcome:
         name = self.spec.name
         self._trace.emit(Kind.STARTED, name, text=task)
+        # An address in the task is the person's own: one they may be asked about.
+        note_seen(self._context, task)
 
         messages = [
             ChatMessage(role="system", content=self.system_prompt()),
@@ -331,9 +334,11 @@ class Agent:
             self._trace.emit(Kind.TOOL_RESULT, name, tool=call.name,
                              text=content, ok=result.ok, step=step)
 
-            if not result.ok and content.startswith("Not permitted"):
+            if (not result.ok and content.startswith("Not permitted")
+                    and SEARCH_FIRST not in content):
                 # Hand back the refusal and stop. A local model told "no" will
                 # otherwise spend the rest of the budget rephrasing the request.
+                # Told to search for a page it made up the address of, it can.
                 outcome.answer = content
                 outcome.ok = False
                 outcome.stopped = "answered"

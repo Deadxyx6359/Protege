@@ -72,6 +72,7 @@ class AgentsBridge(QObject):
                  policy: Callable[[], Policy], audit: AuditLog,
                  secret_store: SecretStore, trace: Trace,
                  confirm: Callable[[str], bool] | None = None,
+                 ask_scope: Callable[[object], str] | None = None,
                  project: Callable[[], dict] | None = None,
                  model_for: Callable[[str], dict] | None = None,
                  archive: RunArchive | None = None,
@@ -84,6 +85,8 @@ class AgentsBridge(QObject):
         self._secret_store = secret_store
         self._trace = trace
         self._confirm = confirm or (lambda summary: False)
+        # Asks the person, in place, for a site or folder next to the ones allowed.
+        self._ask_scope = ask_scope
         self._cancel = threading.Event()
         self._busy = False
         self._running = ""
@@ -318,7 +321,8 @@ class AgentsBridge(QObject):
 
         context = ToolContext(policy=self._policy(), audit=self._audit,
                               secrets=self._secret_store, actor=actor,
-                              confirm=self._confirm, workspace=workspace,
+                              confirm=self._confirm, ask_scope=self._ask_scope,
+                              workspace=workspace,
                               # Conversations it may search: this project's and personal.
                               extra={"project": str(self._project().get("id", ""))})
         self._cancel.clear()

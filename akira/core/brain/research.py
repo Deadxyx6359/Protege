@@ -4,7 +4,9 @@ A message sorted as research (`akira.core.intent`) is not answered from what
 the model remembers. The gatherer (`agents.roles.GATHERER`) goes first, with
 the person's own grants and no more: their notes, files and documents, their
 Drive, web search and the sites they allow. It only reads; nothing it can do
-asks to be confirmed, and this refuses any that would.
+asks to be confirmed, and this refuses any that would. A page on a site not
+allowed yet, found through a search, is asked about in place
+(`akira.core.permissions.asking`).
 
 What it read goes to the answer as read, not only as it summarised it: tried
 with the real models, a summary alone dropped half a committee's minutes, and
@@ -109,8 +111,11 @@ class Researcher:
     def __init__(self, *, router: ModelRouter, registry: ToolRegistry,
                  policy: Callable[[], Policy], audit: AuditLog, secrets: SecretStore,
                  workspace: Callable[[], str] = lambda: "",
-                 project: Callable[[], str] = lambda: "") -> None:
+                 project: Callable[[], str] = lambda: "",
+                 ask: Callable[[object], str] | None = None) -> None:
         self._router = router
+        # Asks the person, in place, for a site next to the ones allowed.
+        self._ask = ask
         self._registry = registry
         self._policy = policy
         self._audit = audit
@@ -175,6 +180,8 @@ class Researcher:
                               actor=ACTOR, workspace=self._workspace() or "",
                               # Reading only: anything that would ask is refused.
                               confirm=lambda summary: False,
+                              # But a site next to the ones allowed may be asked for.
+                              ask_scope=self._ask,
                               extra={"project": self._project() or ""})
         # A follow-up to an answer from Wikipedia searched the person's files
         # and gave up. Told at the end where to look, it still did; told first,

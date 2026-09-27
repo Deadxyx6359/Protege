@@ -288,6 +288,14 @@ Window {
         z: 100
     }
 
+    // Above the page, below a confirmation: the work waits, the window does not.
+    AllowPrompt {
+        z: 90
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 76
+    }
+
     // A link in a reply goes out to the person's own browser, so it is asked
     // about first, with the whole address shown.
     LinkPrompt {

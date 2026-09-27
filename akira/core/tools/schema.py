@@ -138,6 +138,11 @@ class ToolContext:
     """Asks a person to approve an irreversible action. Defaults to *no*: a
     context assembled without a way to ask cannot approve on the user's behalf."""
 
+    ask_scope: Callable[[Any], str] | None = None
+    """Asks a person, in place, to allow a site or folder a grant does not cover:
+    `akira.core.permissions.asking`. None, the default, never asks: work that
+    runs unattended is refused, as it always was."""
+
     workspace: str = ""
     """The project directory the agent is working in, when there is one."""
 

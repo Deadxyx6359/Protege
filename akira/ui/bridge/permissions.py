@@ -41,7 +41,10 @@ import threading
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
+from typing import Callable
+
 from akira.core.permissions import CATALOGUE, AuditLog, Policy
+from akira.core.permissions.asking import ALWAYS, NO, ONCE, widen
 from akira.core.permissions.capabilities import get
 
 #: How long a worker waits for a person before giving up and treating silence
@@ -169,6 +172,89 @@ class ConfirmBridge(QObject):
             return len(self._pending)
 
 
+class AllowBridge(QObject):
+    """Asks a person, in place, to allow a site or folder a grant does not cover.
+
+    The same shape as `ConfirmBridge`, and the same promises: asked from the
+    interface's own thread, unanswered, or while closing, the answer is *no*.
+    It answers a different question, though: not "may this irreversible thing
+    happen" but "may this work read here too", so it has three answers. Once
+    covers this piece of work. Always adds the site or folder to the grant,
+    the same as allowing it in Settings, and is saved there, where it can be
+    taken back.
+    """
+
+    #: token, request: `title`, `detail` (the address or path), `always` (what
+    #: always would add), `kind` (`site` or `folder`), `who` and `why`.
+    requested = Signal(str, "QVariantMap")
+    withdrawn = Signal(str)
+
+    def __init__(self, extend: Callable[[str, str], str] | None = None,
+                 parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        # Adds a scope to the grant that holds the capability; "" or why not.
+        self._extend = extend
+        self._pending: dict[str, tuple[threading.Event, list, object]] = {}
+        self._lock = threading.Lock()
+        self._closing = False
+        self._ui_thread = threading.get_ident()
+
+    def ask(self, request) -> str:
+        """Block until a person answers: `once`, `always` or `no`. The `ToolContext.ask_scope`."""
+        if self._closing or threading.get_ident() == self._ui_thread:
+            return NO
+        token = secrets.token_hex(8)
+        answered = threading.Event()
+        box = [NO]
+        with self._lock:
+            if self._closing:
+                return NO
+            self._pending[token] = (answered, box, request)
+        self.requested.emit(token, {
+            "title": request.title, "detail": request.detail, "always": request.always,
+            "kind": "site" if request.capability == "net.http" else "folder",
+            "who": request.actor, "why": request.why})
+        if not answered.wait(CONFIRM_TIMEOUT_S):
+            with self._lock:
+                self._pending.pop(token, None)
+            self.withdrawn.emit(token)
+            return NO
+        return box[0]
+
+    @Slot(str, str)
+    def answer(self, token: str, choice: str) -> None:
+        """From QML: `once`, `always` or anything else for no. A stale token does nothing."""
+        with self._lock:
+            entry = self._pending.pop(token, None)
+        if entry is None:
+            return
+        answered, box, request = entry
+        choice = choice if choice in (ONCE, ALWAYS) else NO
+        if choice == ALWAYS:
+            why = self._extend(request.capability, request.always) if self._extend else "no grant"
+            if why:
+                # Not saved, so not "always"; this piece of work may still go on.
+                choice = ONCE
+        box[0] = choice
+        answered.set()
+
+    @Property(int, constant=True)
+    def timeoutSeconds(self) -> int:
+        return int(CONFIRM_TIMEOUT_S)
+
+    @Slot()
+    def close(self) -> None:
+        """Wake every waiting worker with a no. Call before shutdown."""
+        self._closing = True
+        with self._lock:
+            pending = list(self._pending.items())
+            self._pending.clear()
+        for token, (answered, box, _) in pending:
+            box[0] = NO
+            answered.set()
+            self.withdrawn.emit(token)
+
+
 class PermissionsBridge(QObject):
     """The capability catalogue and the grants held against it."""
 
@@ -249,6 +335,18 @@ class PermissionsBridge(QObject):
         # nobody remembers making is exactly the thing worth noticing.
         self._audit.permission_change(capability_id, granted=True,
                                       scopes=tuple(str(s) for s in scopes))
+        self.grantsChanged.emit()
+        return ""
+
+    def widen(self, capability_id: str, scope: str) -> str:
+        """Add \a scope to a capability already granted: "always", when asked in place."""
+        try:
+            widen(self._policy, capability_id, scope)
+        except (KeyError, ValueError) as exc:
+            return str(exc) or "that could not be added"
+        self._policy.save()
+        self._audit.permission_change(capability_id, granted=True, scopes=(scope,),
+                                      note="allowed when asked")
         self.grantsChanged.emit()
         return ""
 

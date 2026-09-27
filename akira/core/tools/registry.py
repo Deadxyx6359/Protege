@@ -20,6 +20,7 @@ from __future__ import annotations
 import time
 
 from akira.core.permissions import Policy
+from akira.core.permissions.asking import ask_in_place, note_seen
 from akira.core.permissions.capabilities import get as get_capability
 
 from .schema import Tool, ToolContext, ToolError, ToolResult
@@ -110,6 +111,15 @@ class ToolRegistry:
         for requirement in tool.requires:
             scope = tool.scope_for(requirement, cleaned)
             decision = context.policy.allows(requirement.capability, scope)
+            why_not = ""
+            if not decision:
+                # A site or folder next to what was allowed: the person is asked
+                # there and then, rather than sent to Settings to start again.
+                detail = str(cleaned.get(requirement.scope_from, "")) if requirement.scope_from else ""
+                allowed, why_not = ask_in_place(context, requirement.capability, scope,
+                                                detail=detail, why=tool.summary)
+                if allowed:
+                    decision = context.policy.allows(requirement.capability, scope)
             if not decision:
                 context.audit.tool_call(
                     context.actor, name, cleaned, allowed=False,
@@ -117,8 +127,9 @@ class ToolRegistry:
                     error=decision.reason,
                     duration_ms=int((time.monotonic() - started) * 1000))
                 return ToolResult.failure(
-                    f"Not permitted: {decision.reason}. "
-                    "Ask the user to allow it in Settings if it is needed."
+                    f"Not permitted: {decision.reason}"
+                    + (f", and {why_not}. " if why_not else ". Ask the user to allow it in "
+                       "Settings if it is needed.")
                 )
 
         # -- irreversible actions stop for a person ---------------------------
@@ -152,6 +163,9 @@ class ToolRegistry:
         except Exception as exc:  # noqa: BLE001 - a tool must not kill the agent
             result = ToolResult.failure(f"{type(exc).__name__}: {exc}")
 
+        if result.ok:
+            # Addresses in what was found are ones the person may be asked about.
+            note_seen(context, result.content)
         context.audit.tool_call(
             context.actor, name, cleaned, allowed=result.ok,
             capability=tool.requires[0].capability if tool.requires else "",
