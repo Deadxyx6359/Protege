@@ -86,7 +86,12 @@ _ANNOUNCES = re.compile(
 
 #: Folder permissions an agent is told the folders of, and how it is told.
 _FOLDERS = (("files.read", "Folders you can read (start by searching these)"),
-            ("files.write", "Folders you can write to"))
+            ("files.write", "Folders you can write to"),
+            # Told only the folders above, a gatherer asked about a spreadsheet
+            # in the documents folder, or a note in the vault, did not know
+            # where either was and said it could not find them.
+            ("docs.read", "Folders of documents you can read (search_documents, read_document)"),
+            ("vault.read", "Notes vaults you can read (search_notes, read_note)"))
 
 #: Said once to a grounded agent that answered before reading anything.
 READ_FIRST = ("You answered without reading anything. Search and read what bears on the "

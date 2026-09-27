@@ -84,6 +84,28 @@ def check_arguments(action: str, arguments: dict) -> str:
     return ""
 
 
+#: The grant an action cannot run without, whatever its arguments.
+NEEDS = {"notify": ("notify.send", "Send notifications")}
+
+
+def check_grants(action: str, grants: list) -> str:
+    """Why a job with these grants could never do what it is for, or "".
+
+    A job runs under its own grants and no others. A notice job made without
+    `notify.send` was accepted, and failed every time it ran, where no one
+    would see why. It is refused when it is made.
+    """
+    needed = NEEDS.get(action)
+    if needed is None:
+        return ""
+    held = {str(grant.get("capability") if isinstance(grant, dict) else
+                getattr(grant, "capability", "")) for grant in grants or ()}
+    if needed[0] in held:
+        return ""
+    return (f"A {action} job needs “{needed[1]}” among its grants; without it, it could never "
+            "do anything.")
+
+
 def register_agent_actions(actions: ActionRegistry, *, router: ModelRouter,
                            registry: ToolRegistry) -> None:
     """Add `agent` and `team` to \a actions."""

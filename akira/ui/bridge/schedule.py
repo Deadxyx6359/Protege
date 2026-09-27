@@ -23,7 +23,7 @@ from PySide6.QtCore import Property, QObject, Signal, Slot
 
 from akira.core.review import REVIEW_ACTION, Review, ReviewStore
 from akira.core.schedule import Missed, Scheduler, trigger_from_json
-from akira.core.schedule.actions import check_arguments
+from akira.core.schedule.actions import check_arguments, check_grants
 
 
 class ScheduleBridge(QObject):
@@ -101,7 +101,8 @@ class ScheduleBridge(QObject):
             return "A job's arguments must be a set of named values."
         if missed not in {m.value for m in Missed}:
             return "A missed run can either run late or be skipped."
-        problem = check_arguments(action, arguments)
+        problem = (check_arguments(action, arguments)
+                   or check_grants(action, list(spec.get("grants") or ())))
         if problem:
             return problem
         try:

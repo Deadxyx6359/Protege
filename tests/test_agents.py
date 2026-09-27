@@ -728,6 +728,14 @@ def test_an_agent_is_told_the_folders_its_file_tools_may_reach(workspace, contex
     # Not the folders of a permission its own tools do not use.
     helper, _ = build_agent([], context(policy), tools=("calculate",))
     assert "Folders you can" not in helper.system_prompt()
+    # A gatherer asked about a spreadsheet or a note did not know where they were.
+    policy.grant("docs.read", (str(workspace / "docs"),))
+    policy.grant("vault.read", (str(workspace / "vault"),))
+    gatherer, _ = build_agent([], context(policy), tools=("search_documents", "search_notes"))
+    prompt = gatherer.system_prompt()
+    assert f"Folders of documents you can read (search_documents, read_document): " \
+           f"{workspace / 'docs'}" in prompt
+    assert f"Notes vaults you can read (search_notes, read_note): {workspace / 'vault'}" in prompt
 
 
 def test_a_result_the_model_wrote_itself_is_thrown_away(workspace, context):

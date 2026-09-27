@@ -237,6 +237,8 @@ def test_a_job_can_be_created_from_the_interface(parts):
     ({"grants": [{"capability": "files.read", "scopes": []}]}, "must be limited"),
     ({"action": "security_review"}, "schedules itself"),
     ({"name": "   "}, "needs a name"),
+    # It runs under its own grants only: without this one it could never show anything.
+    ({"action": "notify", "arguments": {"text": "Hi"}}, "needs “Send notifications”"),
 ])
 def test_a_job_that_could_not_run_is_refused_with_a_reason(parts, change, expected):
     actions, _, bridge, _, _ = parts
@@ -248,3 +250,15 @@ def test_a_job_that_could_not_run_is_refused_with_a_reason(parts, change, expect
     reason = bridge.addJob(spec)
     assert expected in reason
     assert bridge.jobs == []
+
+
+def test_a_notice_job_with_its_grant_is_made(parts):
+    actions, _, bridge, _, _ = parts
+    from akira.core.agents.monitor import register_notify_action
+
+    register_notify_action(actions, notify=lambda title, text: None)
+    reason = bridge.addJob({"name": "New notes", "action": "notify",
+                            "trigger": {"kind": "event", "name": "file.created"},
+                            "arguments": {"text": "A new note arrived."},
+                            "grants": [{"capability": "notify.send", "scopes": []}]})
+    assert reason == ""

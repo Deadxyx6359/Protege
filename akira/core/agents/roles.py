@@ -249,8 +249,10 @@ ILLUSTRATOR = AgentSpec(
         "since the person sees each picture before it is saved and approves it "
         "then. Say where it went and what it shows."
     ),
-    # SVG is code, and the coding model writes it more reliably.
-    route=Route.CODE,
+    # SVG is code, but the coding model did not save it: asked for a leaf icon,
+    # it printed the SVG, then made a photograph instead, or never saved at all.
+    # The chat model saved one with save_drawing in two steps, three times of three.
+    route=Route.CHAT,
     tools=("save_drawing", "make_image", "list_directory"),
     max_steps=6,
     temperature=0.4,
