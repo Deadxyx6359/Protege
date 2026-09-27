@@ -23,12 +23,19 @@ Item {
     property string footnote: ""
     // The host must supply an attachment flow before advertising this action.
     property bool attachmentsAvailable: false
+    property bool voiceAvailable: false
+    property bool callActive: false
 
     readonly property bool hasText: input.text.trim().length > 0
+
+    property var modes: []
+    property string mode: "auto"
+    signal modeSelected(string id)
 
     signal submitted(string text)
     signal stopped()
     signal attachRequested()
+    signal voiceRequested()
 
     implicitHeight: column.implicitHeight
 
@@ -110,6 +117,14 @@ Item {
                     }
                 }
 
+                ActionButton {
+                    objectName: "composerVoice"
+                    visible: root.voiceAvailable
+                    Layout.alignment: Qt.AlignBottom
+                    text: root.callActive ? "In call" : "Voice"
+                    onClicked: root.voiceRequested()
+                }
+
                 Item {
                     Layout.alignment: Qt.AlignBottom
                     Layout.preferredWidth: 34
@@ -158,14 +173,30 @@ Item {
             }
         }
 
-        Text {
-            Layout.alignment: Qt.AlignHCenter
-            visible: root.footnote !== ""
-            text: root.footnote
-            textFormat: Text.PlainText
-            font: Theme.type.caption
-            color: Theme.textTertiary
+        RowLayout {
+            Layout.fillWidth: true
+            visible: root.modes.length > 0
+            spacing: Theme.space.md
+            Select {
+                objectName: "chatMode"
+                Layout.preferredWidth: 132
+                label: "Message kind"
+                options: root.modes.map(function (m) { return { value: m.id, label: m.label }; })
+                current: root.mode
+                onPicked: function (value) { root.modeSelected(value); }
+            }
+            Text {
+                objectName: "chatIntentModel"
+                Layout.fillWidth: true
+                text: root.footnote
+                textFormat: Text.PlainText
+                font: Theme.type.caption
+                color: Theme.textSecondary
+                wrapMode: Text.Wrap
+                horizontalAlignment: Text.AlignRight
+            }
         }
+
     }
 
     function _submit() {

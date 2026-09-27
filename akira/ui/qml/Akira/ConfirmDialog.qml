@@ -53,7 +53,8 @@ Item {
     Connections {
         target: Confirm
         function onRequested(token, summary) {
-            root.queue = root.queue.concat([{ token: token, summary: summary }]);
+            root.queue = root.queue.concat([{ token: token, summary: summary,
+                picture: Confirm.pictureFor(token), marks: Confirm.marksFor(token) }]);
         }
         function onWithdrawn(token) { root._drop(token); }
     }
@@ -104,6 +105,43 @@ Item {
                 }
             }
 
+            Item {
+                id: pictureArea
+                Layout.fillWidth: true
+                Layout.preferredHeight: visible ? Math.min(160, root.height * 0.22) : 0
+                visible: !!root.current && !!root.current.picture
+                Image {
+                    id: actionPicture
+                    objectName: "confirmationPicture"
+                    cache: false
+                    anchors.fill: parent
+                    source: root.current ? root.current.picture || "" : ""
+                    fillMode: Image.PreserveAspectFit
+                    Accessible.role: Accessible.Graphic
+                    Accessible.name: "Preview of the action awaiting approval"
+                    Item {
+                        anchors.centerIn: parent
+                        width: actionPicture.paintedWidth
+                        height: actionPicture.paintedHeight
+                        clip: true
+                        Repeater {
+                            model: root.current ? root.current.marks || [] : []
+                            Rectangle {
+                                required property var modelData
+                                objectName: "confirmationMark"
+                                x: modelData.x * parent.width
+                                y: modelData.y * parent.height
+                                width: modelData.width * parent.width
+                                height: modelData.height * parent.height
+                                color: "transparent"
+                                border.color: Theme.warning
+                                border.width: 2
+                            }
+                        }
+                    }
+                }
+            }
+
             // Verbatim: it names the real file, command, address or message.
             C.ScrollView {
                 id: summaryScroll
@@ -114,6 +152,7 @@ Item {
                 Layout.preferredHeight: Math.min(summaryText.implicitHeight, Math.max(80,
                     root.height - Theme.space.xl * 4 - titleRow.implicitHeight
                     - explanation.implicitHeight - actions.implicitHeight
+                    - (pictureArea.visible ? pictureArea.Layout.preferredHeight + content.spacing : 0)
                     - content.spacing * 3 - Theme.space.sm))
                 contentWidth: availableWidth
                 rightPadding: 12

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls as C
 import QtQuick.Dialogs
 import QtQuick.Layouts
+import QtQuick.Window
 
 /*!
     Memory: notes distilled from conversations, waiting for a person.
@@ -27,6 +28,38 @@ Item {
     /*! The proposal waiting on that permission. */
     property string waiting: ""
     property int revision: 0
+    property bool showSetup: false
+    property string reviewing: ""
+    readonly property var proposals: Memory.pending
+    readonly property var filtered: proposals.filter(function (p) {
+        const query = memorySearch.text.trim().toLowerCase();
+        return !query || [p.title, p.target, root.projectName(p.project)].concat(p.sources || []).join(" ").toLowerCase().indexOf(query) >= 0;
+    })
+    onFilteredChanged: {
+        if (reviewing && !filtered.some(function (p) { return p.id === root.reviewing; })) reviewing = "";
+    }
+    function projectName(id) {
+        if (!id) return "Personal workspace";
+        const project = Projects.projects.find(function (p) { return p.id === id; });
+        return project ? project.name : "Archived project · " + id;
+    }
+    function review(id) {
+        root.reviewing = root.reviewing === id ? "" : id;
+        root.needs = ""; root.waiting = ""; root.notice = "";
+    }
+    function revealFocus() {
+        const focused = root.Window.window ? root.Window.window.activeFocusItem : null;
+        if (!focused || !root.visible) return;
+        var ancestor = focused;
+        while (ancestor && ancestor !== scroller) ancestor = ancestor.parent;
+        if (!ancestor) return;
+        const viewport = scroller.contentItem;
+        const y = focused.mapToItem(viewport.contentItem, 0, 0).y;
+        if (y < viewport.contentY) viewport.contentY = Math.max(0, y - 12);
+        else if (y + focused.height > viewport.contentY + viewport.height)
+            viewport.contentY = Math.max(0, Math.min(viewport.contentHeight - viewport.height, y + focused.height - viewport.height + 12));
+    }
+    Connections { target: root.Window.window; function onActiveFocusItemChanged() { root.revealFocus(); } }
 
     Connections {
         target: Permissions
@@ -166,14 +199,14 @@ Item {
 
     // -- pieces ------------------------------------------------------------------
 
-    component Card: Squircle {
+    component Card: Rectangle {
         default property alias content: inner.data
         property int pad: Theme.space.lg
         Layout.fillWidth: true
         implicitHeight: inner.implicitHeight + pad * 2
         radius: Theme.radius.md
-        fillColor: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.94)
-        borderColor: Theme.separator
+        color: Theme.surface
+        border.color: Theme.separator
         ColumnLayout {
             id: inner
             anchors.left: parent.left
@@ -188,6 +221,8 @@ Item {
 
     C.ScrollView {
         id: scroller
+        objectName: "memoryScroll"
+        layer.enabled: true
         anchors.fill: parent
         anchors.topMargin: Theme.space.lg
         contentWidth: availableWidth
@@ -208,13 +243,12 @@ Item {
                         font: Theme.type.title3
                         color: Theme.textPrimary
                     }
-                }
-                Text {
-                    Layout.fillWidth: true
-                    text: "Each night Akira reads your recent conversations and proposes notes for your vault. Nothing is written until you accept it, and nothing waiting here can shape an answer."
-                    font: Theme.type.caption
-                    color: Theme.textSecondary
-                    wrapMode: Text.Wrap
+                    ActionButton {
+                        objectName: "memorySetupToggle"
+                        text: root.showSetup || !Memory.vault ? "Hide setup" : "Setup"
+                        visible: Memory.vault !== ""
+                        onClicked: root.showSetup = !root.showSetup
+                    }
                 }
                 Text {
                     Layout.fillWidth: true
@@ -225,11 +259,21 @@ Item {
                     color: Theme.danger
                     wrapMode: Text.Wrap
                 }
+                Text {
+                    Layout.fillWidth: true
+                    visible: Memory.busy || Memory.lastRun !== ""
+                    text: Memory.busy ? "Reading conversations…" : Memory.lastRun
+                    textFormat: Text.PlainText
+                    font: Theme.type.caption
+                    color: Theme.textSecondary
+                    wrapMode: Text.Wrap
+                }
             }
 
             // -- where it is kept ------------------------------------------------------
             Card {
                 objectName: "memorySetup"
+                visible: root.showSetup || Memory.vault === ""
                 SectionLabel { text: "Where memory is kept" }
                 RowLayout {
                     Layout.fillWidth: true
@@ -255,13 +299,6 @@ Item {
                         Layout.fillWidth: true
                         spacing: 1
                         Text { text: "Remember past conversations"; font: Theme.type.body; color: Theme.textPrimary }
-                        Text {
-                            Layout.fillWidth: true
-                            text: "Lets the memory job, and agents, read your conversations on this computer."
-                            font: Theme.type.caption
-                            color: Theme.textTertiary
-                            wrapMode: Text.Wrap
-                        }
                     }
                     Toggle {
                         objectName: "allowRemembering"
@@ -282,13 +319,6 @@ Item {
                         Layout.fillWidth: true
                         spacing: 1
                         Text { text: "Read the vault"; font: Theme.type.body; color: Theme.textPrimary }
-                        Text {
-                            Layout.fillWidth: true
-                            text: "So a proposal adds to a note you already have rather than repeating it. Agents may read the vault too."
-                            font: Theme.type.caption
-                            color: Theme.textTertiary
-                            wrapMode: Text.Wrap
-                        }
                     }
                     ActionButton {
                         text: root.readsVault ? "Remove" : "Allow"
@@ -322,20 +352,32 @@ Item {
             Card {
                 objectName: "memoryPending"
                 SectionLabel { text: Memory.pendingCount > 0 ? "Waiting for you · " + Memory.pendingCount : "Waiting for you" }
+                SearchField {
+                    id: memorySearch
+                    objectName: "memorySearch"
+                    Layout.fillWidth: true
+                    visible: root.proposals.length > 0 || text !== ""
+                    placeholder: "Find a note, source conversation or project"
+                    maximumLength: 200
+                }
                 Text {
                     Layout.fillWidth: true
-                    visible: Memory.pendingCount === 0
-                    text: "Nothing waiting."
+                    visible: root.filtered.length === 0
+                    text: root.proposals.length === 0 ? "Nothing waiting. Notes proposed from your conversations will appear here for review."
+                        : "No matching proposals. Try a note title, source conversation or project name."
+                    textFormat: Text.PlainText
                     font: Theme.type.caption
                     color: Theme.textTertiary
+                    wrapMode: Text.Wrap
                 }
                 Repeater {
-                    model: Memory.pending
+                    model: root.filtered
                     ColumnLayout {
                         id: item
                         required property var modelData
                         readonly property var p: modelData
                         readonly property bool blocked: root.needs === "write" && root.waiting === p.id
+                        readonly property bool expanded: root.reviewing === p.id
                         Layout.fillWidth: true
                         spacing: Theme.space.xs
 
@@ -355,10 +397,8 @@ Item {
                                 }
                                 Text {
                                     Layout.fillWidth: true
-                                    text: (item.p.addsTo ? "Adds to " : "A new note, ") + item.p.target
-                                          + " · from " + (item.p.sources.join(", ") || "a conversation")
-                                          + (item.p.project !== "" ? " in " + item.p.project : "")
-                                          + " · " + root.when(item.p.created)
+                                    text: (item.p.addsTo ? "Update to an existing note" : "New note")
+                                          + " · " + root.projectName(item.p.project) + " · " + root.when(item.p.created)
                                     textFormat: Text.PlainText
                                     font: Theme.type.caption
                                     color: Theme.textSecondary
@@ -366,27 +406,88 @@ Item {
                                 }
                             }
                             ActionButton {
+                                objectName: "memoryReview_" + item.p.id
                                 Layout.alignment: Qt.AlignTop
-                                text: "Reject"
-                                onClicked: root.reject(item.p.id)
-                            }
-                            ActionButton {
-                                Layout.alignment: Qt.AlignTop
-                                text: "Accept"
-                                kind: "primary"
-                                onClicked: root.accept(item.p.id)
+                                text: item.expanded ? "Close review" : "Review"
+                                onClicked: root.review(item.p.id)
                             }
                         }
 
-                        CodeBlock {
+                        ColumnLayout {
+                            visible: item.expanded
                             Layout.fillWidth: true
-                            code: item.p.preview
-                            lang: item.p.addsTo ? "diff" : "markdown"
+                            spacing: Theme.space.md
+                            SectionLabel { text: "Based on saved conversations" }
+                            Repeater {
+                                model: item.p.sources.length ? item.p.sources : ["Source title unavailable"]
+                                Text {
+                                    required property string modelData
+                                    Layout.fillWidth: true
+                                    text: "• " + modelData
+                                    textFormat: Text.PlainText
+                                    font: Theme.type.callout
+                                    color: Theme.textSecondary
+                                    wrapMode: Text.Wrap
+                                }
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: item.p.addsTo ? "Review the proposed changes below before saving them."
+                                    : "Review this proposed note before adding it to memory."
+                                textFormat: Text.PlainText
+                                font: Theme.type.caption
+                                color: Theme.textSecondary
+                                wrapMode: Text.Wrap
+                            }
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: preview.implicitHeight + 28
+                                radius: Theme.radius.sm
+                                color: Theme.inset
+                                TextEdit {
+                                    id: preview
+                                    objectName: "memoryPreview_" + item.p.id
+                                    anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                                    anchors.margins: 14
+                                    text: item.p.preview
+                                    textFormat: TextEdit.PlainText
+                                    readOnly: true
+                                    selectByMouse: true
+                                    wrapMode: TextEdit.Wrap
+                                    font: item.p.addsTo ? Theme.type.mono : Theme.type.body
+                                    color: Theme.textPrimary
+                                    selectionColor: Theme.accentSubtle
+                                    selectedTextColor: Theme.textPrimary
+                                }
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Save to " + root.slashed(Memory.vault).replace(/\/+$/, "") + "/" + item.p.target
+                                textFormat: Text.PlainText
+                                font: Theme.type.caption
+                                color: Theme.textSecondary
+                                wrapMode: Text.WrapAnywhere
+                            }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Item { Layout.fillWidth: true }
+                                ActionButton {
+                                    objectName: "memoryReject_" + item.p.id
+                                    text: "Discard proposal"
+                                    onClicked: root.reject(item.p.id)
+                                }
+                                ActionButton {
+                                    objectName: "memoryAccept_" + item.p.id
+                                    text: item.p.addsTo ? "Save changes" : "Save to memory"
+                                    kind: "primary"
+                                    onClicked: root.accept(item.p.id)
+                                }
+                            }
                         }
 
                         RowLayout {
                             Layout.fillWidth: true
-                            visible: item.blocked
+                            visible: item.expanded && item.blocked
                             spacing: Theme.space.md
                             ColumnLayout {
                                 Layout.fillWidth: true
@@ -416,13 +517,14 @@ Item {
 
                         Text {
                             Layout.fillWidth: true
-                            visible: item.blocked && root.notice !== ""
+                            visible: item.expanded && item.blocked && root.notice !== ""
                             text: root.notice
                             textFormat: Text.PlainText
                             font: Theme.type.caption
                             color: Theme.danger
                             wrapMode: Text.Wrap
                         }
+                        Rectangle { Layout.fillWidth: true; Layout.topMargin: Theme.space.md; height: 1; color: Theme.separator }
                     }
                 }
             }

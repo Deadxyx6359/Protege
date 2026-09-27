@@ -81,9 +81,11 @@ answer = '## What the evidence supports\n\nLight levels change with depth, but t
 gate = threading.Event()
 ctx.agents._router = Router([call, 'Found a local survey.', 'Distinguish sampling from behavior.', 'A single survey is not enough.', answer], gate=gate)
 composer.setProperty('text', 'What does the field survey tell us about deep sea migrations?')
-press(win.findChild(QObject, 'prepareResearchTeam'))
-assert research.property('investigating') and not composer.property('visible')
-assert task.property('text') == composer.property('text')
+invoke(win, 'prepareTeam', 'research')
+assert not composer.property('visible')
+assert task.property('text') == 'What does the field survey tell us about deep sea migrations?'
+# Preparing a tool task leaves the shared chat draft intact.
+assert composer.property('text') == task.property('text')
 assert not ctx.agents.busy
 task.setProperty('text', 'x' * 4001)
 assert not win.findChild(QObject, 'investigationStart').property('enabled')

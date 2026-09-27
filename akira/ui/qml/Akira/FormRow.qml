@@ -26,15 +26,6 @@ Item {
             color: Theme.textPrimary
             wrapMode: Text.Wrap
         }
-        Text {
-            Layout.fillWidth: true
-            visible: root.description !== ""
-            text: root.description
-            textFormat: Text.PlainText
-            font: Theme.type.caption
-            color: Theme.textSecondary
-            wrapMode: Text.Wrap
-        }
     }
     RowLayout {
         id: actions

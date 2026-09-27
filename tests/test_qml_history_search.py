@@ -103,7 +103,6 @@ assert len(value(history, 'saved')) == 3
 invoke(history, 'close')
 # Research search does not show software tasks or other projects.
 win.setProperty('currentNav', 'research')
-win.findChild(QObject, 'researchView').setProperty('investigating', True)
 view = win.findChild(QObject, 'researchInvestigations')
 search = win.findChild(QObject, 'investigationSearch')
 search.setProperty('text', 'fluorescence'); wait(lambda: view.property('query') == 'fluorescence')

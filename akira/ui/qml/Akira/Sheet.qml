@@ -81,6 +81,25 @@ Item {
 
     function scrollToTop() { contentScroll.contentItem.contentY = 0; }
 
+    function revealFocus() {
+        const item = root.Window.window ? root.Window.window.activeFocusItem : null;
+        if (!root.opened || !item) return;
+        var ancestor = item;
+        while (ancestor && ancestor !== body) ancestor = ancestor.parent;
+        if (!ancestor) return;
+        const viewport = contentScroll.contentItem;
+        const top = item.mapToItem(body, 0, 0).y;
+        const bottom = top + item.height;
+        if (top < viewport.contentY) viewport.contentY = Math.max(0, top);
+        else if (bottom > viewport.contentY + viewport.height)
+            viewport.contentY = Math.max(0, Math.min(bottom - viewport.height,
+                viewport.contentHeight - viewport.height));
+    }
+    Connections {
+        target: root.Window.window
+        function onActiveFocusItemChanged() { root.revealFocus(); }
+    }
+
     Shortcut { sequence: "Tab"; enabled: root._open && root.ownsFocus; onActivated: root.moveFocus(true) }
     Shortcut { sequence: "Shift+Tab"; enabled: root._open && root.ownsFocus; onActivated: root.moveFocus(false) }
 
@@ -151,7 +170,7 @@ Item {
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
-            height: root.subtitle === "" ? 56 : 68
+            height: 56
 
             Column {
                 anchors.left: parent.left
@@ -168,15 +187,6 @@ Item {
                     textFormat: Text.PlainText
                     font: Theme.type.title3
                     color: Theme.textPrimary
-                }
-                Text {
-                    width: parent.width
-                    elide: Text.ElideRight
-                    visible: root.subtitle !== ""
-                    text: root.subtitle
-                    textFormat: Text.PlainText
-                    font: Theme.type.caption
-                    color: Theme.textTertiary
                 }
             }
 
@@ -213,6 +223,7 @@ Item {
             anchors.topMargin: Theme.space.lg
             contentWidth: availableWidth
             clip: true
+            layer.enabled: true
 
             Column {
                 id: body

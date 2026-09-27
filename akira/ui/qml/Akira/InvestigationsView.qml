@@ -139,7 +139,7 @@ Item {
             }
             Copy {
                 visible: !!root.query && root.saved.length === 0
-                text: "No matching investigations in this project. Try other words from the question or findings."
+                text: "No matching investigations"
             }
             Select {
                 // Kept below the search field so a long archive stays navigable.
@@ -154,10 +154,6 @@ Item {
                             detail: root.query ? r.snippet : root.statusLabel(r.status) + " · " + Qt.formatDateTime(new Date(r.started * 1000), "MMM d, h:mm AP")};
                 }))
                 onPicked: function (id) { root.choose(id); }
-            }
-            Copy {
-                visible: !root.hasRun
-                text: "Follow a question from evidence to a considered answer. Four specialists work in sequence, using the sources you allow."
             }
             Copy {
                 visible: !!Agents.historyError
@@ -282,7 +278,7 @@ Item {
                 Copy { text: root.running ? "Following the evidence…" : "Findings"; font: Theme.type.title3; color: Theme.textPrimary }
                 Copy {
                     visible: root.running
-                    text: "The final synthesis will appear here. You can leave this view and return while the team works."
+                    text: "Investigation in progress"
                 }
                 Copy {
                     visible: !root.running && !root.selectedRun.answer
@@ -349,7 +345,6 @@ Item {
                     }
                 }
                 Copy { text: "Tool calls and team handoffs"; font: Theme.type.headline; color: Theme.textPrimary }
-                Copy { text: "Latest 80 steps. Intermediate model messages are not saved here."; font: Theme.type.caption }
                 Repeater {
                     model: root.selectedRun.events || []
                     Copy {
@@ -371,7 +366,6 @@ Item {
                     ActionButton { objectName: "investigationDelete"; text: "Remove result"; kind: "danger"; enabled: !Agents.archiveBusy; onClicked: root.notice = Agents.deleteRun(root.selectedId) }
                 }
             }
-            Copy { Layout.bottomMargin: 20; text: "Saved on this device · Keeps the latest 60 interactive runs across teams. Source previews stay in memory only."; font: Theme.type.caption; color: Theme.textTertiary }
         }
     }
 }

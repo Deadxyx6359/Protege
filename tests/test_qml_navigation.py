@@ -90,8 +90,6 @@ mode_picker = win.findChild(QObject, 'collapsedWorkspacePicker')
 keyboard(combo(mode_picker), Qt.Key_Space)
 QTest.keyClick(win, Qt.Key_Home)
 QTest.keyClick(win, Qt.Key_Down)
-QTest.keyClick(win, Qt.Key_Down)
-QTest.keyClick(win, Qt.Key_Down)
 QTest.keyClick(win, Qt.Key_Return)
 QTest.qWait(40)
 assert win.property('currentNav') == 'documents'

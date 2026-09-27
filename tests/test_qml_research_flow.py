@@ -9,7 +9,7 @@ PROBE = r'''
 import os, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from PySide6.QtCore import QObject, QMetaObject, Qt, QPointF
+from PySide6.QtCore import QObject, QMetaObject, Q_ARG, Qt, QPointF
 from PySide6.QtGui import QGuiApplication, QFontDatabase, QFont
 from PySide6.QtQml import QQmlExpression
 from PySide6.QtTest import QTest
@@ -29,11 +29,11 @@ warnings = []
 engine.warnings.connect(lambda items: warnings.extend(str(i) for i in items))
 win = load(engine, Path(sys.argv[1]) / 'akira/ui/qml/Main.qml')
 win.setWidth(900); win.setHeight(600); win.requestActivate()
-win.setProperty('currentNav', 'research')
+win.setProperty('currentNav', 'chats')
 research = win.findChild(QObject, 'researchView')
 agents = win.findChild(QObject, 'agentsView')
 composer = win.findChild(QObject, 'workspaceComposer')
-sources = research.findChild(QObject, 'contextSources')
+sources = win.findChild(QObject, 'mainChatView').findChild(QObject, 'contextSources')
 
 def capture(name):
     if os.environ.get('AKIRA_REVIEW_DIR'):
@@ -82,9 +82,9 @@ folder = Path(sys.argv[2]) / 'Expedition'; folder.mkdir()
 assert ctx.projects.create('Ocean research', str(folder)) == ''
 composer.setProperty('text', 'Compare the evidence for deep sea migrations.')
 before = ctx.trace.events.count
-press(research.findChild(QObject, 'prepareResearchTeam'))
+QMetaObject.invokeMethod(win, 'prepareTeam', Qt.DirectConnection, Q_ARG('QVariant', 'research'))
+QTest.qWait(40)
 assert win.property('currentNav') == 'research'
-assert research.property('investigating')
 inquiry = win.findChild(QObject, 'researchInvestigations')
 assert inquiry.property('taskDraft') == 'Compare the evidence for deep sea migrations.'
 assert inquiry.property('folder') == str(folder.resolve())

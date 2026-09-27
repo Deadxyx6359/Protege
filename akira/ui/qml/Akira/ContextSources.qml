@@ -23,7 +23,7 @@ Rectangle {
         objectName: "contextSourcesToggle"
         width: parent.width
         height: 38
-        text: root.sources.length ? "Retrieved context · " + root.sources.length : "Context note"
+        text: root.sources.length ? "Sources · " + root.sources.length : "Context note"
         Accessible.name: (root.expanded ? "Hide " : "Show ") + text
         hoverEnabled: true
         background: Rectangle {
@@ -61,12 +61,6 @@ Rectangle {
             id: detail
             width: scroll.availableWidth
             spacing: 10
-            Text {
-                Layout.fillWidth: true
-                text: "Retrieved for the latest turn. These labels identify context supplied to the model."
-                textFormat: Text.PlainText
-                font: Theme.type.caption; color: Theme.textTertiary; wrapMode: Text.Wrap
-            }
             Repeater {
                 model: root.sources
                 ColumnLayout {
@@ -74,12 +68,13 @@ Rectangle {
                     Layout.fillWidth: true
                     spacing: 2
                     Text {
-                        text: ({notes: "Note", documents: "Document", conversations: "Conversation"})[parent.modelData.source] || "Source"
+                        text: ({web: "Web", files: "File", drive: "Drive", notes: "Note", documents: "Document", conversations: "Conversation"})[parent.modelData.source] || "Source"
                         textFormat: Text.PlainText
                         font: Theme.type.captionStrong; color: Theme.accent
                     }
                     Text {
                         Layout.fillWidth: true
+                        objectName: "chatSourceCitation"
                         text: parent.modelData.cite || ""
                         textFormat: Text.PlainText
                         font: Theme.type.callout; color: Theme.textPrimary; wrapMode: Text.Wrap

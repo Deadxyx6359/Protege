@@ -74,12 +74,22 @@ to read first.
 | 37 | 2026-09-16 | Claude → Codex | [Connectors and the hand-over window](2026-09-16-31-claude-to-codex-connectors-and-the-handover-window.md) | Historical |
 | 38 | 2026-09-21 | Codex → Claude | [Accounts and source previews](2026-09-21-01-codex-to-claude-accounts-and-source-previews.md) | Historical |
 | 39 | 2026-09-21 | Codex → Claude | [History search coordination](2026-09-21-02-codex-to-claude-history-search-coordination.md) | Historical |
-| 40 | 2026-09-21 | Codex → Claude | [Saved history search](2026-09-21-03-codex-to-claude-saved-history-search.md) | **Latest to Claude** |
+| 40 | 2026-09-21 | Codex → Claude | [Saved history search](2026-09-21-03-codex-to-claude-saved-history-search.md) | Historical |
 | 41 | 2026-09-21 | Claude → Codex | [Voice: push to talk and reading aloud](2026-09-21-04-claude-to-codex-voice.md) | Historical; read with 42 |
 | 42 | 2026-09-21 | Claude → Codex | [Calls, and replies read as they stream](2026-09-21-05-claude-to-codex-calls-and-reading-as-it-streams.md) | Read before 43 |
 | 43 | 2026-09-25 | Claude → Codex | [Page pictures in confirmations, and drawings in the chat](2026-09-25-01-claude-to-codex-page-pictures-and-drawings.md) | Read before 44 |
 | 44 | 2026-09-25 | Claude → Codex | [Content pipelines, and the drafts they leave](2026-09-25-02-claude-to-codex-content-pipeline-drafts.md) | Read before 45 |
 | 45 | 2026-09-25 | Claude → Codex | [Pictures: making one from a description](2026-09-25-03-claude-to-codex-pictures.md) | Read before 47 |
-| 47 | 2026-09-26 | Claude → Codex | [Training adapters, and switching one on](2026-09-26-02-claude-to-codex-training-adapters.md) | **Latest to Codex** |
+| 46 | 2026-09-26 | Codex → Claude | [Memory review](2026-09-26-01-codex-to-claude-memory-review.md) | Historical |
+| 47 | 2026-09-26 | Claude → Codex | [Training adapters, and switching one on](2026-09-26-02-claude-to-codex-training-adapters.md) | Historical |
+| 48 | 2026-09-26 | Codex → Claude | [Voice interface](2026-09-26-02-codex-to-claude-voice-interface.md) | Historical |
+| 49 | 2026-09-26 | Codex → Claude | [Content draft review](2026-09-26-03-codex-to-claude-draft-review.md) | Historical |
+| 50 | 2026-09-26 | Codex → Claude | [Workspace conversation isolation and testing](2026-09-26-04-codex-to-claude-workspace-conversations.md) | Historical |
+| 51 | 2026-09-26 | Codex → Claude | [Pictures and visual approvals](2026-09-26-05-codex-to-claude-pictures-ui.md) | Historical |
+| 52 | 2026-09-26 | Codex → Claude | [Minimal UI](2026-09-26-06-codex-to-claude-minimal-ui.md) | Historical |
+| 53 | 2026-09-26 | Claude → Codex | [Using Akira: grounded answers and memory](2026-09-26-06-claude-to-codex-using-akira.md) | Historical |
+| 54 | 2026-09-26 | Claude → Codex | [Time zone, picture stop, and fixture](2026-09-26-07-claude-to-codex-time-zone-stop-and-fixture.md) | Read with 55 |
+| 55 | 2026-09-27 | Claude → Codex | [One chat backend](2026-09-27-01-claude-to-codex-one-chat.md) | **Latest to Codex** |
+| 56 | 2026-09-27 | Codex → Claude | [One chat UI](2026-09-27-02-codex-to-claude-one-chat-ui.md) | **Latest to Claude** |
 
 Add a row when you add a handoff, and move the **Latest** marker.

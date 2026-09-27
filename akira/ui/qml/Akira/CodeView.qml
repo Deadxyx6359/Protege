@@ -3,11 +3,7 @@ import QtQuick.Layouts
 
 Item {
     id: root
-    property var model: null
     property bool busy: false
-    property string busyStage: "Thinking"
-    property var sources: []
-    property string contextNote: ""
     readonly property var project: Projects.projects.find(function (p) { return p.current; }) || ({})
     readonly property string folder: project.folder || ""
     signal teamRequested()
@@ -71,13 +67,7 @@ Item {
             label: "Software task history"
             onClicked: root.historyRequested()
         }
-        IconButton {
-            visible: root.model && root.model.count > 0
-            icon: "team"
-            label: "Work with the software team"
-            enabled: !root.busy && !Agents.busy
-            onClicked: root.teamRequested()
-        }
+
     }
 
     Text {
@@ -97,21 +87,21 @@ Item {
         elide: Text.ElideRight
     }
 
-    ChatView {
-        anchors.top: feedback.visible ? feedback.bottom : toolbar.bottom
-        anchors.topMargin: 10
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        model: root.model
-        busy: root.busy
-        busyStage: root.busyStage
-        sources: root.sources
-        contextNote: root.contextNote
-        onScene: true
-        greetingTitle: "Make something useful."
-        greetingSubtitle: "Plan here. Build with the software team."
-        actionLabel: "Work with the software team"
-        onPrimaryActionRequested: root.teamRequested()
+    ColumnLayout {
+        anchors.centerIn: parent
+        spacing: Theme.space.lg
+        Text {
+            Layout.alignment: Qt.AlignHCenter
+            text: "Software team"
+            font: Theme.type.title2
+            color: Theme.textPrimary
+        }
+        ActionButton {
+            objectName: "workspacePrimaryAction"
+            Layout.alignment: Qt.AlignHCenter
+            text: "New task"
+            enabled: !root.busy && !Agents.busy
+            onClicked: root.teamRequested()
+        }
     }
 }

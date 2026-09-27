@@ -89,13 +89,6 @@ Item {
             color: Theme.textPrimary
         }
 
-        Text {
-            Layout.alignment: Qt.AlignHCenter
-            text: root.greetingSubtitle
-            textFormat: Text.PlainText
-            font: Theme.type.callout
-            color: Theme.textSecondary
-        }
         ActionButton {
             objectName: "workspacePrimaryAction"
             Layout.alignment: Qt.AlignHCenter
@@ -110,6 +103,7 @@ Item {
 
     ListView {
         id: list
+        objectName: "chatTranscript"
         anchors.fill: parent
         anchors.bottomMargin: contextSources.visible ? contextSources.height + Theme.space.sm * 2 : 0
         visible: root.count > 0
@@ -131,6 +125,7 @@ Item {
         }
 
         onContentHeightChanged: if (following) positionViewAtEnd()
+        onHeightChanged: if (following) Qt.callLater(positionViewAtEnd)
         onMovementEnded: following = atBottom()
         onCountChanged: {
             following = true;
@@ -256,6 +251,8 @@ Item {
 
                 Text {
                     Layout.fillWidth: true
+                    objectName: "chatStage"
+                    wrapMode: Text.Wrap
                     text: root.busyStage
                     textFormat: Text.PlainText
                     font: Theme.type.body

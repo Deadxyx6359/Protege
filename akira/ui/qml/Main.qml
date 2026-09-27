@@ -19,8 +19,67 @@ Window {
     visible: true
     color: Theme.canvas
     title: "Akira"
+    onClosing: function (close) {
+        if (Voice.inCall) {
+            close.accepted = false;
+            win.hide();
+            callWindow.raise();
+        }
+    }
+    function showConversation() {
+        if (win.fullPage) win.selectWorkspace("chats");
+        win.showNormal(); win.raise(); win.requestActivate();
+    }
+    function finishCall() {
+        if (!win.visible) win.showConversation();
+        Voice.endCall();
+    }
+    property bool callWasActive: false
+    property string lastVoiceNote: ""
+    Connections {
+        target: Voice
+        function onCallChanged() {
+            if (Voice.inCall) win.callWasActive = true;
+            else if (win.callWasActive) {
+                win.callWasActive = false;
+                if (!win.visible) win.showConversation();
+            }
+        }
+        function onStateChanged() {
+            if (Voice.note && Voice.note !== win.lastVoiceNote) banners.show("Voice", Voice.note, false);
+            win.lastVoiceNote = Voice.note;
+        }
+    }
+    CallWindow {
+        id: callWindow
+        objectName: "voiceCallWindow"
+        onEndRequested: win.finishCall()
+        onReturnRequested: win.showConversation()
+    }
+    VoiceSheet {
+        id: voiceSheet
+        objectName: "voiceSheet"
+        z: 12
+        workBusy: Chat.busy || Agents.busy
+        onStartRequested: {
+            if (Chat.busy || Agents.busy) return;
+            if (Voice.startCall()) { voiceSheet.close(); callWindow.raise(); callWindow.requestActivate(); }
+        }
+        onShowCallRequested: { voiceSheet.close(); callWindow.showNormal(); callWindow.raise(); callWindow.requestActivate(); }
+    }
 
     ThemeLink {}
+    PicturesSheet {
+        id: picturesSheet
+        objectName: "picturesSheet"
+        z: 12
+    }
+    DraftsSheet {
+        id: draftsSheet
+        objectName: "draftsSheet"
+        z: 12
+        onPermissionsRequested: { draftsSheet.close(); permissionsSheet.open(); }
+    }
 
     // -- sample state -------------------------------------------------------
 
@@ -32,29 +91,33 @@ Window {
     property bool pendingProjectReset: false
     Component.onCompleted: observedProject = Projects.currentId
     readonly property var destinations: [
-        { id: "chats", icon: "chat", label: "Everyday", group: "Workspaces" },
-        { id: "code", icon: "code", label: "Code", group: "Workspaces" },
-        { id: "research", icon: "search", label: "Research", group: "Workspaces" },
+        { id: "chats", icon: "chat", label: "Chat", group: "Chat" },
         { id: "documents", icon: "document", label: "Documents", group: "Library" },
         { id: "memory", icon: "clock", label: "Memory", group: "Library", countLabel: "pending note" },
+        { id: "code", icon: "code", label: "Code", group: "Tools" },
+        { id: "research", icon: "search", label: "Research", group: "Tools" },
         { id: "agents", icon: "team", label: "Agents", group: "Tools" },
         { id: "watching", icon: "eye", label: "Watching", group: "Tools", countLabel: "saved notice" },
         { id: "schedule", icon: "calendar", label: "Schedule", group: "Tools", countLabel: "critical finding" }
     ]
     readonly property var navCounts: ({memory: Memory.pendingCount, watching: Monitor.notices.length, schedule: Schedule.criticalCount})
     // Views that fill the page themselves: no transcript, no composer.
-    readonly property bool fullPage: currentNav === "agents" || currentNav === "watching"
-                                     || currentNav === "schedule" || currentNav === "memory"
-                                     || currentNav === "documents"
-                                     || (currentNav === "research" && researchPage.investigating)
+    readonly property bool fullPage: currentNav !== "chats"
 
     function selectWorkspace(id) {
         const views = { "chat-1": "chats", "code-1": "code", "research-1": "research" };
         currentNav = views[id] || id;
     }
 
+    function rememberDraft(project) {
+        const drafts = Object.assign({}, projectDrafts);
+        drafts[project] = composer.text;
+        projectDrafts = drafts;
+    }
+
     function selectProject(id) {
         if (id === Projects.currentId) return;
+        if (Voice.inCall) { banners.show("Call is active", "End the call before switching projects.", false); return; }
         if (Chat.busy || Agents.busy) {
             banners.show("Work is still running", "Finish or stop the current work before switching projects.", false);
             return;
@@ -84,9 +147,9 @@ Window {
     function projectChanged() {
         const next = Projects.currentId;
         if (next === observedProject) return;
-        const drafts = Object.assign({}, projectDrafts);
-        drafts[observedProject] = composer.text;
-        projectDrafts = drafts;
+        // External project changes must not send call transcripts into a new context.
+        if (Voice.inCall) Voice.endCall();
+        if (!restoringConversation) rememberDraft(observedProject);
         observedProject = next;
         if (restoringConversation) return;
         // UI project controls are disabled while work runs. If another caller
@@ -96,11 +159,13 @@ Window {
     }
 
     function openRecent(id) {
+        if (Voice.inCall) { banners.show("Call is active", "End the call before opening another conversation.", false); return; }
         if (Chat.busy || Agents.busy) {
             banners.show("Work is still running", "Finish or stop the current work before opening another conversation.", false);
             return;
         }
         restoringConversation = true;
+        rememberDraft(Projects.currentId);
         Chat.openConversation(id);
         if (Chat.conversationId !== id) {
             restoringConversation = false;
@@ -116,7 +181,7 @@ Window {
             banners.show("Project could not open", why, false);
         }
         else if (!exists) banners.show("Original project is unavailable", "This conversation will use personal workspace context for its next turn.", false);
-        if (win.fullPage) win.selectWorkspace("chats");
+        currentNav = "chats";
         composer.text = "";
     }
 
@@ -156,6 +221,7 @@ Window {
             settingsSheet.close();
             accountsSheet.open();
         }
+        onVoiceRequested: { settingsSheet.close(); voiceSheet.open(); }
     }
 
     PermissionsSheet {
@@ -174,7 +240,7 @@ Window {
         id: projectSheet
         objectName: "projectSheet"
         z: 11
-        canSwitch: !Chat.busy && !Agents.busy
+        canSwitch: !Chat.busy && !Agents.busy && !Voice.inCall
     }
 
     AccountsSheet {
@@ -267,7 +333,7 @@ Window {
             currentNav: win.currentNav
             currentProject: Projects.currentId
             currentRecent: Chat.conversationId
-            newChatEnabled: !Chat.busy
+            newChatEnabled: !Chat.busy && !Voice.inCall
 
             navModel: win.destinations
             navCounts: win.navCounts
@@ -289,7 +355,7 @@ Window {
             onNewProjectRequested: projectSheet.openNew()
             onCollapseRequested: win.sidebarOpen = false
             onNewChatRequested: {
-                if (Chat.busy) return;
+                if (Chat.busy || Voice.inCall) return;
                 if (win.fullPage || win.currentNav === "documents")
                     win.selectWorkspace("chats");
                 Chat.newChat();
@@ -315,7 +381,7 @@ Window {
                 currentView: win.currentNav
                 currentProject: Projects.currentId
                 sidebarOpen: win.sidebarOpen
-                projectSwitchingEnabled: !Chat.busy && !Agents.busy
+                projectSwitchingEnabled: !Chat.busy && !Agents.busy && !Voice.inCall
                 onViewSelected: function (id) { win.selectWorkspace(id) }
                 onProjectSelected: function (id) { win.selectProject(id) }
                 onNewProjectRequested: projectSheet.openNew()
@@ -333,21 +399,6 @@ Window {
                 Layout.fillHeight: true
                 clip: true
 
-                // Behind everything: the world for whichever view this is.
-                // It retreats to nothing the moment there is text to read.
-                SceneHost {
-                    objectName: "workspaceScene"
-                    anchors.fill: parent
-                    // A full page sits in the coding world, kept quiet behind its cards.
-                    view: win.currentNav === "research" ? "research" : win.fullPage ? "code" : win.currentNav
-                    quiet: win.fullPage || Chat.messages.count > 0
-                    // The real weather where the person is, once it has been read,
-                    // and the seasons turned the right way round for their hemisphere.
-                    weather: Place.weather || "clear"
-                    southernHemisphere: Place.southernHemisphere
-                    motion: ThemeBridge.motionScale
-                }
-
                 AgentsView {
                     onHistoryRequested: runHistory.present("")
                     id: agentsPage
@@ -364,6 +415,7 @@ Window {
 
                 ScheduleView {
                     objectName: "scheduleView"
+                    onDraftsRequested: draftsSheet.open()
                     anchors.fill: parent
                     visible: win.currentNav === "schedule"
                     onPermissionsRequested: permissionsSheet.open()
@@ -377,12 +429,14 @@ Window {
 
                 DocumentsView {
                     objectName: "documentsView"
+                    onPicturesRequested: picturesSheet.open()
                     anchors.fill: parent
                     visible: win.currentNav === "documents"
                     onPermissionsRequested: permissionsSheet.open()
                 }
 
                 ChatView {
+                    objectName: "mainChatView"
                     visible: win.currentNav === "chats"
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -393,21 +447,13 @@ Window {
                     busyStage: Chat.stage
                     sources: Chat.lastSources
                     contextNote: Chat.lastContextNote
-                    onScene: win.currentNav === "chats" || win.currentNav === "code"
                 }
 
                 CodeView {
                     objectName: "codeView"
                     visible: win.currentNav === "code"
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.bottom: composer.top
-                    model: Chat.messages
+                    anchors.fill: parent
                     busy: Chat.busy
-                    busyStage: Chat.stage
-                    sources: Chat.lastSources
-                    contextNote: Chat.lastContextNote
                     onTeamRequested: win.prepareTeam("software")
                     onReviewRequested: codeReview.present()
                     onHistoryRequested: runHistory.present("software")
@@ -420,29 +466,11 @@ Window {
                 ResearchView {
                     id: researchPage
                     objectName: "researchView"
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.bottom: researchPage.investigating ? parent.bottom : composer.top
+                    anchors.fill: parent
                     visible: win.currentNav === "research"
-                    model: Chat.messages
-                    busy: Chat.busy
-                    busyStage: Chat.stage
-                    sources: Chat.lastSources
-                    contextNote: Chat.lastContextNote
-                    onResearchTeamRequested: win.prepareTeam("research")
                     onSourceRequested: function (error) { researchSource.present(error); }
                     onArtifactRequested: function (artifact) { artifactSheet.present(artifact); }
                     onPermissionsRequested: permissionsSheet.open()
-                    onPromptSelected: function (prompt) {
-                        // A starter prepares an editable draft; it never sends.
-                        composer.text = composer.hasText ? composer.text + "\n\n" + prompt : prompt;
-                        composer.focusInput();
-                    }
-                    onNewInquiryRequested: {
-                        Chat.newChat();
-                        composer.focusInput();
-                    }
                 }
 
                 Composer {
@@ -455,9 +483,17 @@ Window {
                     width: Math.min(720, parent.width - Theme.space.xxl * 2)
 
                     busy: Chat.busy
-                    placeholder: win.currentNav === "research" ? "What would you like to investigate?"
-                               : win.currentNav === "code" ? "Describe what you want to build or change" : "Ask anything"
-                    footnote: Chat.routeLabel
+                    placeholder: "Ask anything"
+                    footnote: Chat.intentLabel + " · " + Chat.routeLabel
+                    modes: Chat.modes
+                    mode: Chat.mode
+                    onModeSelected: function (id) { Chat.setMode(id); }
+                    voiceAvailable: true
+                    callActive: Voice.inCall
+                    onVoiceRequested: {
+                        if (Voice.inCall) { callWindow.showNormal(); callWindow.raise(); callWindow.requestActivate(); }
+                        else voiceSheet.open();
+                    }
 
                     onSubmitted: function (text) { Chat.send(text) }
                     onStopped: Chat.stop()

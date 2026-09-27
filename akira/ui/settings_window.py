@@ -252,7 +252,9 @@ class SettingsWindow(tk.Toplevel):
         viewer = read_only_text(
             tab,
             self._prompt_view or "Send a message to see exactly what MAIN received.",
-            height=18,
+            # This scrollable preview expands into the remaining window space.
+            # A tall requested minimum pushed Save off the capped screen height.
+            height=12,
         )
         viewer.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 

@@ -9,6 +9,7 @@ Rectangle {
     id: root
     color: Theme.canvas
     signal permissionsRequested()
+    signal picturesRequested()
     property string searchMode: "names"
     property string notice: ""
     property string lastFolder: ""
@@ -71,12 +72,9 @@ Rectangle {
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 4
-                Caption { text: "Documents"; font: Theme.type.title2; color: Theme.textPrimary }
-                Caption {
-                    Layout.fillWidth: true
-                    text: Projects.currentName ? "Files for " + Projects.currentName : "Your files, with room to focus."
-                }
+                Caption { Layout.fillWidth: true; text: "Documents"; font: Theme.type.title2; color: Theme.textPrimary }
             }
+            ActionButton { objectName: "openPictures"; text: "Create picture"; onClicked: root.picturesRequested() }
             ActionButton { text: "Open file"; onClicked: filePicker.open() }
             ActionButton { text: "Choose folder"; kind: "primary"; onClicked: folderPicker.open() }
         }
@@ -151,21 +149,8 @@ Rectangle {
                         spacing: 10
                         Caption {
                             Layout.fillWidth: true
-                            text: "Bring your work into view."
+                            text: "No folder selected"
                             font: Theme.type.title2; color: Theme.textPrimary
-                            horizontalAlignment: Text.AlignHCenter
-                            wrapMode: Text.Wrap
-                        }
-                        Caption {
-                            Layout.fillWidth: true
-                            text: "Browse a folder, find a passage, or settle into a text preview. Your originals stay as they are."
-                            wrapMode: Text.Wrap
-                            horizontalAlignment: Text.AlignHCenter
-                        }
-                        Caption {
-                            Layout.fillWidth: true
-                            text: "Word · Excel · PowerPoint · PDF · Markdown · Text"
-                            font: Theme.type.caption
                             horizontalAlignment: Text.AlignHCenter
                             wrapMode: Text.Wrap
                         }
@@ -196,12 +181,6 @@ Rectangle {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.maximumWidth: 440
                         spacing: 10
-                        Caption {
-                            Layout.fillWidth: true
-                            text: "Choosing a location uses your existing read permissions."
-                            font: Theme.type.caption; wrapMode: Text.Wrap
-                            horizontalAlignment: Text.AlignHCenter
-                        }
                         ActionButton {
                             Layout.alignment: Qt.AlignHCenter
                             text: "Review permissions"; onClicked: root.permissionsRequested()
@@ -448,7 +427,7 @@ Rectangle {
                             }
                             Caption {
                                 Layout.fillWidth: true
-                                text: "Select a file to preview its text here."
+                                text: "Select a file"
                                 horizontalAlignment: Text.AlignHCenter; wrapMode: Text.Wrap
                             }
                         }

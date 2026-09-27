@@ -287,13 +287,6 @@ Item {
                         color: Theme.textPrimary
                     }
                 }
-                Text {
-                    Layout.fillWidth: true
-                    text: "Akira can keep an eye on a folder, a web page, a feed or an inbox, and tell you when something changes. It looks only at what you name here, with the permissions you give it."
-                    font: Theme.type.caption
-                    color: Theme.textSecondary
-                    wrapMode: Text.Wrap
-                }
             }
 
             // -- what they said --------------------------------------------------------
@@ -311,7 +304,7 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     visible: Monitor.notices.length === 0
-                    text: "None yet. When a watch tells you something, it appears at the top of the window for a moment and stays here."
+                    text: "No notices"
                     font: Theme.type.caption
                     color: Theme.textTertiary
                     wrapMode: Text.Wrap
@@ -364,7 +357,7 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     visible: Monitor.watches.length === 0
-                    text: "Nothing yet. A folder, page or feed you watch appears here, with when it was last looked at."
+                    text: "No watches"
                     font: Theme.type.caption
                     color: Theme.textTertiary
                     wrapMode: Text.Wrap
@@ -565,13 +558,6 @@ Item {
                         Layout.fillWidth: true
                         spacing: 1
                         Text { text: "Tell me when it changes"; font: Theme.type.body; color: Theme.textPrimary }
-                        Text {
-                            Layout.fillWidth: true
-                            text: "A notice appears on screen. Without it, the watch only wakes jobs that wait for it."
-                            font: Theme.type.caption
-                            color: Theme.textTertiary
-                            wrapMode: Text.Wrap
-                        }
                     }
                     Toggle {
                         label: "Notify me"

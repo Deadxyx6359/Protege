@@ -165,13 +165,6 @@ Item {
                     ActionButton { objectName: "agentHistoryButton"; text: "Task history"; onClicked: root.historyRequested() }
                 }
 
-                Text {
-                    Layout.fillWidth: true
-                    text: "Give the work a clear goal. Choose a team to collaborate, or one agent to focus."
-                    font: Theme.type.caption
-                    color: Theme.textSecondary
-                    wrapMode: Text.Wrap
-                }
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -475,7 +468,7 @@ Item {
                 }
                 Text {
                     visible: root.showRecord && AgentTrace.events.count === 0
-                    text: "Nothing yet. Every step of a run appears here as it happens."
+                    text: "No activity"
                     font: Theme.type.caption
                     color: Theme.textTertiary
                 }

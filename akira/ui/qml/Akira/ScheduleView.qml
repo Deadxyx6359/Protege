@@ -28,6 +28,7 @@ Item {
     property string notice: ""
 
     signal permissionsRequested()
+    signal draftsRequested()
 
     function job(id) {
         var jobs = Schedule.jobs;
@@ -152,13 +153,6 @@ Item {
                 }
                 Text {
                     Layout.fillWidth: true
-                    text: "What Akira does on its own, one job at a time. A job may use only what it was given and what you still allow when it runs."
-                    font: Theme.type.caption
-                    color: Theme.textSecondary
-                    wrapMode: Text.Wrap
-                }
-                Text {
-                    Layout.fillWidth: true
                     visible: root.notice !== ""
                     text: root.notice
                     textFormat: Text.PlainText
@@ -169,6 +163,24 @@ Item {
             }
 
             // -- the review ------------------------------------------------------------
+            Card {
+                RowLayout {
+                    Layout.fillWidth: true
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Text { text: "Content drafts"; font: Theme.type.headline; color: Theme.textPrimary }
+                        Text {
+                            Layout.fillWidth: true
+                            text: Drafts.waitingCount ? Drafts.waitingCount + " waiting for your review" : "No pending drafts"
+                            textFormat: Text.PlainText
+                            font: Theme.type.callout
+                            color: Theme.textSecondary
+                            wrapMode: Text.Wrap
+                        }
+                    }
+                    ActionButton { objectName: "openContentDrafts"; text: "Review drafts"; onClicked: root.draftsRequested() }
+                }
+            }
             Card {
                 objectName: "reviewCard"
                 RowLayout {
@@ -197,13 +209,6 @@ Item {
                         enabled: !root.reviewing
                         onClicked: Schedule.runReview()
                     }
-                }
-                Text {
-                    Layout.fillWidth: true
-                    text: "Every day Akira looks at what it has been allowed and what it has done with it, and says what looks wrong. It never changes anything itself."
-                    font: Theme.type.caption
-                    color: Theme.textTertiary
-                    wrapMode: Text.Wrap
                 }
                 Text {
                     Layout.fillWidth: true
@@ -288,7 +293,7 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     visible: Schedule.jobs.length === 0
-                    text: "No jobs yet. Watches, memory and the security review add their own."
+                    text: "No jobs"
                     font: Theme.type.caption
                     color: Theme.textTertiary
                     wrapMode: Text.Wrap
@@ -348,6 +353,11 @@ Item {
                                     color: row.j.lastStatus === "failed" ? Theme.danger : Theme.textTertiary
                                 }
                             }
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.leftMargin: 18 + Theme.space.md
+                            spacing: Theme.space.sm
                             ActionButton {
                                 text: row.open ? "Hide runs" : "Runs"
                                 onClicked: row.open = !row.open
@@ -388,6 +398,7 @@ Item {
                             RowLayout {
                                 id: run
                                 required property var modelData
+                                property bool expanded: false
                                 Layout.fillWidth: true
                                 Layout.leftMargin: 18 + Theme.space.md
                                 spacing: Theme.space.sm
@@ -410,8 +421,14 @@ Item {
                                     font: Theme.type.caption
                                     color: run.modelData.status === "failed" ? Theme.danger : Theme.textSecondary
                                     wrapMode: Text.Wrap
-                                    maximumLineCount: 3
-                                    elide: Text.ElideRight
+                                    maximumLineCount: run.expanded ? 100000 : 3
+                                    elide: run.expanded ? Text.ElideNone : Text.ElideRight
+                                }
+                                ActionButton {
+                                    Layout.alignment: Qt.AlignTop
+                                    text: run.expanded ? "Less" : "Details"
+                                    visible: !!run.modelData.summary
+                                    onClicked: run.expanded = !run.expanded
                                 }
                             }
                         }

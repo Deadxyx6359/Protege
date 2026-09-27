@@ -14,6 +14,7 @@ Sheet {
     signal permissionsRequested()
     signal placeRequested()
     signal accountsRequested()
+    signal voiceRequested()
     onOpenedChanged: { if (opened) Settings.refresh(); }
 
     ColumnLayout {
@@ -94,6 +95,12 @@ Sheet {
                 description: root.accountCount ? root.accountCount + " connection" + (root.accountCount === 1 ? "" : "s") + " across Google, Canvas and banks."
                     : "Google, Canvas and read-only banking. Connect only what you need."
                 ActionButton { objectName: "openAccounts"; text: root.accountCount ? "Manage" : "Connect"; onClicked: root.accountsRequested() }
+            }
+            FormRow {
+                Layout.fillWidth: true
+                title: "Voice & calls"
+                description: "Choose a voice, hear a sample, or start a hands-free call."
+                ActionButton { objectName: "openVoiceSettings"; text: "Open"; onClicked: root.voiceRequested() }
             }
         }
         ColumnLayout {
@@ -221,13 +228,6 @@ Sheet {
                     }
                     Rectangle { Layout.fillWidth: true; Layout.topMargin: 3; height: 1; color: Theme.separator }
                 }
-            }
-            Text {
-                Layout.fillWidth: true
-                text: "To add a model, place a .gguf file in this folder, then refresh. File availability does not verify that a model will load."
-                font: Theme.type.caption
-                color: Theme.textSecondary
-                wrapMode: Text.Wrap
             }
             Text {
                 Layout.fillWidth: true
