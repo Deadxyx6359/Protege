@@ -837,6 +837,48 @@ stage are new:
   saved conversation keeps the words as written. An error's text is plain;
   show it plain.
 
+### One chat: everyday, code and research
+
+There is one chat. Each message is sorted before it is answered
+(`akira/core/intent.py`), and answered on the model for its kind:
+
+- **Everyday**: talk, writing, advice, sums, on the chat model.
+- **Code**: code questions, on the coding model.
+- **Research**: something to be looked up, in the person's files, notes and
+  Drive and on the sites they allow. A gatherer reads first
+  (`akira/core/brain/research.py`), and the answer is written from what it
+  read, on the strongest model set up (`deep`, else the chat model).
+
+A short follow-up keeps the kind of the turn before it ("and in Rust?",
+"what about Webb?"); thanks and yeses do not start a search.
+
+| Member | Kind | Notes |
+|---|---|---|
+| `intent` | Property, notifies `routeChanged` | `everyday`, `code` or `research`: what the current or last message was sorted as |
+| `intentLabel` | Property, notifies `routeChanged` | "Everyday", "Code" or "Research" |
+| `intentReason` | Property, notifies `routeChanged` | A few words on why: "about code", "asks for something to be looked up", "follows the last answer", "chosen" |
+| `mode` | Property, notifies `modeChanged` | `auto` (each message sorted) or the kind the person pinned |
+| `modes` | Constant list | `id` and `label` for each: Auto, Everyday, Code, Research |
+| `setMode(id)` | Slot → bool | Pin a kind, or `auto`. It applies from the next message. False if the id is unknown |
+| `routeLabel` | Existing | The model that answers, e.g. "Qwen3-8B-Q4_K_M · local" |
+| `stage` | Existing | Now also `Researching`, then each step as it happens: `Searching the web for “…”`, `Reading en.wikipedia.org`, `Reading budget.xlsx`, `Searching your files`, `Searching your notes`, `Looking in your Drive` |
+| `lastSources` | Existing | Now also `web` (cite: the page's address), `files` (cite: the file's name) and `drive` |
+
+- **One conversation.** This replaces separate Everyday, Code and Research
+  chats; please retire the per-workspace conversations. Keep the tools those
+  pages hold (investigations, team runs, the code editor) as tools.
+- **Show the choice quietly.** Beside the composer, for example
+  "Research · Qwen3-8B", and give a small Auto / Everyday / Code / Research
+  switch. The person corrects a wrong guess by pinning a kind.
+- **Research asks nothing new.** It reads only what the grants already allow,
+  and nothing it can do asks for confirmation. With nothing allowed, the
+  answer says so. The stage lines are the progress to show while it reads.
+- **Reply text may carry notes.** A research reply may end with "Note:
+  nothing from Wikipedia was read for this answer…". That note is part of the
+  reply, added when the answer names a source it did not read. Any reply may
+  end with "Correction: … is wrong; it comes to …". Show both as the rest of
+  the reply.
+
 ## Documents
 
 Implemented by Codex after the coordination handoff dated 2026-09-12 (19).

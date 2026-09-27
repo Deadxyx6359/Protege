@@ -25,6 +25,7 @@ from typing import Callable
 
 from akira.core.context.place import now_line
 from akira.core.conversation import NO_INVENTED_ADDRESSES, Cancelled
+from akira.core.excerpt import excerpt
 from akira.core.models import ModelRouter, Route
 from akira.core.net import host_of
 from akira.core.tools import ToolContext, ToolRegistry
@@ -41,6 +42,9 @@ DEFAULT_MAX_STEPS = 8
 #: A tool result longer than this is trimmed before going back to the model.
 #: The tools cap their own output too; this is the backstop for the total.
 MAX_RESULT_CHARS = 6000
+
+#: Tools whose result is a web page, cut to what bears on the task when long.
+WEB_PAGES = frozenset({"fetch_page", "browse_page"})
 
 #: Said to an agent whose steps have run out.
 OUT_OF_STEPS = ("You have used all your steps. Do not call a tool. Answer now, from what "
@@ -314,7 +318,10 @@ class Agent:
                              arguments=call.arguments, text=prose, step=step)
 
             result = self._registry.invoke(call.name, call.arguments, self._context)
-            content = result.content[:MAX_RESULT_CHARS]
+            # A web page starts with its menus; cut from the top, an agent saw
+            # the menu and not the answer. It gets the parts about its task.
+            content = (excerpt(result.content, task, MAX_RESULT_CHARS)
+                       if call.name in WEB_PAGES else result.content[:MAX_RESULT_CHARS])
 
             self._trace.emit(Kind.TOOL_RESULT, name, tool=call.name,
                              text=content, ok=result.ok, step=step)

@@ -21,6 +21,7 @@ from akira.core.brain import embed
 from akira.core.brain.distil import PendingStore, register_distil_action, vault_of
 from akira.core.brain.index import anywhere, sweep
 from akira.core.brain.recall import ContextAssembler
+from akira.core.brain.research import Researcher
 from akira.core.config import AppConfig, autoconfigure, migrate_config, config_dir
 from akira.core.connect.inbox import GmailInbox
 from akira.core.context.place import PlaceStore
@@ -325,7 +326,17 @@ def build_context(*, persist: bool = True) -> AppContext:
     # the global grants, audio.record and audio.play.
     voice = VoiceBridge(policy=live_policy, audit=audit)
     permissions.grantsChanged.connect(voice.refresh)
-    chat = ChatBridge(router, config, context=assembler, project=projects.store.current_id)
+    # One chat for everything. A message sorted as research is looked up first,
+    # by a gatherer under the same grants as the turn's own search, and only
+    # reads: nothing it could do asks to be confirmed, and it would be refused.
+    def open_folder() -> str:
+        project = projects.store.current()
+        return project.folder if project is not None else ""
+
+    researcher = Researcher(router=router, registry=default_registry(), policy=working_policy,
+                            audit=audit, secrets=secret_store, workspace=open_folder)
+    chat = ChatBridge(router, config, context=assembler, project=projects.store.current_id,
+                      researcher=researcher)
     # Replies are read aloud as they stream in, and a call talks to this chat.
     voice.follow(chat)
 

@@ -251,6 +251,17 @@ real data backs them; do not add panels ahead of the data.
 *Follow-up, after A8:* nothing could actually *start* an agent from QML, so
 "watch an agent run live" was not reachable. The `Agents` bridge closes that,
 and `Schedule.addJob` lets the interface create jobs.
+*One chat (2026-09-27, at the person's request):* the Everyday, Code and
+Research chats are one chat. Each message is sorted as everyday, code or
+research (`core/intent.py`, a scored heuristic, with no model call before the
+answer) and answered on the model for it. A research message is looked up
+first by a gatherer under the grants chat already has
+(`core/brain/research.py`). The answer is written from what was read, pages
+cut to the parts that bear on the question (`core/excerpt.py`), and a source
+it names without having read it is noted under it. The person can pin a kind
+(`Chat.setMode`). Tried with the real models over one conversation: the code
+model for code, the spreadsheet read for spending, and Wikipedia read for
+Hubble, then for Webb as a follow-up.
 
 **A6 ✅ Scheduler** — `core/schedule/`
 Time-based (daily/weekly/monthly/cron/custom) and event-based triggers, durable

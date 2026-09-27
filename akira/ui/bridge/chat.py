@@ -10,6 +10,11 @@ When given a `context` callable, each turn first asks it what to know for this
 message — the open project, passages from the person's own sources — and sends
 that with the turn without saving it. What was used is shown as `lastSources`.
 The callable decides everything; this bridge only carries its answer.
+
+One chat takes everything: each message is sorted as everyday, code or research
+(`akira.core.intent`) and answered on the model for it. A research message is
+looked up first, by the `researcher` given, and answered from what it read.
+The person can pin a kind with `setMode`; `intent` says what the turn used.
 """
 
 from __future__ import annotations
@@ -29,8 +34,9 @@ from PySide6.QtCore import (
 )
 
 from akira.core.config import AppConfig
-from akira.core.conversation import Cancelled, Conversation, Responder, route_for
+from akira.core.conversation import Cancelled, Conversation, Responder
 from akira.core.conversations import ConversationError, ConversationStore, relative_time
+from akira.core.intent import LABELS, MODES, Intent, choose
 from akira.core.models import ModelRouter, Route
 from akira.models.base import ModelError
 from akira.security.qtguard import inert_markdown
@@ -38,6 +44,11 @@ from akira.ui.history_search import HistorySearch
 
 if TYPE_CHECKING:
     from akira.core.brain.recall import TurnContext
+    from akira.core.brain.research import Findings
+
+#: How much of the conversation a research turn is told, for what a follow-up
+#: such as "what about Webb?" refers to.
+EARLIER_CHARS = 1_500
 
 
 class MessageListModel(QAbstractListModel):
@@ -125,6 +136,7 @@ class ChatBridge(QObject):
     routeChanged = Signal()
     recentsChanged = Signal()
     sourcesChanged = Signal()
+    modeChanged = Signal()
 
     #: The reply so far, each time it grows: for reading it aloud as it comes.
     replyGrew = Signal(str)
@@ -147,6 +159,7 @@ class ChatBridge(QObject):
         *,
         context: Callable[[str], TurnContext] | None = None,
         project: Callable[[], str] | None = None,
+        researcher: Callable[..., Findings] | None = None,
     ) -> None:
         super().__init__(parent)
         self._router = router
@@ -156,6 +169,16 @@ class ChatBridge(QObject):
         self._context = context
         # The open project's id, stamped on a conversation when it begins.
         self._project = project
+        # Looks a research message up before it is answered. Without one, such
+        # a message is answered as it would be anyway, on the research route.
+        self._researcher = researcher
+        self._mode = "auto"
+        self._intent = Intent.EVERYDAY
+        self._why = ""
+        # The kind of the last turn, so a short follow-up keeps it.
+        self._previous: Intent | None = None
+        # Where the last turn looked things up, for a follow-up to look there too.
+        self._looked_in: list[str] = []
 
         self._conversation = Conversation()
         self._model = MessageListModel(self)
@@ -216,6 +239,44 @@ class ChatBridge(QObject):
             return "No model configured"
         return f"{status.label} · local"
 
+    @Property(str, notify=routeChanged)
+    def intent(self) -> str:
+        """`everyday`, `code` or `research`: what the current or last message was
+        sorted as, and so which model answered it."""
+        return self._intent.value
+
+    @Property(str, notify=routeChanged)
+    def intentLabel(self) -> str:
+        """`intent` as a word to show: "Everyday", "Code", "Research"."""
+        return LABELS[self._intent]
+
+    @Property(str, notify=routeChanged)
+    def intentReason(self) -> str:
+        """Why, in a few words: "about code", "follows the last answer", "chosen"."""
+        return self._why
+
+    @Property(str, notify=modeChanged)
+    def mode(self) -> str:
+        """`auto`, which sorts each message, or the kind the person pinned."""
+        return self._mode
+
+    @Property("QVariantList", constant=True)
+    def modes(self) -> list:
+        """What `setMode` takes, with a word for each: `id` and `label`."""
+        return [{"id": mode, "label": "Auto" if mode == "auto" else LABELS[Intent(mode)]}
+                for mode in MODES]
+
+    @Slot(str, result=bool)
+    def setMode(self, mode: str) -> bool:
+        """Sort each message (`auto`) or answer every one as \a mode. From the next
+        message on; a turn already running keeps its kind. False if unknown."""
+        if mode not in MODES:
+            return False
+        if mode != self._mode:
+            self._mode = mode
+            self.modeChanged.emit()
+        return True
+
     @Property("QVariantList", notify=recentsChanged)
     def recents(self) -> list:
         """Saved conversations, newest first, shaped for the sidebar."""
@@ -260,6 +321,7 @@ class ChatBridge(QObject):
             self._refresh_recents()
             return
 
+        self._previous = self._last_kind()
         self._model.reset(self._conversation.messages)
         self._set_sources([], "")
         self.titleChanged.emit()
@@ -270,6 +332,7 @@ class ChatBridge(QObject):
         self._store.delete(conversation_id)
         if conversation_id == self._conversation.id:
             self._conversation = Conversation()
+            self._previous = None
             self._model.reset(self._conversation.messages)
             self._set_sources([], "")
             self.titleChanged.emit()
@@ -305,13 +368,14 @@ class ChatBridge(QObject):
             self._model.appended()
             return
 
-        # Whether the last reply held code: a follow-up to it stays with the
-        # model that wrote it.
-        answers = [m for m in self._conversation.messages[:-1]
-                   if m.role == "assistant" and not m.error]
-        self._route = route_for(payload, follows_code=bool(answers)
-                                and "```" in answers[-1].text)
+        # Everyday, code or research, and so which model answers. A short
+        # follow-up keeps the kind of the turn before it.
+        choice = choose(payload, previous=self._previous, mode=self._mode)
+        self._intent, self._why, self._route = choice.intent, choice.why, choice.route
         self.routeChanged.emit()
+        # What the last turn read, before this turn's sources replace it.
+        self._looked_in = [str(source.get("cite", "")) for source in self._sources
+                           if source.get("source") in ("web", "files", "drive")][:5]
 
         # The placeholder the stream writes into. Created before the worker
         # starts so the view has somewhere to put the first token.
@@ -345,6 +409,7 @@ class ChatBridge(QObject):
             self.stop()
         self._persist()
         self._conversation = Conversation()
+        self._previous = None
         self._model.reset(self._conversation.messages)
         self._set_sources([], "")
         self.titleChanged.emit()
@@ -358,40 +423,96 @@ class ChatBridge(QObject):
     # -- the turn -----------------------------------------------------------
 
     def _opening_stage(self) -> str:
+        if self._researching():
+            return "Researching"
         resolved = self._router.resolve(self._route)
         if not self._router.status(resolved).loaded:
             # Several seconds of silence with no explanation reads as a crash.
             return f"Loading {self._router.status(resolved).label}"
         return "Thinking"
 
-    def _gather(self, payload: str, opening: str) -> str:
-        """Worker thread. This turn's context, or none if it could not be had."""
+    def _researching(self) -> bool:
+        return self._intent is Intent.RESEARCH and self._researcher is not None
+
+    def _last_kind(self) -> Intent | None:
+        """The kind a reopened conversation left off in, as far as its text says."""
+        answers = [m for m in self._conversation.messages
+                   if m.role == "assistant" and not m.error]
+        return Intent.CODE if answers and "```" in answers[-1].text else None
+
+    def _earlier(self) -> str:
+        """The conversation before this message, briefly, latest kept."""
+        lines = [f"{'Person' if m.role == 'user' else 'Akira'}: {m.text.strip()}"
+                 for m in self._conversation.messages[:-2]
+                 if m.role in ("user", "assistant") and m.text.strip() and not m.error]
+        return "\n".join(lines)[-EARLIER_CHARS:]
+
+    def _gather(self, payload: str, opening: str) -> tuple[str, list, str]:
+        """Worker thread. This turn's context, its sources and a note on them."""
         self._stageRequested.emit("Looking through your notes")
         try:
             found = self._context(payload)
         except Exception as exc:  # noqa: BLE001 - failing to look must not cost the answer
-            self._contextReady.emit(
-                ([], f"Could not look through your notes: {type(exc).__name__}: {exc}"))
-            text = ""
+            result = ("", [], f"Could not look through your notes: {type(exc).__name__}: {exc}")
         else:
-            self._contextReady.emit((list(found.sources), found.note))
-            text = found.text
+            result = (found.text, list(found.sources), found.note)
         self._stageRequested.emit(opening)
-        return text
+        return result
+
+    def _look_up(self, payload: str) -> tuple[str, list, str]:
+        """Worker thread. What was looked up for a research message, for the prompt."""
+        self._stageRequested.emit("Researching")
+        try:
+            # "What about Webb?" after an answer from Wikipedia is looked up
+            # there first, not in the person's files.
+            findings = self._researcher(payload, earlier=self._earlier(),
+                                        looked_in=self._looked_in,
+                                        on_step=self._stageRequested.emit,
+                                        is_cancelled=self._cancel.is_set)
+        except Cancelled:
+            raise
+        except Exception as exc:  # noqa: BLE001 - failing to look must not cost the answer
+            from akira.core.brain.research import Findings
+
+            findings = Findings(note=f"The research failed: {type(exc).__name__}: {exc}")
+        self._stageRequested.emit("Writing")
+        return findings.for_prompt(), list(findings.sources), findings.note
 
     def _run_turn(self, payload: str = "", opening: str = "Thinking") -> None:
         """Worker thread. Emits only signals; touches no Qt property directly."""
         try:
-            extra = self._gather(payload, opening) if self._context is not None else ""
+            extra, sources, note = (self._gather(payload, opening) if self._context is not None
+                                    else ("", [], ""))
+            if self._researching() and not self._cancel.is_set():
+                found, more, noted = self._look_up(payload)
+                extra = "\n\n".join(part for part in (extra, found) if part)
+                sources = sources + [s for s in more if s not in sources]
+                note = "; ".join(part for part in (note, noted) if part)
+            if self._context is not None or self._researching():
+                self._contextReady.emit((sources, note))
             if self._cancel.is_set():
                 raise Cancelled()
+            said: list[str] = []
+
+            def token(chunk: str) -> None:
+                said.append(chunk)
+                self._tokenArrived.emit(chunk)
+
             self._responder.respond(
                 self._conversation,
                 route=self._route,
-                on_token=lambda chunk: self._tokenArrived.emit(chunk),
+                on_token=token,
                 is_cancelled=self._cancel.is_set,
                 extra_system=extra,
             )
+            if self._researching():
+                # A source the answer names and nothing was read from, checked
+                # rather than trusted: told not to, answers still did.
+                from akira.core.brain.research import unread_note
+
+                warning = unread_note("".join(said), sources)
+                if warning:
+                    self._tokenArrived.emit(warning)
             self._turnEnded.emit("")
         except Cancelled:
             self._turnEnded.emit("cancelled")
@@ -443,6 +564,8 @@ class ChatBridge(QObject):
             finished = "" if problem or last.error else last.text
         else:
             finished = ""
+        # A follow-up to this turn keeps its kind.
+        self._previous = self._intent
 
         # Before the chat is idle again, so that whatever waits for it to be
         # idle, a call with the next thing said, finds this reply finished.

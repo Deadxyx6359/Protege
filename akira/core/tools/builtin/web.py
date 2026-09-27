@@ -78,8 +78,11 @@ def _without_search(context: ToolContext) -> str:
     if not sites:
         return "Do not answer from memory: say the search could not be done."
     wiki = next((site for site in sites if site.endswith("wikipedia.org")), "")
+    # Wikipedia's own search is a page on a site the person allowed: an
+    # address the agent can open without knowing the article's title.
     example = (f" (on {wiki}: https://{wiki}/wiki/ and the article's title, words joined "
-               "by _)" if wiki else "")
+               f"by _; or search it with https://{wiki}/w/index.php?search= and the words, "
+               "joined by +)" if wiki else "")
     return (f"You can still open pages on {', '.join(sites)} yourself: if you know a page's "
             f"address there{example}, call fetch_page on it now, rather than telling the "
             "person to. Otherwise do not answer from memory: say the search could not be done.")
