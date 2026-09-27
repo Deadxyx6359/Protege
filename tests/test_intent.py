@@ -21,6 +21,14 @@ from akira.core.models import Route
     ("Search the web for tomato blight treatments", Intent.RESEARCH),
     ("What's the news today?", Intent.RESEARCH),
     ("What are the pros and cons of heat pumps? Find sources.", Intent.RESEARCH),
+    # Facts that change, or that a local model will not have.
+    ("How much does a Raspberry Pi 5 cost?", Intent.RESEARCH),
+    ("What are the opening hours of the Louvre?", Intent.RESEARCH),
+    ("What is the weather in Paris?", Intent.RESEARCH),
+    ("Who is the current prime minister of Japan?", Intent.RESEARCH),
+    ("When does the new Zelda come out?", Intent.RESEARCH),
+    ("What is the weather like today?", Intent.EVERYDAY),  # the person's own, in context
+    ("Write a function to compute the price of items", Intent.CODE),
     ("What is the capital of Australia?", Intent.EVERYDAY),
     ("Can you help me write a birthday card for my sister?", Intent.EVERYDAY),
     ("In 2026 I want to plant more beans.", Intent.EVERYDAY),

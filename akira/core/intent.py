@@ -72,6 +72,16 @@ _LOOK_UP = re.compile(
     r"today'?s|up[- ]to[- ]date|as\s+of\s+(?:now|today)|right\s+now)\b",
     re.IGNORECASE)
 
+#: Facts that change or that a local model will not have: what something costs,
+#: when a place is open, the weather somewhere, who holds a post now, what came out.
+_CURRENT_FACTS = re.compile(
+    r"\b(?:price\s+of|how\s+much\s+(?:does|do|is|are)\s+\w[\w\s]{0,40}\s+cost|"
+    r"opening\s+(?:hours|times)|open\s+(?:now|today|on\s+sundays?)|"
+    r"weather\s+(?:in|at|for)\s+\w+|forecast\s+(?:in|for)|"
+    r"who\s+is\s+the\s+(?:current|new)|who\s+(?:won|is\s+winning)|"
+    r"release\s+date|when\s+(?:does|did|will)\s+[\w\s]{1,40}\s+(?:come\s+out|release|launch)|"
+    r"exchange\s+rate|stock\s+price|population\s+of)\b", re.IGNORECASE)
+
 #: Asking for what sources say, or for them.
 _SOURCES = re.compile(
     r"\b(?:sources?|citations?|cite|references?|according\s+to|evidence|studies|"
@@ -123,12 +133,14 @@ def choose(text: str, *, previous: Intent | None = None, mode: str = "auto") -> 
     if _ACKNOWLEDGED.match(text):
         return _choice(Intent.EVERYDAY, "conversation")
     question = bool(_QUESTION.search(text))
-    looks_up = bool(_LOOK_UP.search(text))
     # "Who won the 2026 World Cup?" is past what a local model knows.
     recent = bool(_RECENT_YEAR.search(text)) * (2 if question else 1)
+    code = bool(_CODE_SIGNALS.search(text) or _CODE_SHAPES.search(text))
+    # "The price of items" in a request for code is about the code.
+    looks_up = bool(_LOOK_UP.search(text)) or (
+        bool(_CURRENT_FACTS.search(text)) and not code)
     research = (2 * looks_up + 2 * bool(_SOURCES.search(text))
                 + 2 * bool(_THEIR_FILES.search(text)) + bool(_COMPARE.search(text)) + recent)
-    code = bool(_CODE_SIGNALS.search(text) or _CODE_SHAPES.search(text))
 
     # "Look up the latest version of Python": what is true now outweighs the
     # word that names code; "compare lists and tuples in Python" does not.

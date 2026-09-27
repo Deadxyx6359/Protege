@@ -19,6 +19,7 @@ The person can pin a kind with `setMode`; `intent` says what the turn used.
 
 from __future__ import annotations
 
+import re
 import threading
 from typing import TYPE_CHECKING, Callable
 
@@ -36,7 +37,7 @@ from PySide6.QtCore import (
 from akira.core.config import AppConfig
 from akira.core.conversation import Cancelled, Conversation, Responder
 from akira.core.conversations import ConversationError, ConversationStore, relative_time
-from akira.core.intent import LABELS, MODES, Intent, choose
+from akira.core.intent import LABELS, MODES, ROUTES, Intent, choose
 from akira.core.models import ModelRouter, Route
 from akira.models.base import ModelError
 from akira.security.qtguard import inert_markdown
@@ -49,6 +50,19 @@ if TYPE_CHECKING:
 #: How much of the conversation a research turn is told, for what a follow-up
 #: such as "what about Webb?" refers to.
 EARLIER_CHARS = 1_500
+
+#: An answer that says it did not know, or has nothing current. Chat looks the
+#: question up once instead, when the web may be searched. Not "I couldn't find
+#: that in your notes": the web does not know the person's dentist either.
+DID_NOT_KNOW = re.compile(
+    r"\bI\s+(?:do\s+not|don't)\s+have\s+(?:access\s+to\s+)?(?:any\s+)?"
+    r"(?:real[- ]time|current|up[- ]to[- ]date|live|the\s+latest|recent)\b|"
+    r"\bas\s+of\s+my\s+(?:last\s+(?:update|training)|knowledge\s+cut-?off)\b|"
+    r"\bmy\s+(?:knowledge|training)(?:\s+data)?\s+(?:cut-?off|only\s+goes|ends)\b|"
+    r"\bI\s+(?:can't|cannot|am\s+unable\s+to)\s+(?:browse|search|access|check)\s+"
+    r"(?:the\s+)?(?:internet|web|online|live)\b|"
+    r"\bI\s+(?:do\s+not|don't)\s+know\b|\bI(?:'m|\s+am)\s+not\s+(?:sure|certain)\b",
+    re.IGNORECASE)
 
 #: Sources found by searching before the answer, kept only when it cites them.
 #: What research read (`web`, `files`, `drive`) was read for the answer and stays.
@@ -199,6 +213,10 @@ class ChatBridge(QObject):
         self._previous: Intent | None = None
         # Where the last turn looked things up, for a follow-up to look there too.
         self._looked_in: list[str] = []
+        # Whether this message was looked up after an answer that did not know.
+        self._looked_up = False
+        # Why nothing could be read for a research turn, or "" when something was.
+        self._nothing_read = ""
 
         self._conversation = Conversation()
         self._model = MessageListModel(self)
@@ -390,6 +408,8 @@ class ChatBridge(QObject):
 
         # Everyday, code or research, and so which model answers. A short
         # follow-up keeps the kind of the turn before it.
+        self._looked_up = False
+        self._nothing_read = ""
         choice = choose(payload, previous=self._previous, mode=self._mode)
         self._intent, self._why, self._route = choice.intent, choice.why, choice.route
         self.routeChanged.emit()
@@ -496,6 +516,7 @@ class ChatBridge(QObject):
 
             findings = Findings(note=f"The research failed: {type(exc).__name__}: {exc}")
         self._stageRequested.emit("Writing")
+        self._nothing_read = "" if findings.found else findings.note
         return findings.for_prompt(), list(findings.sources), findings.note
 
     def _run_turn(self, payload: str = "", opening: str = "Thinking") -> None:
@@ -525,6 +546,13 @@ class ChatBridge(QObject):
                 is_cancelled=self._cancel.is_set,
                 extra_system=extra,
             )
+            if self._researching() and self._nothing_read:
+                # Told to say so, an answer with nothing read gave a prime
+                # minister two out of date as "as of" today. Said here instead.
+                self._tokenArrived.emit(
+                    f"\n\nNote: nothing could be looked up for this "
+                    f"({self._nothing_read.rstrip('.')}), so this answer is from memory and may "
+                    "be out of date.")
             if self._researching():
                 # A source the answer names and nothing was read from, checked
                 # rather than trusted: told not to, answers still did.
@@ -584,6 +612,11 @@ class ChatBridge(QObject):
             finished = "" if problem or last.error else last.text
         else:
             finished = ""
+        if finished and self._should_look_up(finished):
+            # Replaced in place, not added to: the answer that did not know is
+            # not worth keeping beside the one that looked.
+            self._look_up_instead(last)
+            return
         if finished:
             # What was looked through but not drawn on is not a source of the
             # answer: a note about the allotment was shown under "15% of 240".
@@ -602,6 +635,31 @@ class ChatBridge(QObject):
         # token would be hundreds of fsyncs for one answer.
         self._persist()
         self._refresh_recents()
+
+    def _should_look_up(self, reply: str) -> bool:
+        """An everyday answer that did not know, where the web may be searched."""
+        return (self._intent is Intent.EVERYDAY and self._mode == "auto"
+                and not self._looked_up and self._researcher is not None
+                and bool(getattr(self._researcher, "searches_web", lambda: False)())
+                and DID_NOT_KNOW.search(reply) is not None
+                and "in your notes" not in reply.lower())
+
+    def _look_up_instead(self, answer) -> None:
+        """Look the question up, and answer it again in the place of \a answer."""
+        question = next((m.text for m in reversed(self._conversation.messages)
+                         if m.role == "user"), "")
+        self._looked_up = True
+        self._intent, self._why = Intent.RESEARCH, "the answer needed looking up"
+        self._route = ROUTES[Intent.RESEARCH]
+        self.routeChanged.emit()
+        answer.text = ""
+        self._model.touched(len(self._conversation.messages) - 1)
+        self._set_sources([], "")
+        self._set_stage("Looking it up")
+        self._cancel.clear()
+        self._worker = threading.Thread(target=self._run_turn, args=(question, "Looking it up"),
+                                        daemon=True)
+        self._worker.start()
 
     # -- helpers ------------------------------------------------------------
 

@@ -95,7 +95,10 @@ class Findings:
             read = (f"Read for this answer: {named}, and nothing else. Name no other source; "
                     "one an earlier answer used was not read this time.") if named else (
                     "Only searches were read for this answer, no whole page or file. Name no "
-                    "page, site or file as the source.")
+                    "page, site or file as the source. A search result is a line or two and "
+                    "can be out of date: say the answer comes from search results, and that "
+                    "it may be out of date. If they do not give the answer, say so, then say "
+                    "what you know and that it may be out of date.")
             return f"{PREAMBLE} {read}\n\n{self.material}"
         return NOTHING.format(self.note[:1].lower() + self.note[1:].rstrip("."))
 
@@ -114,6 +117,11 @@ class Researcher:
         self._secrets = secrets
         self._workspace = workspace
         self._project = project
+
+    def searches_web(self) -> bool:
+        """Whether the web may be searched now: what an answer that did not know
+        something can be looked up with."""
+        return bool(self._policy().allows("web.search"))
 
     def ready(self) -> str:
         """Why nothing can be looked up now, or ""."""
@@ -274,7 +282,8 @@ def noted(read: list[tuple[str, str]], failed: list[str]) -> str:
     """What was read, or why nothing was. Never what the gatherer said instead:
     with nothing read, that is only what it remembers."""
     if not read:
-        why = failed[-1].rstrip(".") if failed else ""
+        # The reason, not the advice a tool gave the agent after it.
+        why = failed[-1].split(". ")[0].rstrip(".") if failed else ""
         return f"Nothing could be read ({why})." if why else "Nothing could be read for it."
     pages = sum(1 for tool, _ in read if tool in ("fetch_page", "browse_page"))
     files = sum(1 for tool, _ in read if tool in ("read_document", "read_file",

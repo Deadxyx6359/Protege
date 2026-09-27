@@ -236,3 +236,81 @@ def test_a_searched_note_the_answer_did_not_use_is_not_shown(qt_app, tmp_path):
                         context=lambda message: found)
     say(bridge, "What is 15% of 240?")
     assert bridge.lastSources == [] and bridge.lastContextNote == "1 passage from notes"
+
+
+class Unsure(Backend):
+    """Does not know the first time; answers from what it is given the second."""
+
+    def __init__(self, first="I don't have real-time information about that."):
+        super().__init__()
+        self.first = first
+
+    def generate(self, messages, *, on_token=None, **_):
+        self.prompts.append(list(messages))
+        text = self.first if len(self.prompts) == 1 else "It opens at nine [from the page]."
+        if on_token:
+            on_token(text)
+        return GenerationResult(text=text)
+
+
+def unsure_chat(tmp_path, *, first="I don't have real-time information about that.",
+                web=True):
+    path = tmp_path / "fake.gguf"
+    path.write_bytes(b"gguf")
+    config = AppConfig(models={"chat": ModelConfig(path=str(path))})
+    router = ModelRouter(config)
+    backend = Unsure(first)
+
+    @contextmanager
+    def acquire(route):
+        yield backend
+
+    router.acquire = acquire
+    looker = Looker(Findings(material="What was read:\n\nOpens at 9.",
+                             sources=[{"source": "web", "cite": "https://example.org/hours"}],
+                             note="Read 1 page."))
+    looker.searches_web = lambda: web
+    bridge = ChatBridge(router, config, ConversationStore(tmp_path / "chats"), researcher=looker)
+    return bridge, backend, looker
+
+
+def test_an_answer_that_did_not_know_is_looked_up_and_replaced(qt_app, tmp_path):
+    bridge, backend, looker = unsure_chat(tmp_path)
+    say(bridge, "When does the corner shop open?")
+    model = bridge.messages
+    texts = [model.data(model.index(i, 0), model.TextRole) for i in range(model.rowCount())]
+    assert texts == ["When does the corner shop open?", "It opens at nine [from the page]."]
+    assert [q for q, _ in looker.asked] == ["When does the corner shop open?"]
+    assert bridge.intent == "research" and bridge.intentReason == "the answer needed looking up"
+    assert bridge.lastSources == [{"source": "web", "cite": "https://example.org/hours"}]
+
+
+@pytest.mark.parametrize("first, web, pinned", [
+    ("I don't have real-time information about that.", False, False),  # no web search
+    ("I don't have real-time information about that.", True, True),     # a kind pinned
+    ("I couldn't find that in your notes.", True, False),              # the person's own
+    ("It opens at nine.", True, False),                                 # it knew
+])
+def test_nothing_is_looked_up_when_it_should_not_be(qt_app, tmp_path, first, web, pinned):
+    bridge, backend, looker = unsure_chat(tmp_path, first=first, web=web)
+    if pinned:
+        bridge.setMode("everyday")
+    say(bridge, "When does the corner shop open?")
+    assert looker.asked == [] and len(backend.prompts) == 1
+
+
+def test_a_research_answer_with_nothing_read_says_it_is_from_memory(chat):
+    """Told to say so, one gave a prime minister two out of date "as of" today."""
+    bridge, _, _, looker, _ = chat
+    looker.findings = Findings(note="Nothing could be read (DuckDuckGo asked whether a person "
+                                    "is searching, so no results came back).")
+    say(bridge, "Look it up online: who is the prime minister of Japan?")
+    model = bridge.messages
+    text = model.data(model.index(model.rowCount() - 1, 0), model.TextRole)
+    assert text.endswith("so this answer is from memory and may be out of date.")
+    assert "DuckDuckGo asked whether a person is searching" in text
+    # With something read, no such note.
+    looker.findings = Findings(material="What was read:\n\nX.", sources=[], note="Read 1 page.")
+    say(bridge, "Look it up online: and the president of France?")
+    text = model.data(model.index(model.rowCount() - 1, 0), model.TextRole)
+    assert "from memory" not in text
