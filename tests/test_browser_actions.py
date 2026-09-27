@@ -313,6 +313,43 @@ def test_nothing_is_done_to_a_page_that_changed_since_it_was_read(work):
     assert stand_in.posted == [], "a button that became something else was pressed"
 
 
+REBUILD = """
+(copies) => {
+  const old = document.querySelector('button');
+  for (let i = 0; i < copies; i++) {
+    const made = document.createElement('button');
+    made.type = 'submit'; made.textContent = 'Send';
+    old.parentNode.insertBefore(made, old);
+  }
+  old.remove();
+}
+"""
+
+
+def test_a_button_the_page_rebuilt_as_it_was_is_still_the_one_pressed(work):
+    """Wikipedia swaps its search box and button for new ones once something is typed."""
+    stand_in, context = work
+    ctx, asked = context()
+    result = opened(ctx)
+    send = number(result, "button", "Send")
+    ctx.extra["browser"]._page.evaluate(REBUILD, 1)
+    pressed = use("press_button", {"site": "example.com", "number": send}, ctx)
+    assert pressed.ok, pressed.content
+    assert len(asked) == 1 and 'Press "Send"' in asked[0]
+    assert len(stand_in.posted) == 1
+
+
+def test_a_rebuilt_button_that_could_be_either_of_two_is_not_pressed(work):
+    stand_in, context = work
+    ctx, _ = context()
+    result = opened(ctx)
+    send = number(result, "button", "Send")
+    ctx.extra["browser"]._page.evaluate(REBUILD, 2)
+    pressed = use("press_button", {"site": "example.com", "number": send}, ctx)
+    assert not pressed.ok and "has changed since it was read" in pressed.content
+    assert stand_in.posted == []
+
+
 # -- the browser's life ---------------------------------------------------------------------------
 
 

@@ -91,6 +91,41 @@ def test_the_page_goes_to_the_person_with_its_basket_and_akiras_browser_closes(s
     assert carried, "the window did not carry the basket"
 
 
+def test_when_the_bundled_window_will_not_start_edge_opens_it(shop, monkeypatch):
+    """Playwright's windowed Chromium would not start on this machine ("side-by-side
+    configuration is incorrect"), so nothing could be handed over."""
+    from playwright.sync_api import Error as PlaywrightError
+
+    real = browser.sync_playwright
+    launched = []
+
+    class Driver:
+        def __init__(self, inner):
+            self._inner, self.chromium = inner, self
+
+        def launch(self, **options):
+            launched.append(options.get("channel"))
+            # Akira's own browser, launched first, starts as it does; the one
+            # launched for the handing over fails, as the windowed one did here.
+            if "channel" not in options and launched.count(None) > 1:
+                raise PlaywrightError("BrowserType.launch: spawn UNKNOWN")
+            return self._inner.chromium.launch(**options)
+
+        def stop(self):
+            self._inner.stop()
+
+    monkeypatch.setattr(browser, "sync_playwright",
+                        lambda: type("Starter", (), {"start": lambda self: Driver(real().start())})())
+    stand_in, context = shop
+    result = handed(context())
+    if not result.ok and "msedge" in result.content.lower():
+        pytest.skip("Microsoft Edge is not installed here")
+    assert result.ok, result.content
+    assert launched[-2:] == [None, "msedge"], launched
+    assert seen_eventually(stand_in, lambda e: e[1] == "/basket"), \
+        "the window Edge opened did not load the page through the proxy"
+
+
 def test_the_window_reaches_what_the_person_chooses_but_only_through_the_proxy(shop):
     stand_in, context = shop
     ctx = context()

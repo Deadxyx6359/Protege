@@ -305,6 +305,44 @@ _CONTROLS = r"""
 }
 """.strip().replace("LABEL_OF", _LABEL_OF)
 
+#: Finds a control again after the page rebuilt it: the one visible control of
+#: the same kind with the same label, marked with the number it was read as.
+#: Wikipedia swaps its search box and button for new ones once something is
+#: typed; the button the person approved, "Search", was then no longer the
+#: element read, and nothing could be pressed on any page that does this.
+#: Returns how many matched: only exactly one is marked.
+_REFIND = r"""
+([mark, number, kind, label, longest]) => {
+  const labelOf = LABEL_OF;
+  const kindOf = (el) => {
+    const tag = el.tagName, type = (el.getAttribute('type') || '').toLowerCase();
+    const role = (el.getAttribute('role') || '').toLowerCase();
+    if (tag === 'A' || role === 'link') return 'link';
+    if (tag === 'BUTTON' || role === 'button'
+        || (tag === 'INPUT' && ['submit', 'button', 'reset', 'image'].includes(type))) return 'button';
+    if (tag === 'SELECT') return 'choice';
+    if (tag === 'INPUT' && ['checkbox', 'radio'].includes(type)) return 'check';
+    if (tag === 'TEXTAREA' || el.getAttribute('contenteditable') === 'true'
+        || (tag === 'INPUT' && ['', 'text', 'email', 'search', 'tel', 'url', 'number', 'date',
+            'datetime-local', 'month', 'week', 'time', 'password'].includes(type))) return 'field';
+    return 'other';
+  };
+  const picks = 'a[href], button, input, select, textarea, [role="button"], [role="link"], '
+    + '[contenteditable="true"]';
+  const matches = [];
+  for (const el of document.querySelectorAll(picks)) {
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    const box = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    if (type === 'hidden' || box.width === 0 || box.height === 0
+        || style.visibility === 'hidden' || style.display === 'none') continue;
+    if (kindOf(el) === kind && labelOf(el).slice(0, longest) === label) matches.push(el);
+  }
+  if (matches.length === 1) matches[0].setAttribute(mark, String(number));
+  return matches.length;
+}
+""".strip().replace("LABEL_OF", _LABEL_OF)
+
 #: What the form a control belongs to holds right now. Runs in the page.
 _FORM = r"""
 ([mark, number, most]) => {
@@ -743,7 +781,13 @@ class Session:
         """The element numbered as \a found was, if it is still what it was."""
         locator = self._page.locator(f'[{self._mark}="{found.number}"]')
         try:
-            if locator.count() != 1:
+            count = locator.count()
+            if count == 0 and found.label:
+                # Rebuilt by the page: the one control of its kind and label.
+                matched = self._page.evaluate(_REFIND, [self._mark, found.number, found.kind,
+                                                        found.label, MAX_LABEL])
+                count = locator.count() if matched == 1 else 0
+            if count != 1:
                 raise BrowseError(CHANGED)
             now = " ".join(str(locator.evaluate(_LABEL_OF)).split())[:MAX_LABEL]
         except PlaywrightError:
@@ -876,13 +920,25 @@ class Handover:
             proxy = Proxy(driving.may, audit=self._audit, actor="person")
             self.proxy_port = proxy.port
             driver = sync_playwright().start()
-            try:
-                chromium = driver.chromium.launch(
-                    headless=not HANDOVER_WINDOW, chromium_sandbox=True,
-                    proxy={"server": proxy.server}, args=list(ARGS))
-            except PlaywrightError as exc:
-                self._error = _not_started(exc, INSTALL_WINDOW)
+            chromium = None
+            # The windowed Chromium Playwright installed would not start on
+            # this machine ("side-by-side configuration is incorrect") while
+            # its headless one did, so no page could be handed over. Microsoft
+            # Edge, which Windows has, is the next choice: the same fresh
+            # context, the same proxy, the same flags, and nothing of the
+            # person's own Edge profile.
+            for channel in (None, "msedge"):
+                try:
+                    chromium = driver.chromium.launch(
+                        headless=not HANDOVER_WINDOW, chromium_sandbox=True,
+                        proxy={"server": proxy.server}, args=list(ARGS),
+                        **({"channel": channel} if channel else {}))
+                    break
+                except PlaywrightError as exc:
+                    self._error = _not_started(exc, INSTALL_WINDOW)
+            if chromium is None:
                 return
+            self._error = ""
             context = chromium.new_context(storage_state=state, **CONTEXT)
             context.route("**/*", driving.route)
             page = context.new_page()
