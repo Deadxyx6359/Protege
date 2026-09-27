@@ -220,13 +220,16 @@ class Responder:
         # Some models narrate their reasoning between <think> tags. Left in the
         # stream they appear as the answer, which is both wrong and alarming.
         thinking = ThinkFilter()
+        shown: list[str] = []
 
         def emit(chunk: str) -> None:
             if is_cancelled is not None and is_cancelled():
                 raise Cancelled()
             visible = thinking.feed(chunk)
-            if visible and on_token is not None:
-                on_token(visible)
+            if visible:
+                shown.append(visible)
+                if on_token is not None:
+                    on_token(visible)
 
         with self._router.acquire(resolved) as backend:
             messages = build_prompt(conversation, backend, reply_budget=reply_budget,
@@ -240,10 +243,32 @@ class Responder:
             )
 
         tail = thinking.flush()
-        if tail and on_token is not None:
-            on_token(tail)
+        if tail:
+            shown.append(tail)
+            if on_token is not None:
+                on_token(tail)
+        correction = corrections("".join(shown))
+        if correction and on_token is not None:
+            on_token(correction)
 
         return result
+
+
+def corrections(reply: str) -> str:
+    """A note to add to \a reply for each sum it writes out wrong, or "".
+
+    Chat has no tools to count with, and a reply streams to the person as it
+    is written, so a wrong sum cannot be taken back; it is corrected after,
+    in plain words, where it will be read and kept with the reply.
+    """
+    # Imported here: the tools package imports this module as it loads.
+    from akira.core.tools.builtin.maths import wrong_sums
+
+    wrong = wrong_sums(reply)[:3]
+    if not wrong:
+        return ""
+    return "\n\n" + "\n".join(f"Correction: {written} is wrong; it comes to {right}."
+                              for written, right in wrong)
 
 
 def route_for(text: str, follows_code: bool = False) -> Route:

@@ -101,6 +101,21 @@ def test_tokens_reach_the_caller_in_order(wired):
     assert "".join(chunks) == "one two three"
 
 
+def test_a_sum_the_reply_gets_wrong_is_corrected_after_it(wired):
+    """Chat cannot count with a tool, and a streamed reply cannot be taken back."""
+    responder, _ = wired(["That is 12.5 + 6.8 ", "+ 30 = 59.3 in all. ", "And 2 + 2 = 4."])
+    conversation = Conversation()
+    conversation.add("user", "add them up")
+    chunks: list[str] = []
+    responder.respond(conversation, on_token=chunks.append)
+    assert "".join(chunks) == ("That is 12.5 + 6.8 + 30 = 59.3 in all. And 2 + 2 = 4.\n\n"
+                               "Correction: 12.5 + 6.8 + 30 = 59.3 is wrong; it comes to 49.3.")
+    right, _ = wired(["That is 12.5 + 6.8 = 19.3."])
+    chunks.clear()
+    right.respond(conversation, on_token=chunks.append)
+    assert "".join(chunks) == "That is 12.5 + 6.8 = 19.3."
+
+
 def test_reasoning_blocks_never_reach_the_caller(wired):
     """A model that narrates between <think> tags must not have that shown.
 
