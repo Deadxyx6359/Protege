@@ -109,7 +109,9 @@ class ContextAssembler:
         passages: list[str] = []
         if terms(message) and any(sources.values()):
             tools = ToolContext(policy=policy, audit=self._audit, secrets=self._secrets,
-                                actor=ACTOR)
+                                actor=ACTOR,
+                                # Which conversations it may search: see knowledge.PROJECT.
+                                extra={"project": project.id if project is not None else ""})
             found = gather(self._registry, tools, message, **sources)
             context.note = found.note()
             if found.passages:

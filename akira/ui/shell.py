@@ -334,7 +334,8 @@ def build_context(*, persist: bool = True) -> AppContext:
         return project.folder if project is not None else ""
 
     researcher = Researcher(router=router, registry=default_registry(), policy=working_policy,
-                            audit=audit, secrets=secret_store, workspace=open_folder)
+                            audit=audit, secrets=secret_store, workspace=open_folder,
+                            project=projects.store.current_id)
     chat = ChatBridge(router, config, context=assembler, project=projects.store.current_id,
                       researcher=researcher)
     # Replies are read aloud as they stream in, and a call talks to this chat.

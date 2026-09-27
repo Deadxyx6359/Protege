@@ -115,10 +115,37 @@ search_documents = Tool(
 # -- search_conversations ------------------------------------------------------------------
 
 
+#: Where the project work is being done in is carried, in `ToolContext.extra`.
+PROJECT = "project"
+
+
 def _run_conversations(arguments: dict, context: ToolContext) -> ToolResult:
+    """Conversations of the open project and personal ones; none of another project's.
+
+    A conversation held in a project draws on that project's folders, so what
+    it says belongs to the project as much as they do. Searched from anywhere,
+    a question about the car was answered with the garden's beds, from a chat
+    held in the Garden project, while Car was open.
+    """
     query = str(arguments["query"])
-    return present(search_index(indexed(ConversationArchive()), query), query,
-                   noun="conversation", cite=cite_conversation)
+    archive = ConversationArchive()
+    visible = {"", str(context.extra.get(PROJECT) or "")}
+    found = search_index(indexed(archive), query, limit=MAX_PASSAGES * 4)
+    held_in: dict[str, str] = {}
+    for result in found:
+        if result.rel not in held_in:
+            held_in[result.rel] = _project_of(archive, result.rel)
+    kept = [result for result in found if held_in[result.rel] in visible][:MAX_PASSAGES]
+    return present(kept, query, noun="conversation", cite=cite_conversation)
+
+
+def _project_of(archive: ConversationArchive, rel: str) -> str:
+    """The project a conversation was held in, or "" for none or when unreadable,
+    which keeps it to the person's own chats."""
+    try:
+        return archive.load(archive.root / f"{rel}.json")[3]
+    except Exception:  # noqa: BLE001 - an unreadable conversation is shown nowhere
+        return "\0unreadable"
 
 
 search_conversations = Tool(

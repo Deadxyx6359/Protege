@@ -105,13 +105,15 @@ class Researcher:
 
     def __init__(self, *, router: ModelRouter, registry: ToolRegistry,
                  policy: Callable[[], Policy], audit: AuditLog, secrets: SecretStore,
-                 workspace: Callable[[], str] = lambda: "") -> None:
+                 workspace: Callable[[], str] = lambda: "",
+                 project: Callable[[], str] = lambda: "") -> None:
         self._router = router
         self._registry = registry
         self._policy = policy
         self._audit = audit
         self._secrets = secrets
         self._workspace = workspace
+        self._project = project
 
     def ready(self) -> str:
         """Why nothing can be looked up now, or ""."""
@@ -164,7 +166,8 @@ class Researcher:
         context = ToolContext(policy=policy, audit=self._audit, secrets=self._secrets,
                               actor=ACTOR, workspace=self._workspace() or "",
                               # Reading only: anything that would ask is refused.
-                              confirm=lambda summary: False)
+                              confirm=lambda summary: False,
+                              extra={"project": self._project() or ""})
         # A follow-up to an answer from Wikipedia searched the person's files
         # and gave up. Told at the end where to look, it still did; told first,
         # as the step to start with, it went there.

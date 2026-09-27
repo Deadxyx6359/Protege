@@ -318,7 +318,9 @@ class AgentsBridge(QObject):
 
         context = ToolContext(policy=self._policy(), audit=self._audit,
                               secrets=self._secret_store, actor=actor,
-                              confirm=self._confirm, workspace=workspace)
+                              confirm=self._confirm, workspace=workspace,
+                              # Conversations it may search: this project's and personal.
+                              extra={"project": str(self._project().get("id", ""))})
         self._cancel.clear()
         project = self._project()
         record = clean_record({"id": secrets.token_hex(16), "kind": kind, "name": actor,
