@@ -114,7 +114,7 @@ sheet = win.findChild(QObject, 'settingsSheet')
 QMetaObject.invokeMethod(sheet, 'open', Qt.DirectConnection); QTest.qWait(80)
 assert sheet.property('opened')
 tabs = win.findChild(QObject, 'settingsSections')
-click(tabs, tabs.width() * 0.5, tabs.height() / 2)
+click(tabs, tabs.width() * 0.375, tabs.height() / 2)
 assert sheet.property('section') == 'appearance', sheet.property('section')
 assert sheet.property('opened'), 'a tap on a control in the sheet dismissed it'
 modes = win.findChild(QObject, 'appearanceModes')

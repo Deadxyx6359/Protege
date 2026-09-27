@@ -185,6 +185,25 @@ Window {
         composer.text = "";
     }
 
+    // The open chat was filed under another project from its menu: go with it,
+    // keeping the chat and the draft, as opening it from the list would.
+    function followMovedChat(project) {
+        if (project === Projects.currentId) return;
+        const from = Projects.currentId;
+        if (Agents.busy) {
+            Chat.moveConversation(Chat.conversationId, from);
+            banners.show("Work is still running", "Finish or stop the current work before moving the open chat to another project.", false);
+            return;
+        }
+        restoringConversation = true;
+        const why = Projects.openProject(project);
+        restoringConversation = false;
+        if (why) {
+            Chat.moveConversation(Chat.conversationId, from);
+            banners.show("Project could not open", why + " The chat stays where it was.", false);
+        }
+    }
+
     Connections { target: Projects; function onCurrentChanged() { win.projectChanged() } }
     Connections {
         target: Chat
@@ -343,6 +362,8 @@ Window {
             })
 
             recentModel: Chat.recents
+            chats: Chat
+            onOpenChatMoved: function (project) { win.followMovedChat(project) }
             contentMatches: Chat.historySearch.results
             searchBusy: Chat.historySearch.busy
             searchNote: Chat.historySearch.note

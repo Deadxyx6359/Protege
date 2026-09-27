@@ -54,13 +54,14 @@ for mode in ['dark', 'light']:
     ctx.theme.mode = mode
     for width in [900, 1440]:
         win.setWidth(width); win.setHeight(600 if width == 900 else 900)
-        for section in ['general', 'appearance', 'models']:
+        for section in ['general', 'appearance', 'models', 'chats']:
             tabs.selected.emit(section); QTest.qWait(40)
             assert sheet.property('section') == section
             assert win.findChild(QObject, 'settings' + section.title()).property('visible')
             for name in {'general': ['setupModels', 'reviewPermissions', 'setPlace', 'openAccounts'],
                          'appearance': ['appearanceModes', 'reduceMotionToggle'],
-                         'models': []}[section]:
+                         'models': [],
+                         'chats': ['keepPinnedToggle', 'olderThanChoice', 'deleteOldChats', 'deleteAllChats']}[section]:
                 control = win.findChild(QObject, name)
                 at = control.mapToScene(QPointF(0, 0))
                 assert at.x() >= 0 and at.x() + control.width() <= width, (name, at)

@@ -8,14 +8,35 @@ Sheet {
     subtitle: "Make Akira yours"
     sheetWidth: 700
     property string section: "general"
+    // A short section opened after a long one was scrolled starts at its top,
+    // with the section switch in view.
+    onSectionChanged: Qt.callLater(scrollToTop)
     property bool modelDetails: false
     readonly property int accountCount: Accounts.accounts.length + Accounts.canvasSites.length + Accounts.bankConnections.length
     readonly property int availableRoutes: Settings.routes.filter(function (r) { return r.usable; }).length
+    // -- Chats: deleting in bulk, asked first with how many --------------------
+    property bool keepPinned: true
+    property int olderThanDays: 30
+    /*! The delete being asked about: "old", "all" or "". */
+    property string clearing: ""
+    /*! What the last delete did, in a sentence. */
+    property string cleared: ""
+    readonly property int oldCount: { Chat.recents; return Chat.countConversations(olderThanDays, keepPinned); }
+    readonly property int allCount: { Chat.recents; return Chat.countConversations(0, keepPinned); }
+
+    function chats(n) { return n + (n === 1 ? " chat" : " chats"); }
+    function clearChats() {
+        const gone = clearing === "old" ? Chat.deleteConversationsOlderThan(olderThanDays, keepPinned)
+                                        : Chat.deleteAllConversations(keepPinned);
+        clearing = "";
+        cleared = gone ? "Deleted " + chats(gone) + "." : "Nothing to delete.";
+    }
+
     signal permissionsRequested()
     signal placeRequested()
     signal accountsRequested()
     signal voiceRequested()
-    onOpenedChanged: { if (opened) Settings.refresh(); }
+    onOpenedChanged: { if (opened) { Settings.refresh(); clearing = ""; cleared = ""; } }
 
     ColumnLayout {
         width: parent.width
@@ -25,8 +46,8 @@ Sheet {
             Layout.fillWidth: true
             Layout.preferredHeight: 36
             current: root.section
-            options: [{id: "general", label: "General"}, {id: "appearance", label: "Appearance"}, {id: "models", label: "Models"}]
-            onSelected: function (id) { root.section = id; }
+            options: [{id: "general", label: "General"}, {id: "appearance", label: "Appearance"}, {id: "models", label: "Models"}, {id: "chats", label: "Chats"}]
+            onSelected: function (id) { root.section = id; root.clearing = ""; root.cleared = ""; }
         }
         ColumnLayout {
             objectName: "settingsGeneral"
@@ -236,6 +257,101 @@ Sheet {
                 font: Theme.type.monoSmall
                 color: Theme.textSecondary
                 wrapMode: Text.WrapAnywhere
+            }
+        }
+        ColumnLayout {
+            objectName: "settingsChats"
+            visible: root.section === "chats"
+            Layout.fillWidth: true
+            spacing: 0
+            Text {
+                Layout.fillWidth: true
+                Layout.bottomMargin: 6
+                text: "To rename, pin, move or delete one chat, right-click it in the sidebar."
+                textFormat: Text.PlainText
+                font: Theme.type.caption
+                color: Theme.textSecondary
+                wrapMode: Text.Wrap
+            }
+            FormRow {
+                Layout.fillWidth: true
+                title: "Keep pinned chats"
+                Toggle {
+                    objectName: "keepPinnedToggle"
+                    label: "Keep pinned chats when deleting"
+                    checked: root.keepPinned
+                    onToggled: function (value) { root.keepPinned = value; root.clearing = ""; }
+                }
+            }
+            FormRow {
+                Layout.fillWidth: true
+                title: "Chats not used in"
+                Select {
+                    objectName: "olderThanChoice"
+                    Layout.preferredWidth: 150
+                    label: "Delete chats not used in"
+                    current: String(root.olderThanDays)
+                    options: [{value: "7", label: "A week"}, {value: "30", label: "30 days"},
+                              {value: "90", label: "90 days"}, {value: "365", label: "A year"}]
+                    onPicked: function (value) { root.olderThanDays = Number(value); root.clearing = ""; }
+                }
+                ActionButton {
+                    objectName: "deleteOldChats"
+                    text: root.oldCount ? "Delete " + root.chats(root.oldCount) + "…" : "None that old"
+                    enabled: root.oldCount > 0 && root.clearing === ""
+                    onClicked: { root.cleared = ""; root.clearing = "old"; }
+                }
+            }
+            FormRow {
+                Layout.fillWidth: true
+                divider: false
+                title: "All chats"
+                ActionButton {
+                    objectName: "deleteAllChats"
+                    text: root.allCount ? "Delete " + root.chats(root.allCount) + "…" : "No chats to delete"
+                    enabled: root.allCount > 0 && root.clearing === ""
+                    onClicked: { root.cleared = ""; root.clearing = "all"; }
+                }
+            }
+            Squircle {
+                objectName: "clearChatsQuestion"
+                visible: root.clearing !== ""
+                Layout.fillWidth: true
+                Layout.topMargin: 8
+                Layout.preferredHeight: question.implicitHeight + 28
+                radius: Theme.radius.md
+                fillColor: Theme.inset
+                borderColor: Theme.separator
+                onVisibleChanged: if (visible) keepChats.forceActiveFocus()
+                RowLayout {
+                    id: question
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 10
+                    Text {
+                        Layout.fillWidth: true
+                        text: "Delete " + root.chats(root.clearing === "old" ? root.oldCount : root.allCount)
+                              + (root.clearing === "old" ? " not used in " + (root.olderThanDays === 7 ? "a week" : root.olderThanDays === 365 ? "a year" : root.olderThanDays + " days") : "")
+                              + (root.keepPinned ? ", keeping pinned chats" : ", pinned chats too")
+                              + "? This cannot be undone."
+                        textFormat: Text.PlainText
+                        font: Theme.type.callout
+                        color: Theme.textPrimary
+                        wrapMode: Text.Wrap
+                    }
+                    ActionButton { id: keepChats; objectName: "keepChats"; text: "Keep"; onClicked: root.clearing = "" }
+                    ActionButton { objectName: "confirmClearChats"; text: "Delete"; kind: "danger"; onClicked: root.clearChats() }
+                }
+            }
+            Text {
+                objectName: "clearedChats"
+                visible: root.cleared !== ""
+                Layout.fillWidth: true
+                Layout.topMargin: 8
+                text: root.cleared
+                textFormat: Text.PlainText
+                font: Theme.type.caption
+                color: Theme.textSecondary
             }
         }
     }

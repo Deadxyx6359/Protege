@@ -12,6 +12,7 @@ NavRow 1.0 NavRow.qml
 SectionLabel 1.0 SectionLabel.qml
 SearchField 1.0 SearchField.qml
 Sidebar 1.0 Sidebar.qml
+ChatMenu 1.0 ChatMenu.qml
 WorkspaceHeader 1.0 WorkspaceHeader.qml
 TabStrip 1.0 TabStrip.qml
 Composer 1.0 Composer.qml

@@ -34,20 +34,37 @@ Item {
     /*! Indents the row. Used for children of a project. */
     property int depth: 0
 
+    /*! A small icon before the detail: \c pin for a pinned chat. */
+    property string mark: ""
+    /*! What \c mark means, for a screen reader: "pinned". */
+    property string markDescription: ""
+
+    /*! Offers a menu: by right-click, press and hold, the Menu key or Shift+F10. */
+    property bool hasMenu: false
+
     readonly property bool hovered: hover.hovered
 
     signal clicked()
+    /*! Where the menu was asked for, in the row's coordinates. */
+    signal menuRequested(real x, real y)
 
     implicitWidth: 200
     implicitHeight: root.subtitle ? 72 : 34
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
-    Accessible.name: root.label + (root.detail ? ", " + (root.detailDescription || root.detail) : "") + (root.subtitle ? ", " + root.subtitle : "")
+    Accessible.name: root.label + (root.markDescription ? ", " + root.markDescription : "") + (root.detail ? ", " + (root.detailDescription || root.detail) : "") + (root.subtitle ? ", " + root.subtitle : "")
     Accessible.selected: root.selected
     Accessible.onPressAction: root.clicked()
     Keys.onReturnPressed: root.clicked()
     Keys.onEnterPressed: root.clicked()
     Keys.onSpacePressed: root.clicked()
+    Keys.onPressed: function (event) {
+        if (root.hasMenu && (event.key === Qt.Key_Menu
+                             || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier)))) {
+            event.accepted = true;
+            root.menuRequested(Theme.space.lg, root.height);
+        }
+    }
 
     Rectangle {
         id: plate
@@ -98,6 +115,7 @@ Item {
         Column {
             width: parent.width - 20 - Theme.space.sm
                    - (detailText.visible ? detailText.width + Theme.space.sm : 0)
+                   - (markIcon.visible ? markIcon.width + Theme.space.sm : 0)
             anchors.verticalCenter: parent.verticalCenter
             spacing: 3
             Text {
@@ -127,6 +145,16 @@ Item {
             }
         }
 
+        Icon {
+            id: markIcon
+            anchors.verticalCenter: parent.verticalCenter
+            visible: root.mark !== ""
+            name: root.mark || "dot"
+            size: 13
+            color: Theme.textTertiary
+            Accessible.ignored: true
+        }
+
         Text {
             id: detailText
             anchors.verticalCenter: parent.verticalCenter
@@ -145,5 +173,20 @@ Item {
 
     TapHandler {
         onTapped: { root.forceActiveFocus(); root.clicked() }
+    }
+
+    TapHandler {
+        enabled: root.hasMenu
+        acceptedButtons: Qt.RightButton
+        onTapped: function (point) {
+            root.forceActiveFocus();
+            root.menuRequested(point.position.x, point.position.y);
+        }
+    }
+
+    TapHandler {
+        enabled: root.hasMenu
+        acceptedDevices: PointerDevice.TouchScreen
+        onLongPressed: root.menuRequested(point.position.x, point.position.y)
     }
 }

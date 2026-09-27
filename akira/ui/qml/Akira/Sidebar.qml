@@ -22,7 +22,7 @@ Item {
     property var navModel: []
     /*! [{ id, name, color }] */
     property var projectModel: []
-    /*! [{ id, title, when }] */
+    /*! [{ id, title, when, pinned, project }] */
     property var recentModel: []
 
     property string currentNav: ""
@@ -33,6 +33,8 @@ Item {
     property var contentMatches: null
     property bool searchBusy: false
     property string searchNote: ""
+    /*! The chat bridge, for the menu on each chat. Without it the chats have none. */
+    property var chats: null
     readonly property bool searchPending: searchDelay.running || searchBusy
     readonly property string query: searchText.trim().toLowerCase()
     readonly property bool searching: query.length > 0
@@ -65,6 +67,8 @@ Item {
     signal collapseRequested()
     signal searchRequested(string query)
     signal searchInvalidated()
+    /*! The open chat was moved to \a project from its menu. */
+    signal openChatMoved(string project)
     onQueryChanged: {
         searchInvalidated();
         if (root.query.length > 0 && contentMatches !== null) searchDelay.restart();
@@ -73,6 +77,13 @@ Item {
     Timer { id: searchDelay; interval: 180; onTriggered: root.searchRequested(root.query) }
 
     implicitWidth: 264
+
+    ChatMenu {
+        id: chatMenu
+        chats: root.chats
+        projects: root.projectModel
+        onMovedOpenChat: function (project) { root.openChatMoved(project) }
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -241,7 +252,9 @@ Item {
                     model: root.filteredRecents
 
                     NavRow {
+                        id: chatRow
                         required property var modelData
+                        objectName: "recent_" + modelData.id
                         Layout.fillWidth: true
                         Layout.leftMargin: Theme.space.sm
                         Layout.rightMargin: Theme.space.sm
@@ -249,8 +262,12 @@ Item {
                         label: modelData.title
                         subtitle: root.searching ? (modelData.snippet || "") : ""
                         detail: modelData.when
+                        mark: modelData.pinned ? "pin" : ""
+                        markDescription: modelData.pinned ? "pinned" : ""
                         selected: root.currentRecent === modelData.id
+                        hasMenu: root.chats !== null
                         onClicked: { root.recentSelected(modelData.id); root.searchText = ""; }
+                        onMenuRequested: function (x, y) { chatMenu.openFor(chatRow, x, y, chatRow.modelData) }
                     }
                 }
 
