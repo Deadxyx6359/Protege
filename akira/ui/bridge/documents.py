@@ -16,6 +16,7 @@ from typing import Callable
 from PySide6.QtCore import Property, QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QGuiApplication
 
+from akira.core.brain.corpora import MAX_DOCUMENT_BYTES
 from akira.core.documents.library import Library
 from akira.core.permissions import AuditLog, Decision, Policy, SecretStore
 from akira.core.tools.builtin.files import read_file
@@ -260,6 +261,10 @@ class DocumentsBridge(QObject):
         project = self._project() or ''
         added, refused = self._library.add_files(project, paths)
         problems += refused
+        # Kept, but past what the search reads: said now, not found out later.
+        problems += [f"{path.name} is over {MAX_DOCUMENT_BYTES // 1_000_000} MB, so it is kept "
+                     "but not searched." for path in added
+                     if path.suffix.lower() not in TEXT and path.stat().st_size > MAX_DOCUMENT_BYTES]
         if added:
             why = self._allow_reading(str(self._library.folder(project)))
             if why:

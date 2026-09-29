@@ -216,3 +216,12 @@ def test_the_chat_searches_the_library_documents(tmp_path):
     context = assembler("Which ADC input is PA0 on the STM32G474?")
     assert "ADC12_IN1" in context.text
     assert any("pins.md" in s["cite"] for s in context.sources)
+
+
+def test_a_document_too_large_to_search_is_said_to_be(bridge, tmp_path, monkeypatch):
+    import akira.ui.bridge.documents as documents_module
+    documents, _, _, _ = bridge
+    monkeypatch.setattr(documents_module, "MAX_DOCUMENT_BYTES", 10)
+    source = doc(tmp_path / "downloads", "RM0440.pdf", "x" * 50)
+    said = documents.addFiles([source.as_uri()])
+    assert said.startswith("Added 1 file.") and "kept but not searched" in said
