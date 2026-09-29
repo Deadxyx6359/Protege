@@ -668,7 +668,13 @@ only during a call the person started, and muting closes it.**
   with `interruptByVoice`), the reply is stopped and the new words are sent.
 - The call runs in the bridge and needs no window, so a small always-on-top
   call window can own it while the main window is closed. Keep the
-  application running while `inCall` is true.
+  application running while `inCall` is true, but only while that window is
+  on screen (2026-09-28): a call window hidden by anything but the call
+  ending ends the call, and closing the main window with no call window on
+  screen ends the call and closes Akira. Before this, a call whose window had
+  gone left Akira refusing to close with the microphone open. Bring the call
+  window forward with `Main.qml`'s `showCall()`, never `showNormal()` alone,
+  which unbinds its `visible` from `inCall`.
 - The log keeps that a call began and ended, how long it ran and how many
   things were said, never what.
 

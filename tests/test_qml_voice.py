@@ -117,6 +117,20 @@ invoke(sheet, 'open'); press(find('voiceStartCall'))
 call = FakeCall.made[-1]
 call_window.close(); QTest.qWait(60)
 assert call.ended and not voice.inCall and not call_window.isVisible()
+# Brought forward from the composer during a call, it still goes when the call does.
+invoke(sheet, 'open'); press(find('voiceStartCall'))
+call = FakeCall.made[-1]
+invoke(win, 'showCall')
+assert call_window.isVisible()
+press(find('callEnd', call_window), call_window)
+assert call.ended and not voice.inCall and not call_window.isVisible()
+# Hidden by anything but the call ending, the call ends: the microphone is never
+# open behind a window nobody can see, and Akira can always be closed.
+invoke(sheet, 'open'); press(find('voiceStartCall'))
+call = FakeCall.made[-1]
+call_window.hide(); QTest.qWait(60)
+assert call.ended and not voice.inCall
+assert win.isVisible()
 # Revocation ends a hidden-main call and restores the app to display the reason.
 invoke(sheet, 'open'); press(find('voiceStartCall'))
 win.close(); ctx.permissions.revoke('audio.record')

@@ -63,8 +63,9 @@ MAX_UTTERANCE_SECONDS = 30
 #: How far back the room's own loudness is judged from: 3 s.
 ROOM_FRAMES = 100
 
-#: After Akira stops speaking, the room is still ringing with it for this long.
-ECHO_TAIL_SECONDS = 0.4
+#: After Akira stops speaking, the room is still ringing with it for this long,
+#: and a wireless speaker is still playing the end of it.
+ECHO_TAIL_SECONDS = 0.7
 
 #: How much the microphone may hold while nothing reads it: 10 s.
 BACKLOG_BLOCKS = 334

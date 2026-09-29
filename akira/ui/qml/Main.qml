@@ -20,11 +20,24 @@ Window {
     color: Theme.canvas
     title: "Akira"
     onClosing: function (close) {
-        if (Voice.inCall) {
+        // A call keeps going in its own window when this one closes, but only
+        // if that window is on screen: a call nobody can see is ended, and
+        // Akira closes, rather than refusing to close with the microphone open.
+        if (Voice.inCall && callWindow.visible) {
             close.accepted = false;
             win.hide();
-            callWindow.raise();
+            win.showCall();
+        } else if (Voice.inCall) {
+            Voice.endCall();
         }
+    }
+    /*! Bring the call window forward without breaking what keeps it on screen
+        exactly while a call runs: `showNormal` alone would unbind it. */
+    function showCall() {
+        if (callWindow.visibility === Window.Minimized) callWindow.showNormal();
+        callWindow.visible = Qt.binding(function () { return Voice.inCall; });
+        callWindow.raise();
+        callWindow.requestActivate();
     }
     function showConversation() {
         if (win.fullPage) win.selectWorkspace("chats");
@@ -63,9 +76,9 @@ Window {
         workBusy: Chat.busy || Agents.busy
         onStartRequested: {
             if (Chat.busy || Agents.busy) return;
-            if (Voice.startCall()) { voiceSheet.close(); callWindow.raise(); callWindow.requestActivate(); }
+            if (Voice.startCall()) { voiceSheet.close(); win.showCall(); }
         }
-        onShowCallRequested: { voiceSheet.close(); callWindow.showNormal(); callWindow.raise(); callWindow.requestActivate(); }
+        onShowCallRequested: { voiceSheet.close(); win.showCall(); }
     }
 
     ThemeLink {}
@@ -520,7 +533,7 @@ Window {
                     voiceAvailable: true
                     callActive: Voice.inCall
                     onVoiceRequested: {
-                        if (Voice.inCall) { callWindow.showNormal(); callWindow.raise(); callWindow.requestActivate(); }
+                        if (Voice.inCall) win.showCall();
                         else voiceSheet.open();
                     }
 

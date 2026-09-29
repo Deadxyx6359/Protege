@@ -16,6 +16,9 @@ Window {
     property int elapsed: 0
     readonly property string stateLabel: Voice.muted ? "Microphone muted" : ({listening: "Listening", hearing: "Hearing you", thinking: "Thinking", speaking: "Speaking", muted: "Microphone muted"})[Voice.callState] || "Connecting"
     onClosing: function (close) { close.accepted = false; root.endRequested(); }
+    // The microphone is never open behind a window nobody can see: hidden by
+    // anything but the call ending, the call ends.
+    onVisibleChanged: if (!visible && Voice.inCall) root.endRequested()
     Connections { target: Voice; function onCallChanged() { if (!Voice.inCall) root.elapsed = 0; } }
     Timer { interval: 1000; repeat: true; running: Voice.inCall; onTriggered: root.elapsed += 1 }
     ColumnLayout {
