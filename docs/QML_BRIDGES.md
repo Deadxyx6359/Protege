@@ -84,9 +84,10 @@ these names, so renaming one is a deliberate, coordinated act.
 | Member | Kind | Notes |
 |---|---|---|
 | `catalogue` | Property, list | Every capability as a map: `id`, `title`, `summary`, `domain`, `direction` (`read`/`write`), `risk` (`low`/`medium`/`high`), `scopeKind` (`none`/`path`/`host`/`account`/`provider`), `irreversible`, `leavesMachine`, `granted`, `scopes` |
-| `grants` | Property, notifies `grantsChanged` | What is held: `id`, `scopes`, `expires` (0 = never) |
+| `grants` | Property, notifies `grantsChanged` | What is held: `id`, `scopes`, `expires` (0 = never), `kept` |
 | `grant(id, scopes)` | Slot → string | `""` on success, otherwise **the reason** it was refused. Show it |
 | `revoke(id)`, `revokeAll()` | Slots | |
+| `keep(id, kept)` | Slot → string | Keep a grant with no end date on purpose, or stop: `""` or why not. The security review then stops asking about it. `describe(id)` carries `kept` and `noEndDate` (2026-09-28) |
 | `describe(id)` | Slot → map | One capability, same shape as a catalogue entry |
 | `recentActivity(limit)` | Slot → list | Newest first: `at`, `actor`, `action`, `allowed`, `detail`. **Includes refusals, so keep them visible** |
 
@@ -223,7 +224,8 @@ these changes from source when Akira is reopened.
 | `pause(id)`, `resume(id)`, `remove(id)` | Slots | Resuming counts forward from now. The runs inside a pause are not "missed" |
 | `runNow(id)` | Slot | Starts a worker and returns at once |
 | `addJob(spec)` | Slot → string | Create a job: `""`, or why it was refused. See below |
-| `findings` | Property, notifies `reviewChanged` | Latest review, worst first. Maps: `severity` (`critical`/`warn`/`info`), `code`, `title`, `detail`, `suggestion`, `capability` |
+| `findings` | Property, notifies `reviewChanged` | Latest review, worst first. Maps: `severity` (`critical`/`warn`/`info`), `code`, `title`, `detail`, `suggestion`, `capability`, `project` (the project whose own grant it is about, or `""`) |
+| `suggestedGrants(action, arguments)` | Slot → list | The grants a new job would need, from what the person allows now: `{capability, scopes}` each. Grants nothing (2026-09-28) |
 | `reviewSummary` | Property | e.g. "1 critical, 2 notes", or "Not reviewed yet" |
 | `lastReviewAt`, `criticalCount` | Properties | |
 | `runReview()` | Slot | Runs the review now, off the UI thread |
@@ -277,6 +279,12 @@ Schedule.addJob({
 - **`grants` are the most a job may use.** Each run gets only what the person
   *also* holds at that moment, so scheduling a job grants nothing, and a
   revocation reaches the next run.
+- **Leave `grants` out** and the job is given what it needs from what the
+  person allows now (`suggestedGrants`): for an agent or team, each capability
+  its tools use that the person holds, with the person's own folders and
+  sites; for a notice, `notify.send`. An empty list is taken as given.
+- A `no-expiry` finding offers "Keep on purpose" (`Permissions.keep`) in
+  `ScheduleView.qml`; the permission screen shows kept grants and can undo it.
 - The security review schedules itself and cannot be added.
 
 ---

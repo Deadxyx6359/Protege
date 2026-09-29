@@ -62,6 +62,9 @@ class Grant:
     granted: float = field(default_factory=time.time)
     expires: float | None = None
     note: str = ""
+    kept: bool = False
+    """Kept with no end date on purpose: the security review does not ask about
+    it again. Set by the person, never by an agent."""
 
     def expired(self, now: float | None = None) -> bool:
         if self.expires is None:
@@ -75,6 +78,7 @@ class Grant:
             "granted": self.granted,
             "expires": self.expires,
             "note": self.note,
+            "kept": self.kept,
         }
 
     @staticmethod
@@ -103,6 +107,7 @@ class Grant:
             granted=float(granted) if isinstance(granted, (int, float)) else time.time(),
             expires=float(expires) if expires is not None else None,
             note=str(raw.get("note", "")),
+            kept=raw.get("kept") is True,
         )
 
 
@@ -219,7 +224,7 @@ class Policy:
     # -- changes ------------------------------------------------------------
 
     def grant(self, capability_id: str, scopes: tuple[str, ...] = (),
-              expires: float | None = None, note: str = "") -> Grant:
+              expires: float | None = None, note: str = "", kept: bool = False) -> Grant:
         """Allow a capability. Raises if it is not one that exists."""
         capability = caps.get(capability_id)
         if capability.scope is not ScopeKind.NONE and not scopes:
@@ -241,9 +246,21 @@ class Policy:
                                      f"Name a site, such as example.{host}.")
                 checked.append(host)
             scopes = tuple(checked)
-        grant = Grant(capability_id, tuple(scopes), time.time(), expires, note)
+        grant = Grant(capability_id, tuple(scopes), time.time(), expires, note, kept)
         self._grants[capability_id] = grant
         return grant
+
+    def keep(self, capability_id: str, kept: bool = True) -> Grant:
+        """Mark a grant as kept with no end date on purpose, or not. Raises if none."""
+        grant = self.granted(capability_id)
+        if grant is None:
+            raise ValueError(f"{capability_id} is not granted")
+        if grant.expires is not None and kept:
+            raise ValueError("It has an end date already; nothing to keep.")
+        kept_grant = Grant(grant.capability, grant.scopes, grant.granted, grant.expires,
+                           grant.note, bool(kept))
+        self._grants[capability_id] = kept_grant
+        return kept_grant
 
     def revoke(self, capability_id: str) -> None:
         self._grants.pop(capability_id, None)

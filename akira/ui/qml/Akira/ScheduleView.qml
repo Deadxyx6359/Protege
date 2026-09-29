@@ -265,6 +265,14 @@ Item {
                             }
                         }
                         ActionButton {
+                            objectName: "keepOnPurpose"
+                            Layout.alignment: Qt.AlignTop
+                            // Meant to keep it: the review stops asking.
+                            visible: finding.f.code === "no-expiry" && !finding.f.project
+                            text: "Keep on purpose"
+                            onClicked: if (!Permissions.keep(finding.f.capability, true)) Schedule.runReview()
+                        }
+                        ActionButton {
                             Layout.alignment: Qt.AlignTop
                             visible: finding.f.capability !== ""
                             text: "Permissions"

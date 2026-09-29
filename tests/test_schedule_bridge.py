@@ -238,7 +238,8 @@ def test_a_job_can_be_created_from_the_interface(parts):
     ({"action": "security_review"}, "schedules itself"),
     ({"name": "   "}, "needs a name"),
     # It runs under its own grants only: without this one it could never show anything.
-    ({"action": "notify", "arguments": {"text": "Hi"}}, "needs “Send notifications”"),
+    # (Left out, grants are filled in with what it needs; given empty, they are not.)
+    ({"action": "notify", "arguments": {"text": "Hi"}, "grants": []}, "needs “Send notifications”"),
 ])
 def test_a_job_that_could_not_run_is_refused_with_a_reason(parts, change, expected):
     actions, _, bridge, _, _ = parts

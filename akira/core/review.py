@@ -125,11 +125,13 @@ class Finding:
     detail: str = ""
     suggestion: str = ""
     capability: str = ""
+    project: str = ""
+    """The project whose own grant it is about, or "" for the global grants."""
 
     def to_json(self) -> dict:
         return {"severity": self.severity, "code": self.code, "title": self.title,
                 "detail": self.detail, "suggestion": self.suggestion,
-                "capability": self.capability}
+                "capability": self.capability, "project": self.project}
 
     @classmethod
     def from_json(cls, raw: dict) -> "Finding":
@@ -138,7 +140,7 @@ class Finding:
             raise ValueError(f"unknown severity {severity!r}")
         return cls(severity, str(raw["code"]), str(raw["title"]),
                    str(raw.get("detail", "")), str(raw.get("suggestion", "")),
-                   str(raw.get("capability", "")))
+                   str(raw.get("capability", "")), str(raw.get("project", "")))
 
 
 @dataclass(slots=True)
@@ -206,7 +208,7 @@ def review(*, policy: Policy, audit: AuditLog,
     findings += _grant_findings(policy)
     for name, own in sorted((projects or {}).items()):
         findings += [Finding(f.severity, f.code, f"In the project {name}: {f.title}",
-                             f.detail, f.suggestion, f.capability)
+                             f.detail, f.suggestion, f.capability, project=name)
                      for f in _grant_findings(own)]
     findings += _usage_findings(policy, events, since, window_days)
     findings += _file_findings(permissions_file or Policy.path(), now)
@@ -277,12 +279,14 @@ def _grant_findings(policy: Policy) -> list[Finding]:
                     "Limit it to the folders the work actually needs.",
                     capability.id))
 
+        # Not asked about again once the person has said they mean to keep it.
         if (capability.risk is Risk.HIGH and capability.leaves_machine
-                and grant.expires is None):
+                and grant.expires is None and not grant.kept):
             findings.append(Finding(
                 "warn", "no-expiry", f"{capability.title} never expires",
                 "It can send data off this computer and was granted with no end date.",
-                "Grant it for a set period, and renew it while you still need it.",
+                "Grant it for a set period and renew it while you need it, or keep it on "
+                "purpose if you mean to.",
                 capability.id))
 
     if leaving:

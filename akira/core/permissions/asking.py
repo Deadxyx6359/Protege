@@ -114,7 +114,7 @@ class Allowances(Policy):
         if grant is None or not extra:
             return grant
         return Grant(grant.capability, tuple(dict.fromkeys((*grant.scopes, *extra))),
-                     grant.granted, grant.expires, grant.note)
+                     grant.granted, grant.expires, grant.note, grant.kept)
 
     def active(self) -> list[Grant]:
         return [g for g in map(self.granted, (g.capability for g in self.inner.active()))
@@ -123,7 +123,7 @@ class Allowances(Policy):
     def _read_only(self, *_args, **_kwargs):
         raise RuntimeError("what is allowed once is not saved; grant in Settings instead")
 
-    grant = revoke = revoke_all = save = _read_only
+    grant = keep = revoke = revoke_all = save = _read_only
 
 
 # -- where an address came from ---------------------------------------------------------------
@@ -254,7 +254,8 @@ def widen(policy: Policy, capability: str, scope: str) -> None:
         raise ValueError(f"{capability} is not granted there")
     if scope in grant.scopes:
         return
-    policy.grant(capability, (*grant.scopes, scope), expires=grant.expires, note=grant.note)
+    policy.grant(capability, (*grant.scopes, scope), expires=grant.expires, note=grant.note,
+                 kept=grant.kept)
 
 
 __all__ = ["ALWAYS", "ASKABLE", "Allowances", "AskScope", "MAX_ASKS", "NO", "ONCE", "Request", "SEARCH_FIRST",

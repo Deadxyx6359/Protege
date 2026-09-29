@@ -23,7 +23,8 @@ from PySide6.QtCore import Property, QObject, Signal, Slot
 
 from akira.core.review import REVIEW_ACTION, Review, ReviewStore
 from akira.core.schedule import Missed, Scheduler, trigger_from_json
-from akira.core.schedule.actions import check_arguments, check_grants
+from akira.core.schedule.actions import check_arguments, check_grants, suggested_grants
+from akira.core.tools import ToolRegistry, default_registry
 
 
 class ScheduleBridge(QObject):
@@ -41,9 +42,12 @@ class ScheduleBridge(QObject):
     _reviewed = Signal(object)
 
     def __init__(self, scheduler: Scheduler, reviews: ReviewStore | None = None,
+                 registry: ToolRegistry | None = None,
                  parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._scheduler = scheduler
+        # Which capabilities an agent's tools need, for a new job's grants.
+        self._registry = registry if registry is not None else default_registry()
         self._reviews = reviews if reviews is not None else ReviewStore()
         self._jobs: list = scheduler.snapshot()
         self._review: Review | None = self._reviews.latest()
@@ -91,7 +95,8 @@ class ScheduleBridge(QObject):
         `trigger`, a map such as `{"kind": "daily", "time": "07:30"}`; `arguments`
         (`role` or `team`, and `task`; for a pipeline, `brief` and `publish`);
         `grants`, a list of `{"capability", "scopes"}`; and `missed`, either
-        `run_late` or `skip`.
+        `run_late` or `skip`. Without `grants`, the job is given what it needs
+        from what the person allows now (`suggestedGrants`).
         """
         spec = dict(spec or {})
         action = str(spec.get("action") or "")
@@ -99,6 +104,9 @@ class ScheduleBridge(QObject):
         missed = str(spec.get("missed") or Missed.RUN_LATE.value)
         if not isinstance(arguments, dict):
             return "A job's arguments must be a set of named values."
+        if spec.get("grants") is None:
+            spec["grants"] = suggested_grants(action, arguments, self._scheduler.held(),
+                                              self._registry)
         if missed not in {m.value for m in Missed}:
             return "A missed run can either run late or be skipped."
         problem = (check_arguments(action, arguments)
@@ -114,6 +122,13 @@ class ScheduleBridge(QObject):
         except (KeyError, ValueError, TypeError) as exc:
             return str(exc.args[0]) if exc.args else type(exc).__name__
         return ""
+
+    @Slot(str, "QVariantMap", result="QVariantList")
+    def suggestedGrants(self, action: str, arguments: dict) -> list:
+        """The grants a new job would need, from what the person allows now:
+        `{"capability", "scopes"}` each. Grants nothing."""
+        return suggested_grants(str(action), dict(arguments or {}), self._scheduler.held(),
+                                self._registry)
 
     @Slot(str)
     def runNow(self, job_id: str) -> None:

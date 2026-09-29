@@ -299,6 +299,8 @@ class PermissionsBridge(QObject):
             "leavesMachine": capability.leaves_machine,
             "granted": grant is not None,
             "scopes": list(grant.scopes) if grant else [],
+            "noEndDate": grant is not None and grant.expires is None,
+            "kept": grant is not None and grant.kept,
         }
 
     @Slot(str, result="QVariantMap")
@@ -312,7 +314,7 @@ class PermissionsBridge(QObject):
     def grants(self) -> list:
         return [
             {"id": grant.capability, "scopes": list(grant.scopes),
-             "expires": grant.expires or 0}
+             "expires": grant.expires or 0, "kept": grant.kept}
             for grant in self._policy.active()
         ]
 
@@ -326,8 +328,11 @@ class PermissionsBridge(QObject):
         granted everywhere — that would turn "read this folder" into "read the
         disk", which is the exact mistake the scope exists to prevent.
         """
+        held = self._policy.granted(capability_id)
         try:
-            self._policy.grant(capability_id, tuple(str(s) for s in scopes))
+            # Kept on purpose stays kept when the folders or sites change.
+            self._policy.grant(capability_id, tuple(str(s) for s in scopes),
+                               kept=held is not None and held.kept)
         except (KeyError, ValueError) as exc:
             return str(exc) or "that capability cannot be granted like that"
         self._policy.save()
@@ -335,6 +340,19 @@ class PermissionsBridge(QObject):
         # nobody remembers making is exactly the thing worth noticing.
         self._audit.permission_change(capability_id, granted=True,
                                       scopes=tuple(str(s) for s in scopes))
+        self.grantsChanged.emit()
+        return ""
+
+    @Slot(str, bool, result=str)
+    def keep(self, capability_id: str, kept: bool) -> str:
+        """Keep a grant with no end date on purpose, so the review stops asking; "" or why not."""
+        try:
+            self._policy.keep(capability_id, bool(kept))
+        except (KeyError, ValueError) as exc:
+            return str(exc) or "that could not be kept"
+        self._policy.save()
+        self._audit.permission_change(capability_id, granted=True,
+                                      note="kept on purpose" if kept else "no longer kept on purpose")
         self.grantsChanged.emit()
         return ""
 

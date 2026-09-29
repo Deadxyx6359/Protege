@@ -749,6 +749,10 @@ class Scheduler:
             except Exception:  # noqa: BLE001 - a broken view must not stop the scheduler
                 pass
 
+    def held(self) -> Policy:
+        """What the person allows now: the most a job made now could be given."""
+        return self._policy()
+
     def snapshot(self) -> list[dict]:
         """Plain data for the interface, safe to hand across threads."""
         with self._lock:

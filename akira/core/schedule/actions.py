@@ -106,6 +106,41 @@ def check_grants(action: str, grants: list) -> str:
             "do anything.")
 
 
+def suggested_grants(action: str, arguments: dict, live, registry: ToolRegistry) -> list[dict]:
+    """The grants a new job would need, from what the person allows now.
+
+    A job made with an empty list could do nothing, and the person had to know
+    which capabilities its agent's tools use. This fills it in: for an agent or
+    a team, every capability their tools need that the person holds, with the
+    folders, sites or accounts the person has allowed and no others; for a
+    notice, the one grant it cannot run without. Nothing here grants anything:
+    a job runs under the part of these the person still holds when it runs.
+    """
+    wanted: dict[str, list[str]] = {}
+    needed = NEEDS.get(action)
+    if needed is not None:
+        wanted[needed[0]] = []
+    if action == "agent":
+        members = [ALL_ROLES[str(arguments.get("role", ""))]] if str(
+            arguments.get("role", "")) in ALL_ROLES else []
+    elif action == "team":
+        build = TEAMS.get(str(arguments.get("team", "")))
+        members = list(build().members) if build is not None else []
+    else:
+        members = []
+    for member in members:
+        for name in member.tools:
+            tool = registry.get(name)
+            for requirement in (tool.requires if tool is not None else ()):
+                held = live.granted(requirement.capability)
+                if held is None:
+                    continue
+                scopes = wanted.setdefault(requirement.capability, [])
+                scopes += [s for s in held.scopes if s not in scopes]
+    return [{"capability": capability, "scopes": scopes}
+            for capability, scopes in sorted(wanted.items())]
+
+
 def register_agent_actions(actions: ActionRegistry, *, router: ModelRouter,
                            registry: ToolRegistry) -> None:
     """Add `agent` and `team` to \a actions."""

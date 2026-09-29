@@ -151,7 +151,7 @@ class LayeredPolicy(Policy):
         expiries = [g.expires for g in held if g.expires is not None]
         scopes = tuple(dict.fromkeys(s for g in held for s in g.scopes))
         return Grant(capability_id, scopes, min(g.granted for g in held),
-                     min(expiries) if expiries else None, "")
+                     min(expiries) if expiries else None, "", all(g.kept for g in held))
 
     def active(self) -> list[Grant]:
         ids = dict.fromkeys(g.capability for g in (*self.base.active(), *self.project.active()))
@@ -161,7 +161,7 @@ class LayeredPolicy(Policy):
         raise RuntimeError("grant or revoke in one layer, the global grants or the project's, "
                            "not in the view of both")
 
-    grant = revoke = revoke_all = save = _read_only
+    grant = keep = revoke = revoke_all = save = _read_only
 
 
 # -- storage ----------------------------------------------------------------------------------

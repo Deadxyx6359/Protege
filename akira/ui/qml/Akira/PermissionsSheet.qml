@@ -238,6 +238,7 @@ Sheet {
                     Badge { visible: row.modelData.risk === "high"; label: "High risk"; tone: Theme.warning }
                     Badge { visible: row.modelData.leavesMachine; label: "Leaves this computer"; tone: Theme.info }
                     Badge { visible: row.modelData.irreversible; label: "Asks each time"; tone: Theme.textSecondary }
+                    Badge { visible: row.now.kept === true; label: "Kept on purpose"; tone: Theme.success }
                 }
             }
 
@@ -251,6 +252,15 @@ Sheet {
                     // The switch sets itself when tapped; bind it back to what is true.
                     checked = Qt.binding(function () { return row.held; });
                 }
+            }
+
+            ActionButton {
+                objectName: "keep:" + row.modelData.id
+                // No end date, and the review would ask: say it is meant, or stop.
+                visible: row.held && row.now.noEndDate === true && row.modelData.risk === "high"
+                         && row.modelData.leavesMachine
+                text: row.now.kept ? "Stop keeping" : "Keep on purpose"
+                onClicked: root.notice = Permissions.keep(row.modelData.id, !row.now.kept)
             }
 
             ActionButton {
