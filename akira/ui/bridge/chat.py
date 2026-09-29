@@ -74,7 +74,8 @@ DID_NOT_KNOW = re.compile(
     r"\bmy\s+(?:knowledge|training)(?:\s+data)?\s+(?:cut-?off|only\s+goes|ends)\b|"
     r"\bI\s+(?:can't|cannot|am\s+unable\s+to)\s+(?:browse|search|access|check)\s+"
     r"(?:the\s+)?(?:internet|web|online|live)\b|"
-    r"\bI\s+(?:do\s+not|don't)\s+know\b|\bI(?:'m|\s+am)\s+not\s+(?:sure|certain)\b",
+    r"\bI\s+(?:do\s+not|don't)\s+(?:know|recogni[sz]e)\b|"
+    r"\bI(?:'m|\s+am)\s+not\s+(?:sure|certain|familiar\s+with|aware\s+of)\b",
     re.IGNORECASE)
 
 #: Sources found by searching before the answer, kept only when it cites them.

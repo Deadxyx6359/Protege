@@ -285,6 +285,18 @@ def test_an_answer_that_did_not_know_is_looked_up_and_replaced(qt_app, tmp_path)
     assert bridge.lastSources == [{"source": "web", "cite": "https://example.org/hours"}]
 
 
+@pytest.mark.parametrize("first", [
+    # Told to say so of a film it did not know, the 8B said this; a real but
+    # little-known one is then found rather than refused.
+    "I do not recognise the film 'The Glass Harbor'.",
+    "I'm not familiar with that shop.",
+])
+def test_an_answer_that_did_not_recognise_it_is_looked_up(qt_app, tmp_path, first):
+    bridge, backend, looker = unsure_chat(tmp_path, first=first)
+    say(bridge, "When does the corner shop open?")
+    assert [q for q, _ in looker.asked] == ["When does the corner shop open?"]
+
+
 @pytest.mark.parametrize("first, web, pinned", [
     ("I don't have real-time information about that.", False, False),  # no web search
     ("I don't have real-time information about that.", True, True),     # a kind pinned

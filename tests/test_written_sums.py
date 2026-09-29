@@ -33,6 +33,12 @@ def test_each_wrong_sum_is_reported():
                                                                ("7 - 2 = 4", "5")]
 
 
+def test_the_end_of_a_longer_sum_is_not_taken_for_the_whole():
+    # "(72 - 32) × 5/9 = 22.2" was corrected as "5/9 = 22.2 is wrong; it comes to 0.56".
+    assert wrong_sums("(72 - 32) × 5/9 = 22.2°C") == []
+    assert wrong_sums("so 2 + 3 × 4 = 99") == [("2 + 3 × 4 = 99", "14")]
+
+
 def test_a_step_whose_result_is_a_fraction_is_not_corrected():
     # "40 × 5/9 = 200/9" was corrected to 22.22 as if it claimed 200: it was right.
     assert wrong_sums("40 × 5/9 = 200/9 ≈ 22.22") == []

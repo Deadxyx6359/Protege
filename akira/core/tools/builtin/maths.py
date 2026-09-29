@@ -112,6 +112,10 @@ def wrong_sums(text: str) -> list[tuple[str, str]]:
     wrong = []
     for found in _WRITTEN_SUM.finditer(text):
         left, shown = found[1], found[2]
+        if text[:found.start()].rstrip()[-1:] in tuple(")×*/÷+-^x"):
+            # The end of a longer sum: "(72 - 32) × 5/9 = 22.2" was read from
+            # "5/9 = 22.2" on, and corrected; the whole was right.
+            continue
         if "%" in left or "%" in shown:
             continue  # "17% of" is not written as an expression
         expression = re.sub(r"\s*\([^()\d]*\)", "", left)

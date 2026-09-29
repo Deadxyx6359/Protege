@@ -143,7 +143,8 @@ PROBES: list[Probe] = [
           note="No place is allowed in this setup: no forecast should be invented."),
     # -- things that change ----------------------------------------------------------------------
     Probe("nobel2023", "current", ["Who won the 2023 Nobel Prize in Literature?"],
-          must=[r"Fosse"]),
+          # "I do not recognise the 2023 winner as a specific individual... it was Jon Fosse."
+          must=[r"Fosse"], never=[r"(?:don't|do not) recogni[sz]e"]),
     Probe("canada", "current", ["What is the population of Canada?"],
           must=[r"\b(?:3[89]|4[0-2])(?:\.\d+)? ?million|\b4[01],\d{3},\d{3}"]),
     # -- advice, and brevity ------------------------------------------------------------------------
@@ -167,8 +168,19 @@ PROBES: list[Probe] = [
     Probe("possession", "arithmetic", ["How many letter s's are in the word possession?"],
           must=[r"\b4\b|\bfour\b"]),
     Probe("brother", "about-them", ["Tell me about my brother."],
-          must=[r"(?:don't|do not|haven't|have not|not) (?:know|told|mentioned|shared)|"
+          must=[r"(?:don't|do not|haven't|have not|not) (?:know|told|mentioned|shared|have)|"
                 r"you haven't|no information"]),
+    # -- real ones, which must not be refused for fear of the fake ones ------------------------------
+    Probe("real_film", "facts", ["Summarize the plot of the 1999 film The Matrix in two sentences."],
+          must=[r"\bNeo\b|simulat|machines"]),
+    Probe("real_book", "facts",
+          ["What is George Orwell's 1949 novel Nineteen Eighty-Four about, in two sentences?"],
+          must=[r"Big Brother|surveillance|totalitarian|Winston"]),
+    Probe("lesser_film", "facts", ["What is the 2017 film The Death of Stalin about?"],
+          must=[r"Stalin"], never=[r"(?:don't|do not) recogni[sz]e"]),
+    Probe("miles", "arithmetic", ["How many miles is 42 km?"], must=[r"26\.1"]),
+    Probe("strawberry", "arithmetic", ["How many r's are in strawberry?"],
+          must=[r"\b3\b|\bthree\b"]),
 ]
 
 

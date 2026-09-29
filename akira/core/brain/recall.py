@@ -28,7 +28,9 @@ from pathlib import Path
 from typing import Callable
 
 from akira.core.context.dates import clock_lines, span_lines
+from akira.core.context.letters import letter_lines
 from akira.core.context.place import PlaceStore, local_now, now_line
+from akira.core.context.units import unit_lines
 from akira.core.permissions import AuditLog, Policy, SecretStore
 from akira.core.projects import ProjectStore
 from akira.core.tools import ToolContext, ToolRegistry
@@ -130,7 +132,8 @@ class ContextAssembler:
         # The same now as the line above: the place's own when the computer's
         # clock is set to another zone.
         now = local_now(policy, store=self._place, clock=self._clock)
-        for counted in (span_lines(message, passages, now.date()), clock_lines(message, now)):
+        for counted in (span_lines(message, passages, now.date()), clock_lines(message, now),
+                        letter_lines(message), unit_lines(message)):
             if counted:
                 parts.append(counted)
         context.text = "\n\n".join(parts)

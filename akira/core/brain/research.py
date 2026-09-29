@@ -67,7 +67,9 @@ PREAMBLE = (
 NOTHING = (
     "The person's message asks for something to be looked up, but {}. Say so in one "
     "sentence, then answer from what you know, and say it may be out of date. Nothing was "
-    "read, so do not say any page, site or file says it."
+    "read, so do not say any page, site or file says it. If it names a film, book or "
+    "person you have never heard of, say only that, and stop: do not describe what it "
+    "might be."
 )
 
 
