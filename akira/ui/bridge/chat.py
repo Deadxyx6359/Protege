@@ -40,6 +40,7 @@ from akira.core.config import AppConfig
 from akira.core.conversation import Cancelled, Conversation, Responder
 from akira.core.conversations import ConversationError, ConversationStore, relative_time
 from akira.core import reminders
+from akira.core.brain.grounding import TEACHING, Grounding, subject_of, teaching
 from akira.core.intent import LABELS, MODES, ROUTES, Intent, choose
 from akira.core.reminders import Asked
 from akira.core.models import ModelRouter, Route
@@ -211,6 +212,7 @@ class ChatBridge(QObject):
         researcher: Callable[..., Findings] | None = None,
         remind: Callable[[str, float], str] | None = None,
         notices: Callable[[], bool] | None = None,
+        ground: Callable[[str, str], Grounding] | None = None,
     ) -> None:
         super().__init__(parent)
         self._router = router
@@ -241,6 +243,9 @@ class ChatBridge(QObject):
         self._notices = notices
         # A reminder asked for and not yet agreed to: what, and when or None.
         self._reminder: Asked | None = None
+        # For a message about a chip or board: the vendor's own names before the
+        # answer, and a check of the answer's after (`akira.core.brain.grounding`).
+        self._ground = ground
 
         self._conversation = Conversation()
         self._model = MessageListModel(self)
@@ -708,10 +713,24 @@ class ChatBridge(QObject):
                 extra = "\n\n".join(part for part in (extra, found) if part)
                 sources = sources + [s for s in more if s not in sources]
                 note = "; ".join(part for part in (note, noted) if part)
-            if self._context is not None or self._researching():
+            grounding = None
+            if self._ground is not None and subject_of(payload) is not None:
+                self._stageRequested.emit("Reading the library's own files")
+                grounding = self._ground(payload, extra)
+                extra = "\n\n".join(part for part in (extra, grounding.reference) if part)
+                if grounding.headers:
+                    sources = sources + [{"source": "files", "cite": (
+                        f"{grounding.subject.name} library files "
+                        f"({len(grounding.headers)} headers)")}]
+            if teaching(payload):
+                extra = "\n\n".join(part for part in (extra, TEACHING) if part)
+            if self._context is not None or self._researching() or grounding is not None:
                 self._contextReady.emit((sources, note))
             if self._cancel.is_set():
                 raise Cancelled()
+            if grounding is not None and grounding.banner:
+                # Before the answer, where it will be read: nothing here could be checked.
+                self._tokenArrived.emit(grounding.banner)
             said: list[str] = []
 
             def token(chunk: str) -> None:
@@ -732,6 +751,12 @@ class ChatBridge(QObject):
                     f"\n\nNote: nothing could be looked up for this "
                     f"({self._nothing_read.rstrip('.')}), so this answer is from memory and may "
                     "be out of date.")
+            if grounding is not None:
+                # Every library name in the answer, looked up in the library's
+                # own files: those that are not there are named, with the closest.
+                checked = grounding.check("".join(said))
+                if checked:
+                    self._tokenArrived.emit(checked)
             if self._researching():
                 # A source the answer names and nothing was read from, checked
                 # rather than trusted: told not to, answers still did.

@@ -22,6 +22,7 @@ from akira.core.agents.monitor import Monitor, MonitorService, WatchStore, regis
 from akira.core.brain import embed
 from akira.core.brain.distil import PendingStore, register_distil_action, vault_of
 from akira.core.brain.index import anywhere, sweep
+from akira.core.brain.grounding import Grounder
 from akira.core.brain.recall import ContextAssembler
 from akira.core.brain.research import Researcher
 from akira.core.config import AppConfig, autoconfigure, migrate_config, config_dir
@@ -29,6 +30,7 @@ from akira.core.connect.inbox import GmailInbox
 from akira.core.context.place import PlaceStore
 from akira.core.conversations import ConversationStore
 from akira.core.context.weather import Weather, WeatherService
+from akira.core.documents.library import Library
 from akira.core.making import images
 from akira.core.making.pipeline import DraftStore
 from akira.core.making.training import Trainer
@@ -253,10 +255,32 @@ def build_context(*, persist: bool = True) -> AppContext:
     def working_policy() -> Policy:
         return projects.effective(permissions.policy)
 
-    documents = DocumentsBridge(policy=working_policy, audit=audit, secrets=secret_store)
+    # The library: documents added from the window, and folders read in place,
+    # the open project's and the person's own. Adding one allows reading it, in
+    # the open project when there is one; removing it takes that back.
+    library = Library()
+
+    def current_project() -> str:
+        return projects.store.current_id() or ""
+
+    def allow_reading(capability: str, folder: str) -> str:
+        return (projects.allow(capability, folder) if current_project()
+                else permissions.allow(capability, folder))
+
+    def stop_reading(capability: str, folder: str) -> None:
+        projects.narrow(capability, folder)
+        permissions.narrow(capability, folder)
+
+    def library_folders() -> list[Path]:
+        return library.folders(current_project())
+
+    documents = DocumentsBridge(policy=working_policy, audit=audit, secrets=secret_store,
+                                library=library, project=current_project, allow=allow_reading,
+                                narrow=stop_reading)
     permissions.grantsChanged.connect(documents.invalidate)
     projects.grantsChanged.connect(documents.invalidate)
     projects.currentChanged.connect(documents.invalidate)
+    projects.currentChanged.connect(documents.refreshLibrary)
 
     coding = CodingBridge(policy=working_policy, audit=audit, secrets=secret_store)
     permissions.grantsChanged.connect(coding.invalidate)
@@ -336,7 +360,16 @@ def build_context(*, persist: bool = True) -> AppContext:
     # the open project. The notes searched are the vault memory is kept in.
     assembler = ContextAssembler(registry=default_registry(), policy=working_policy,
                                  audit=audit, secrets=secret_store, projects=projects.store,
-                                 vault=lambda: vault_of(scheduler), place=place.store)
+                                 vault=lambda: vault_of(scheduler), place=place.store,
+                                 library=library_folders)
+    # A question about a chip or board is answered from, and checked against,
+    # the vendor's own files in the library, read under the same grants.
+    def may_read_header(path: Path) -> bool:
+        policy = working_policy()
+        return bool(policy.allows("files.read", str(path))) or bool(
+            policy.allows("docs.read", str(path)))
+
+    grounder = Grounder(library_folders, may_read_header)
 
     # The person's own voice, not a project's: listening and speaking answer to
     # the global grants, audio.record and audio.play.
@@ -362,7 +395,8 @@ def build_context(*, persist: bool = True) -> AppContext:
 
     chat = ChatBridge(router, config, context=assembler, project=projects.store.current_id,
                       researcher=researcher, remind=remind,
-                      notices=lambda: bool(permissions.policy.allows("notify.send")))
+                      notices=lambda: bool(permissions.policy.allows("notify.send")),
+                      ground=grounder)
     # Replies are read aloud as they stream in, and a call talks to this chat.
     voice.follow(chat)
 

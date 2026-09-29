@@ -405,6 +405,28 @@ class PermissionsBridge(QObject):
     def _setup_file(self):
         return Policy.path().parent / "setup.json"
 
+    def allow(self, capability_id: str, scope: str) -> str:
+        """Grant \a capability_id for \a scope, adding to what is held: "" or why not."""
+        if self._policy.granted(capability_id) is None:
+            return self.grant(capability_id, [scope])
+        return self.widen(capability_id, scope)
+
+    def narrow(self, capability_id: str, scope: str) -> None:
+        """Take \a scope out of a grant; with none left, the grant goes."""
+        held = self._policy.granted(capability_id)
+        if held is None or scope not in held.scopes:
+            return
+        rest = [s for s in held.scopes if s != scope]
+        if not rest:
+            self.revoke(capability_id)
+            return
+        self._policy.grant(capability_id, tuple(rest), expires=held.expires, note=held.note,
+                           kept=held.kept)
+        self._policy.save()
+        self._audit.permission_change(capability_id, granted=False, scopes=(scope,),
+                                      note="taken out of the library")
+        self.grantsChanged.emit()
+
     def widen(self, capability_id: str, scope: str) -> str:
         """Add \a scope to a capability already granted: "always", when asked in place."""
         try:

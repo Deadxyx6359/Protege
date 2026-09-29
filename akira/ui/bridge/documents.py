@@ -16,6 +16,7 @@ from typing import Callable
 from PySide6.QtCore import Property, QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QGuiApplication
 
+from akira.core.documents.library import Library
 from akira.core.permissions import AuditLog, Decision, Policy, SecretStore
 from akira.core.tools.builtin.files import read_file
 from akira.core.tools.builtin.knowledge import search_documents
@@ -97,14 +98,30 @@ class _LiveReadPolicy(Policy):
         return self._current().allows(capability_id, scope)
 
 
+#: What reading the library allows: text files, and documents.
+LIBRARY_READS = ('files.read', 'docs.read')
+
+
 class DocumentsBridge(QObject):
     changed = Signal()
+    libraryChanged = Signal()
     _done = Signal(int, object)
 
     def __init__(self, *, policy: Callable[[], Policy], audit: AuditLog,
-                 secrets: SecretStore, parent: QObject | None = None):
+                 secrets: SecretStore, parent: QObject | None = None,
+                 library: Library | None = None,
+                 project: Callable[[], str] = lambda: '',
+                 allow: Callable[[str, str], str] | None = None,
+                 narrow: Callable[[str, str], None] | None = None):
         super().__init__(parent)
         self._policy, self._audit, self._secrets = policy, audit, secrets
+        # Documents added from the window, and folders read in place. Adding is
+        # the person's own act: \a allow grants reading what they add, in the open
+        # project or their own, and \a narrow takes it back when they remove it.
+        self._library = library if library is not None else Library()
+        self._project = project
+        self._allow = allow
+        self._narrow = narrow
         self._registry = ToolRegistry()
         for tool in (read_file, read_document, search_documents):
             self._registry.register(tool)
@@ -172,7 +189,14 @@ class DocumentsBridge(QObject):
     @Property('QVariantList', notify=changed)
     def roots(self):
         grant = self._policy().granted('files.read')
-        return [{'path': p, 'name': Path(p).name or p} for p in grant.scopes] if grant else []
+        return [{'path': p, 'name': self._root_name(p)} for p in grant.scopes] if grant else []
+
+    def _root_name(self, path):
+        """A folder's name for the list; the library's own folders by what they are."""
+        folder = Path(path)
+        if folder.parent == self._library.root:
+            return 'Your library' if folder.name == 'personal' else 'Project library'
+        return folder.name or path
 
     def _grants_key(self):
         return tuple((g.capability, g.scopes, g.expires, g.granted)
@@ -203,6 +227,101 @@ class DocumentsBridge(QObject):
     def cancel(self):
         self._cancel()
         self.changed.emit()
+
+    # -- the library: adding documents from the window ------------------------------------------
+
+    @Property('QVariantList', notify=libraryChanged)
+    def library(self):
+        """What is in the library: `name`, `path`, `kind` (`file` or `folder`), `size`,
+        `sizeLabel`, and `personal` (the person's own rather than the open project's)."""
+        return [{'name': e.name, 'path': e.path, 'kind': e.kind, 'size': e.size,
+                 'sizeLabel': size_label(e.size) if e.kind == 'file' else '',
+                 'personal': e.personal}
+                for e in self._library.entries(self._project() or '')]
+
+    @Property(str, notify=libraryChanged)
+    def libraryFolder(self):
+        """Where files added now are kept: the open project's library, or the person's own."""
+        return str(self._library.folder(self._project() or ''))
+
+    @Slot()
+    def refreshLibrary(self):
+        self.libraryChanged.emit()
+
+    @Slot('QVariantList', result=str)
+    def addFiles(self, urls):
+        """Copy files the person picked into the library: what happened, in a sentence."""
+        paths, problems = [], []
+        for url in urls or []:
+            try:
+                paths.append(local_path(str(url)))
+            except (ValueError, OSError) as exc:
+                problems.append(str(exc))
+        project = self._project() or ''
+        added, refused = self._library.add_files(project, paths)
+        problems += refused
+        if added:
+            why = self._allow_reading(str(self._library.folder(project)))
+            if why:
+                problems.append(why)
+            self._prepare(self._library.folder(project))
+        self.libraryChanged.emit()
+        said = f"Added {len(added)} file{'' if len(added) == 1 else 's'}." if added else ''
+        return ' '.join(part for part in (said, *problems[:3]) if part)
+
+    @Slot(str, result=str)
+    def addFolder(self, url):
+        """Read a folder where it is, as part of the library: "" or why not."""
+        try:
+            folder = local_path(str(url))
+        except (ValueError, OSError) as exc:
+            return str(exc)
+        project = self._project() or ''
+        policy = self._policy()
+        # Only what adding it allowed is taken back when it is removed.
+        newly = [c for c in LIBRARY_READS if not policy.allows(c, str(folder))]
+        why = self._library.add_folder(project, folder, newly)
+        if why:
+            return why
+        why = self._allow_reading(str(folder), newly)
+        self._prepare(folder)
+        self.libraryChanged.emit()
+        return why
+
+    @Slot(str, result=str)
+    def removeFromLibrary(self, path):
+        """Take a file or folder out of the library: a copied file is deleted, a folder
+        read in place is only no longer read. "" or why not."""
+        why, granted = self._library.remove(self._project() or '', str(path))
+        if not why and self._narrow is not None:
+            for capability in granted:
+                self._narrow(capability, str(path))
+        self.libraryChanged.emit()
+        if not why and self._folder:
+            self.refresh()
+        return why
+
+    def _allow_reading(self, folder, capabilities=LIBRARY_READS):
+        if self._allow is None:
+            return ''
+        for capability in capabilities:
+            why = self._allow(capability, folder)
+            if why:
+                return why
+        return ''
+
+    def _prepare(self, folder):
+        """Read what was added into the search index now, rather than on the next
+        question: a reference manual takes a while the first time."""
+        def run():
+            context = ToolContext(policy=self._policy(), audit=self._audit,
+                                  secrets=self._secrets, actor='person')
+            try:
+                self._registry.invoke('search_documents',
+                                      {'folder': str(folder), 'query': 'index'}, context)
+            except Exception:  # noqa: BLE001 - preparing ahead is a courtesy, never a failure
+                pass
+        threading.Thread(target=run, name='library-index', daemon=True).start()
 
     @Slot()
     def clearPreview(self):

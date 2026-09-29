@@ -168,6 +168,35 @@ class ProjectsBridge(QObject):
         self.grantsChanged.emit()
         return ""
 
+    def allow(self, capability_id: str, scope: str) -> str:
+        """Grant \a capability_id for \a scope in the open project, adding to what it holds."""
+        project = self._store.current()
+        if project is None:
+            return "No project is open."
+        if self._store.policy(project.id).granted(capability_id) is None:
+            return self.grant(capability_id, [scope])
+        return self.widen(capability_id, scope)
+
+    def narrow(self, capability_id: str, scope: str) -> None:
+        """Take \a scope out of the open project's grant; with none left, it goes."""
+        project = self._store.current()
+        if project is None:
+            return
+        policy = self._store.policy(project.id)
+        held = policy.granted(capability_id)
+        if held is None or scope not in held.scopes:
+            return
+        rest = [s for s in held.scopes if s != scope]
+        if not rest:
+            self.revoke(capability_id)
+            return
+        policy.grant(capability_id, tuple(rest), expires=held.expires, note=held.note,
+                     kept=held.kept)
+        policy.save()
+        self._audit.permission_change(capability_id, granted=False, scopes=(scope,),
+                                      note=f"taken out of the library, in the project {project.name}")
+        self.grantsChanged.emit()
+
     def widen(self, capability_id: str, scope: str) -> str:
         """Add \a scope to the open project's grant: "always", when asked in place."""
         project = self._store.current()

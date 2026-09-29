@@ -13,6 +13,16 @@ Rectangle {
     property string searchMode: "names"
     property string notice: ""
     property string lastFolder: ""
+    /*! What adding to the library last did, in a sentence. */
+    property string libraryNotice: ""
+    /*! The library entry waiting for "Remove", or "". */
+    property string removing: ""
+
+    function addToLibrary(urls) {
+        var picked = [];
+        for (var i = 0; i < urls.length; i++) picked.push(urls[i].toString());
+        root.libraryNotice = Documents.addFiles(picked);
+    }
     readonly property bool wide: width >= 880
     readonly property bool hasPreview: !!Documents.selected.path || Documents.operation === "preview"
     readonly property bool hasWork: !!Documents.folder || hasPreview
@@ -46,6 +56,21 @@ Rectangle {
         onAccepted: Documents.openFolder(selectedFolder.toString())
     }
     FileDialog {
+        id: libraryFiles
+        title: "Add documents to your library"
+        fileMode: FileDialog.OpenFiles
+        nameFilters: ["Documents (*.pdf *.docx *.xlsx *.pptx *.md *.txt *.h *.hpp *.c *.cpp *.ino)"]
+        onAccepted: root.addToLibrary(selectedFiles)
+    }
+    FolderDialog {
+        id: libraryFolder
+        title: "Add a folder to your library, read where it is"
+        onAccepted: {
+            var why = Documents.addFolder(selectedFolder.toString());
+            root.libraryNotice = why || "Added. Akira reads it where it is.";
+        }
+    }
+    FileDialog {
         id: filePicker
         title: "Preview a document"
         fileMode: FileDialog.OpenFile
@@ -76,7 +101,8 @@ Rectangle {
             }
             ActionButton { objectName: "openPictures"; text: "Create picture"; onClicked: root.picturesRequested() }
             ActionButton { text: "Open file"; onClicked: filePicker.open() }
-            ActionButton { text: "Choose folder"; kind: "primary"; onClicked: folderPicker.open() }
+            ActionButton { text: "Choose folder"; onClicked: folderPicker.open() }
+            ActionButton { objectName: "addDocuments"; text: "Add documents…"; kind: "primary"; onClicked: libraryFiles.open() }
         }
 
         Rectangle {
@@ -177,6 +203,98 @@ Rectangle {
                             }
                         }
                     }
+                    // -- the library ---------------------------------------------------
+                    Squircle {
+                        objectName: "libraryPanel"
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.preferredWidth: Math.min(560, root.width - 72)
+                        Layout.preferredHeight: libraryColumn.implicitHeight + 32
+                        radius: Theme.radius.md
+                        fillColor: Theme.surface
+                        borderColor: Theme.separator
+                        ColumnLayout {
+                            id: libraryColumn
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.margins: 16
+                            spacing: 10
+                            Caption { text: "Your library"; font: Theme.type.headline; color: Theme.textPrimary }
+                            Caption {
+                                Layout.fillWidth: true
+                                text: "Akira reads these when you ask about them: datasheets, manuals, "
+                                      + "and library folders such as ST's STM32Cube files, which it also "
+                                      + "checks code names against. "
+                                      + (Projects.currentName ? "Added here, they belong to " + Projects.currentName + "."
+                                                              : "Added here, they are your own, outside any project.")
+                                wrapMode: Text.Wrap
+                                elide: Text.ElideNone
+                                font: Theme.type.caption
+                            }
+                            Repeater {
+                                model: Documents.library
+                                RowLayout {
+                                    id: entry
+                                    required property var modelData
+                                    Layout.fillWidth: true
+                                    spacing: 8
+                                    Icon { name: entry.modelData.kind === "folder" ? "folder" : "document"; size: 16; color: Theme.textSecondary }
+                                    Caption {
+                                        Layout.fillWidth: true
+                                        text: entry.modelData.name
+                                        color: Theme.textPrimary
+                                    }
+                                    Caption {
+                                        text: (entry.modelData.kind === "folder" ? "read where it is" : entry.modelData.sizeLabel)
+                                              + (entry.modelData.personal ? " · yours" : "")
+                                        font: Theme.type.caption
+                                    }
+                                    ActionButton {
+                                        objectName: "libraryRemove_" + entry.modelData.name
+                                        visible: root.removing !== entry.modelData.path
+                                        text: "Remove"
+                                        onClicked: root.removing = entry.modelData.path
+                                    }
+                                    ActionButton {
+                                        visible: root.removing === entry.modelData.path
+                                        text: "Keep"
+                                        onClicked: root.removing = ""
+                                    }
+                                    ActionButton {
+                                        objectName: "libraryConfirmRemove_" + entry.modelData.name
+                                        visible: root.removing === entry.modelData.path
+                                        text: entry.modelData.kind === "folder" ? "Stop reading" : "Delete copy"
+                                        kind: "danger"
+                                        onClicked: {
+                                            // Removing redraws the list, and this row with it:
+                                            // what the handler needs is held first.
+                                            const page = root;
+                                            const path = entry.modelData.path;
+                                            page.removing = "";
+                                            page.libraryNotice = Documents.removeFromLibrary(path);
+                                        }
+                                    }
+                                }
+                            }
+                            Caption {
+                                objectName: "libraryNotice"
+                                Layout.fillWidth: true
+                                visible: root.libraryNotice !== ""
+                                text: root.libraryNotice
+                                wrapMode: Text.Wrap
+                                elide: Text.ElideNone
+                                font: Theme.type.caption
+                            }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+                                ActionButton { objectName: "libraryAddFiles"; text: "Add files…"; kind: "primary"; onClicked: libraryFiles.open() }
+                                ActionButton { objectName: "libraryAddFolder"; text: "Add a folder…"; onClicked: libraryFolder.open() }
+                                Item { Layout.fillWidth: true }
+                            }
+                        }
+                    }
+
                     ColumnLayout {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.maximumWidth: 440

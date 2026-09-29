@@ -1006,6 +1006,50 @@ the existing backend. It uses the current project's effective policy.
   existing permission sheet for changes. No document edit, external app launch,
   upload, model call or automatic scan is performed by this workspace.
 
+### The library — 2026-09-29
+
+The person can now give Akira documents from the window. Built by Claude in
+`DocumentsView.qml` ("Add documents…" in the header, and the "Your library"
+panel); `akira/core/documents/library.py` holds it.
+
+| Member | Kind | Notes |
+|---|---|---|
+| `library` | Property, notifies `libraryChanged` | What is in the open project's library, then the person's own: `name`, `path`, `kind` (`file`, a copy Akira keeps; `folder`, read where it is), `size`, `sizeLabel`, `personal` |
+| `libraryFolder` | Property | Where files added now are copied: the open project's library folder, or the person's own |
+| `addFiles(urls)` | Slot → string | Copy the picked files into the library, never over one already there. Allows reading the library folder (`files.read`, `docs.read`) in the open project, or globally with none open. Returns what happened, e.g. "Added 2 files.", with any refusals |
+| `addFolder(url)` | Slot → string | Read a folder where it is, such as ST's STM32Cube package: `""` or why not. Allows reading it; a whole drive or Akira's own library is refused |
+| `removeFromLibrary(path)` | Slot → string | A copied file is deleted; a folder is only no longer read, and what adding it allowed is taken back. `""` or why not. Ask first in the interface |
+| `refreshLibrary()` | Slot | The shell calls it when the open project changes |
+
+- PDFs, Word, Excel and PowerPoint files, text and Markdown, and C headers and
+  source may be added, up to 150 MB each. They are indexed in the background
+  as they are added, so the first question after does not wait for a manual.
+- The chat searches the open project's library and the person's own, as well
+  as the project folder.
+
+### Answers about a chip or board — 2026-09-29
+
+No new members: this is what the chat does (`akira/core/brain/grounding.py`).
+When a message names a chip or board (an STM32 part or Nucleo board, ESP32,
+RP2040, ATmega and others):
+
+- **Before the answer**, the vendor's own header files in the library are
+  read, and the names for the peripheral asked about (functions, constants,
+  clock macros) go to the model with an instruction to use only those.
+  `stage` is "Reading the library's own files" meanwhile, and `lastSources`
+  gains a `files` entry, "STM32G474 library files (N headers)".
+- **With nothing documenting it** (no headers, and no document passage naming
+  it), the reply starts "**Not checked:** nothing on this computer documents
+  the …", and the model is told to mark what it gives as unverified.
+- **After the answer**, each library name in its code, inline or in blocks, is
+  looked up in those headers. The reply ends with "Checked: …" when all are
+  there, or "Check before using: …" naming each that is not with the closest
+  that are, and "This answer is not reliable as written" when several are
+  wrong. Pin and channel numbers come from datasheets, not headers, and the
+  note says so.
+- A message asking to be taught ("don't write it for me", "teach me", "walk
+  me through") is answered with steps, pitfalls and checks, not a program.
+
 ## Coding
 
 Implemented by Codex after coordination handoff 23 (2026-09-13). A presentation

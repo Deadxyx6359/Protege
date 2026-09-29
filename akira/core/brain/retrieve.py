@@ -86,13 +86,18 @@ def fuse(ranked: Mapping[str, Sequence[Passage]]) -> list[Passage]:
 
 def gather(registry: ToolRegistry, context: ToolContext, query: str, *,
            vault: str | None = None, folder: str | None = None, conversations: bool = False,
+           folders: list[str] | tuple[str, ...] = (),
            limit: int = LIMIT, budget_chars: int = BUDGET_CHARS) -> Retrieval:
-    """Search the sources asked for, as \a context's actor, and merge what they find."""
+    """Search the sources asked for, as \a context's actor, and merge what they find.
+
+    \a folder and \a folders are folders of documents: the open project's, and
+    the library's (`akira.core.documents.library`).
+    """
     wanted = []
     if vault:
         wanted.append(("notes", "search_notes", {"vault": str(vault), "query": query}))
-    if folder:
-        wanted.append(("documents", "search_documents", {"folder": str(folder), "query": query}))
+    for place in dict.fromkeys(str(f) for f in (folder, *folders) if f):
+        wanted.append(("documents", "search_documents", {"folder": place, "query": query}))
     if conversations:
         wanted.append(("conversations", "search_conversations", {"query": query}))
 
@@ -105,9 +110,12 @@ def gather(registry: ToolRegistry, context: ToolContext, query: str, *,
         if not result.ok:
             retrieval.unavailable.append((source, result.content))
             continue
-        retrieval.searched.append(source)
-        ranked[source] = [Passage(source, str(p["cite"]), str(p["text"]))
-                          for p in (result.data or {}).get("passages", ())]
+        if source not in retrieval.searched:
+            retrieval.searched.append(source)
+        # Each folder ranked on its own, then merged like any other source.
+        key = source if source not in ranked else f"{source}:{len(ranked)}"
+        ranked[key] = [Passage(source, str(p["cite"]), str(p["text"]))
+                       for p in (result.data or {}).get("passages", ())]
 
     used = 0
     for passage in fuse(ranked):

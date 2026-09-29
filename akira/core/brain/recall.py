@@ -78,7 +78,8 @@ class ContextAssembler:
     def __init__(self, *, registry: ToolRegistry, policy: Callable[[], Policy],
                  audit: AuditLog, secrets: SecretStore, projects: ProjectStore | None = None,
                  vault: Callable[[], str] = lambda: "", place: PlaceStore | None = None,
-                 clock: Callable[[], datetime] | None = None) -> None:
+                 clock: Callable[[], datetime] | None = None,
+                 library: Callable[[], list[Path]] = lambda: []) -> None:
         self._registry = registry
         self._policy = policy
         self._audit = audit
@@ -87,6 +88,8 @@ class ContextAssembler:
         self._vault = vault
         self._place = place
         self._clock = clock
+        # The documents the person added in the window, and folders read in place.
+        self._library = library
 
     def __call__(self, message: str) -> TurnContext:
         policy = self._policy()
@@ -101,9 +104,11 @@ class ContextAssembler:
         vault = self._vault() or ""
         if not vault and folder and find_root(Path(folder)) is not None:
             vault = folder
+        reads_documents = policy.granted("docs.read") is not None
         sources = {
             "vault": vault if vault and policy.granted("vault.read") else None,
-            "folder": folder if folder and policy.granted("docs.read") else None,
+            "folder": folder if folder and reads_documents else None,
+            "folders": [str(f) for f in self._library()] if reads_documents else [],
             "conversations": policy.granted("memory.read") is not None,
         }
         passages: list[str] = []
