@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import sys
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from PySide6.QtCore import QMetaObject
 from PySide6.QtGui import QGuiApplication, QIcon, QWindow
 
 from akira.core.agents import Trace
@@ -350,8 +352,17 @@ def build_context(*, persist: bool = True) -> AppContext:
     researcher = Researcher(router=router, registry=default_registry(), policy=working_policy,
                             audit=audit, secrets=secret_store, workspace=open_folder,
                             project=projects.store.current_id, ask=allow.ask)
+    # "Remind me ..." in the chat becomes a notice job, set on the person's yes.
+    # A reminder missed while Akira was closed is given when it next opens.
+    def remind(what: str, at: float) -> str:
+        return schedule.addJob({
+            "name": "Reminder: " + what[:60], "action": "notify",
+            "trigger": {"kind": "once", "at": time.strftime("%Y-%m-%dT%H:%M", time.localtime(at))},
+            "arguments": {"text": what, "title": "Reminder"}, "missed": "run_late"})
+
     chat = ChatBridge(router, config, context=assembler, project=projects.store.current_id,
-                      researcher=researcher)
+                      researcher=researcher, remind=remind,
+                      notices=lambda: bool(permissions.policy.allows("notify.send")))
     # Replies are read aloud as they stream in, and a call talks to this chat.
     voice.follow(chat)
 
@@ -452,6 +463,12 @@ def run_shell(argv: list[str] | None = None) -> int:
     # Without this the process lingers after the window closes, because the
     # engine still holds the root object and Qt has nothing left to quit on.
     engine.quit.connect(app.quit)
+
+    # The first time, with nothing allowed yet, the common permissions are
+    # offered on one screen. Only the application does this; previews do not.
+    if ctx.permissions is not None and not ctx.permissions.setupOffered:
+        for root in engine.rootObjects():
+            QMetaObject.invokeMethod(root, "openSetup")
 
     # Scheduled jobs, the daily security review among them, start once the
     # window exists: the first tick may run a review that missed its time.

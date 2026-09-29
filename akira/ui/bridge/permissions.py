@@ -44,6 +44,7 @@ from PySide6.QtCore import Property, QObject, Signal, Slot
 from typing import Callable
 
 from akira.core.permissions import CATALOGUE, AuditLog, Policy
+from akira.core.permissions import starter
 from akira.core.permissions.asking import ALWAYS, NO, ONCE, widen
 from akira.core.permissions.capabilities import get
 
@@ -259,6 +260,7 @@ class PermissionsBridge(QObject):
     """The capability catalogue and the grants held against it."""
 
     grantsChanged = Signal()
+    setupChanged = Signal()
 
     def __init__(self, policy: Policy | None = None,
                  audit: AuditLog | None = None,
@@ -266,6 +268,8 @@ class PermissionsBridge(QObject):
         super().__init__(parent)
         self._policy = policy if policy is not None else Policy.load()
         self._audit = audit if audit is not None else AuditLog()
+        # Whether setup was offered also follows from whether anything is held.
+        self.grantsChanged.connect(self.setupChanged)
 
     @property
     def policy(self) -> Policy:
@@ -355,6 +359,51 @@ class PermissionsBridge(QObject):
                                       note="kept on purpose" if kept else "no longer kept on purpose")
         self.grantsChanged.emit()
         return ""
+
+    # -- the first screen: the common ones at once --------------------------------
+
+    @Property("QVariantList", constant=True)
+    def starter(self) -> list:
+        """The permissions most people want first: `id`, `title`, `detail`, `folder`
+        (the person picks one), `on` (ticked to begin with)."""
+        return [{"id": c.id, "title": c.title, "detail": c.detail, "folder": c.folder,
+                 "on": c.on} for c in starter.STARTER]
+
+    @Property(bool, notify=setupChanged)
+    def setupOffered(self) -> bool:
+        """Whether the first screen has been shown, or there are grants already."""
+        return self._setup_file().is_file() or bool(self._policy.active())
+
+    @Slot()
+    def markSetupOffered(self) -> None:
+        try:
+            self._setup_file().parent.mkdir(parents=True, exist_ok=True)
+            self._setup_file().write_text('{"offered": true}', encoding="utf-8")
+        except OSError:
+            pass
+        self.setupChanged.emit()
+
+    @Slot("QVariantList", result=str)
+    def applyStarter(self, choices: list) -> str:
+        """Grant what the person picked on the first screen, all or nothing: `{id,
+        folder}` each. Returns "" or why not, and changes nothing if not."""
+        try:
+            plan = starter.planned([dict(c) for c in choices])
+            starter.apply(Policy(self._policy.active()), plan)  # refused here, not half-way
+        except (KeyError, ValueError, TypeError) as exc:
+            return str(exc) or "that could not be set up"
+        for capability in starter.apply(self._policy, plan):
+            held = self._policy.granted(capability)
+            self._audit.permission_change(capability, granted=True,
+                                          scopes=held.scopes if held else (),
+                                          note="chosen on the first screen")
+        self._policy.save()
+        self.grantsChanged.emit()
+        self.markSetupOffered()
+        return ""
+
+    def _setup_file(self):
+        return Policy.path().parent / "setup.json"
 
     def widen(self, capability_id: str, scope: str) -> str:
         """Add \a scope to a capability already granted: "always", when asked in place."""

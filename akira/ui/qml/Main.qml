@@ -33,6 +33,13 @@ Window {
     }
     /*! Bring the call window forward without breaking what keeps it on screen
         exactly while a call runs: `showNormal` alone would unbind it. */
+    /*! The first screen: the permissions most people want first. The
+        application opens it once, when nothing is allowed yet. */
+    function openSetup() { setupSheet.open(); }
+    SetupSheet {
+        id: setupSheet
+        z: 11
+    }
     function showCall() {
         if (callWindow.visibility === Window.Minimized) callWindow.showNormal();
         callWindow.visible = Qt.binding(function () { return Voice.inCall; });
@@ -244,6 +251,10 @@ Window {
         onPermissionsRequested: {
             settingsSheet.close();
             permissionsSheet.open();
+        }
+        onSetupRequested: {
+            settingsSheet.close();
+            setupSheet.open();
         }
         onPlaceRequested: {
             settingsSheet.close();

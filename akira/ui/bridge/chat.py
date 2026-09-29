@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 import threading
+from datetime import datetime
 import time
 from typing import TYPE_CHECKING, Callable
 
@@ -38,7 +39,9 @@ from PySide6.QtCore import (
 from akira.core.config import AppConfig
 from akira.core.conversation import Cancelled, Conversation, Responder
 from akira.core.conversations import ConversationError, ConversationStore, relative_time
+from akira.core import reminders
 from akira.core.intent import LABELS, MODES, ROUTES, Intent, choose
+from akira.core.reminders import Asked
 from akira.core.models import ModelRouter, Route
 from akira.models.base import ModelError
 from akira.security.qtguard import inert_markdown
@@ -206,6 +209,8 @@ class ChatBridge(QObject):
         context: Callable[[str], TurnContext] | None = None,
         project: Callable[[], str] | None = None,
         researcher: Callable[..., Findings] | None = None,
+        remind: Callable[[str, float], str] | None = None,
+        notices: Callable[[], bool] | None = None,
     ) -> None:
         super().__init__(parent)
         self._router = router
@@ -229,6 +234,13 @@ class ChatBridge(QObject):
         self._looked_up = False
         # Why nothing could be read for a research turn, or "" when something was.
         self._nothing_read = ""
+        # Sets a reminder, what and when: "" or why not. Without one, a request
+        # for a reminder goes to the model, which says it cannot.
+        self._remind = remind
+        # Whether a notice can reach the person now.
+        self._notices = notices
+        # A reminder asked for and not yet agreed to: what, and when or None.
+        self._reminder: Asked | None = None
 
         self._conversation = Conversation()
         self._model = MessageListModel(self)
@@ -501,6 +513,13 @@ class ChatBridge(QObject):
                 self._conversation.project = self._project() or ""
             self.titleChanged.emit()
 
+        # "Remind me ..." is read here and set on the person's yes, never by
+        # a model, which once answered "Reminder set" with nothing set.
+        said = self._reminding(payload)
+        if said:
+            self._say(said)
+            return
+
         if not self._router.any_usable:
             self._conversation.add(
                 "assistant",
@@ -537,6 +556,60 @@ class ChatBridge(QObject):
         self._worker = threading.Thread(target=self._run_turn, args=(payload, opening),
                                         daemon=True)
         self._worker.start()
+
+    # -- reminders -------------------------------------------------------------
+
+    def _reminding(self, text: str) -> str:
+        """The reply to \a text if it is about a reminder, or "" to answer it as usual."""
+        if self._remind is None:
+            return ""
+        pending, self._reminder = self._reminder, None
+        if pending is not None:
+            if pending.when is not None:
+                answer = reminders.answer(text)
+                if answer == "yes":
+                    return self._set_reminder(pending)
+                if answer == "no":
+                    return "All right, no reminder."
+            else:
+                when, _ = reminders.when_said(text, datetime.now())
+                if when is not None:
+                    return self._offer(Asked(pending.what, when))
+                if reminders.answer(text) == "no":
+                    return "All right, no reminder."
+            # Anything else is a new message; the reminder is let go.
+        if not reminders.asks(text):
+            return ""
+        asked = reminders.read(text)
+        if asked.when is None:
+            self._reminder = asked
+            return ("When should I remind you" + (f" to {asked.what}" if asked.what else "")
+                    + "? For example: in 20 minutes, at 5pm, tomorrow at 9, or Friday at 3pm.")
+        return self._offer(asked)
+
+    def _offer(self, asked: Asked) -> str:
+        self._reminder = asked
+        what = asked.what or "this"
+        note = ("" if self._notices is None or self._notices() else
+                " Notices are not allowed yet, so it would reach you only once they are: "
+                "allow Send notifications in Settings, under Permissions.")
+        return (f"Set a reminder for {reminders.described(asked.when)}: {what}? "
+                f"Say yes to set it, or no.{note}")
+
+    def _set_reminder(self, asked: Asked) -> str:
+        why = self._remind(asked.what or "Reminder", asked.when.timestamp())
+        if why:
+            return f"The reminder could not be set: {why}"
+        return f"Done. I'll remind you {reminders.described(asked.when)}: {asked.what or 'this'}."
+
+    def _say(self, text: str) -> None:
+        """Answer at once, without a model: kept, shown and read aloud like any reply."""
+        self._conversation.add("assistant", text)
+        self._model.appended()
+        self._persist()
+        self._refresh_recents()
+        self.replyGrew.emit(text)
+        self.replyEnded.emit(text)
 
     @Slot()
     def stop(self) -> None:

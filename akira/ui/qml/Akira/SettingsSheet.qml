@@ -33,6 +33,7 @@ Sheet {
     }
 
     signal permissionsRequested()
+    signal setupRequested()
     signal placeRequested()
     signal accountsRequested()
     signal voiceRequested()
@@ -100,6 +101,7 @@ Sheet {
                 Layout.fillWidth: true
                 title: "Permissions"
                 description: Permissions.grants.length + " global grants. Project grants are managed separately."
+                ActionButton { objectName: "quickSetup"; text: "Quick setup"; onClicked: root.setupRequested() }
                 ActionButton { objectName: "reviewPermissions"; text: "Review"; onClicked: root.permissionsRequested() }
             }
             FormRow {

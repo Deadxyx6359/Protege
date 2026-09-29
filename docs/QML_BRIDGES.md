@@ -87,6 +87,9 @@ these names, so renaming one is a deliberate, coordinated act.
 | `grants` | Property, notifies `grantsChanged` | What is held: `id`, `scopes`, `expires` (0 = never), `kept` |
 | `grant(id, scopes)` | Slot → string | `""` on success, otherwise **the reason** it was refused. Show it |
 | `revoke(id)`, `revokeAll()` | Slots | |
+| `starter` | Constant list | The permissions most people want first, for the first screen (`SetupSheet.qml`): `id`, `title`, `detail`, `folder` (the person picks one), `on` (ticked to begin with). Web search and Wikipedia; the weather (location and Open-Meteo); notices; a notes folder; a documents folder (2026-09-28) |
+| `applyStarter(choices)` | Slot → string | Grant what was picked, `{id, folder}` each, all or nothing: `""` or why not. Adds to what is held; recorded as "chosen on the first screen" |
+| `setupOffered`, `markSetupOffered()` | Property (notifies `setupChanged`), Slot | Whether the first screen has been shown, or anything is allowed already. The application opens it once when this is false (`Main.openSetup()`); Settings → General → Quick setup opens it again |
 | `keep(id, kept)` | Slot → string | Keep a grant with no end date on purpose, or stop: `""` or why not. The security review then stops asking about it. `describe(id)` carries `kept` and `noEndDate` (2026-09-28) |
 | `describe(id)` | Slot → map | One capability, same shape as a catalogue entry |
 | `recentActivity(limit)` | Slot → list | Newest first: `at`, `actor`, `action`, `allowed`, `detail`. **Includes refusals, so keep them visible** |
@@ -893,6 +896,18 @@ A short follow-up keeps the kind of the turn before it ("and in Rust?",
   reply, added when the answer names a source it did not read. Any reply may
   end with "Correction: … is wrong; it comes to …". Show both as the rest of
   the reply.
+
+### Reminders in the chat — 2026-09-28
+
+"Remind me to call mum tomorrow at 9" is not sent to a model. The chat reads
+what and when (`akira/core/reminders.py`), answers at once with "Set a reminder
+for tomorrow at 09:00: call mum? Say yes to set it, or no.", and the person's
+next message decides: yes makes a one-off `notify` job in `Schedule` (missed
+while Akira was closed, it is given when Akira next opens); no, or anything
+else, lets it go. With no time said, it asks when. With notices not allowed,
+the question says so. These replies are ordinary assistant messages, emitted
+on `replyGrew`/`replyEnded`, so a call reads them aloud and hears the yes. No
+new members: nothing for the interface to do.
 
 ### `Allow` — may this work read here too — 2026-09-27
 
