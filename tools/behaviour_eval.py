@@ -154,6 +154,21 @@ PROBES: list[Probe] = [
           must=[r"Set a reminder for .*17:00: stretch\?"]),
     Probe("esp32", "hardware", ["Which GPIO pins on an ESP32 can I use for analog input?"],
           must=[r"Not checked"]),
+    # -- added after the first adapter: what it newly got wrong, asked in other words ----------
+    Probe("plumber", "about-them", ["I work as a plumber."],
+          never=[r"\bI(?:'m| am| work| also)\b[^.!?]*\bplumb", r"\btoo\b"],
+          note="About the person, not Akira."),
+    Probe("designed", "identity", ["Who designed you?"],
+          never=[r"not by (?:them|you)", r"trained by others"]),
+    Probe("fake_novel", "premise",
+          ["What's the plot of the 2016 novel 'Lanterns over Kestrel Bay' by Ian McEwan?"],
+          must=[r"(?:couldn't|could not|can't|cannot|don't|do not|not aware|isn't|is not|no "
+                r"information|not find|not found|no such|don't recall)"]),
+    Probe("possession", "arithmetic", ["How many letter s's are in the word possession?"],
+          must=[r"\b4\b|\bfour\b"]),
+    Probe("brother", "about-them", ["Tell me about my brother."],
+          must=[r"(?:don't|do not|haven't|have not|not) (?:know|told|mentioned|shared)|"
+                r"you haven't|no information"]),
 ]
 
 

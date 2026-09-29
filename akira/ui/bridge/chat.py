@@ -60,6 +60,10 @@ MAX_TITLE = 120
 #: such as "what about Webb?" refers to.
 EARLIER_CHARS = 1_500
 
+#: A question about the person themselves: "my dentist", "my password". The web
+#: does not know it, and is not asked.
+ABOUT_THEM = re.compile(r"\b(?:my|mine|me|I|I'm|I've|we|our)\b")
+
 #: An answer that says it did not know, or has nothing current. Chat looks the
 #: question up once instead, when the web may be searched. Not "I couldn't find
 #: that in your notes": the web does not know the person's dentist either.
@@ -851,12 +855,20 @@ class ChatBridge(QObject):
         self._refresh_recents()
 
     def _should_look_up(self, reply: str) -> bool:
-        """An everyday answer that did not know, where the web may be searched."""
+        """An everyday answer that did not know, where the web may be searched.
+
+        Not for a question about the person: "what's my dentist's name?" was
+        sent to a search engine when the answer did not know it, which finds
+        nothing and tells a stranger what was asked.
+        """
+        question = next((m.text for m in reversed(self._conversation.messages)
+                         if m.role == "user"), "")
         return (self._intent is Intent.EVERYDAY and self._mode == "auto"
                 and not self._looked_up and self._researcher is not None
                 and bool(getattr(self._researcher, "searches_web", lambda: False)())
                 and DID_NOT_KNOW.search(reply) is not None
-                and "in your notes" not in reply.lower())
+                and "in your notes" not in reply.lower()
+                and not ABOUT_THEM.search(question))
 
     def _look_up_instead(self, answer) -> None:
         """Look the question up, and answer it again in the place of \a answer."""

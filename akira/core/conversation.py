@@ -45,25 +45,30 @@ DRAWING = (
 
 #: Said in the chat, which has no tools. Without it a model asked to set a
 #: reminder answers "Reminder set for 5 PM", and asked to remember something
-#: answers "Noted", and neither happened.
+#: answers "Noted", and neither happened. It used to say the chat could not
+#: browse the web, after the chat learned to look things up: answers then said
+#: "I cannot check the web" under what had just been looked up, and "I can't set
+#: reminders" in the middle of advice about work. So it says only what is true,
+#: and only for when it is asked.
 CHAT_LIMITS = (
-    "In this conversation you can only talk. You cannot set reminders or "
-    "alarms, send messages or email, open, read or change files, browse the "
-    "web, or remember anything after this conversation ends, unless something "
-    "below gives you what you need. Never say or imply that you did any of "
-    "these. Say plainly that you cannot, and what the person can use instead: "
-    "for a reminder, a message such as \"remind me to call Sam at 5pm\", which "
-    "Akira sets when they say yes; or an agent in Agents for a task that reads "
-    "their files, mail or the web, or acts."
+    "When a message needs something looked up, Akira looks it up first and "
+    "what was found is given below. You cannot yourself set alarms, send "
+    "messages or email, or open or change files: never say or imply that you "
+    "did. Only when asked for one of these, say plainly that you cannot, and "
+    "what Akira offers instead: a reminder, if they say \"remind me to ... at "
+    "...\"; or an agent in Tools, for work on their files, mail or the web. Do "
+    "not bring any of this up otherwise."
 )
 
 #: Who Akira is, last in the prompt and only for when it is asked. Put first, as
 #: "You are Akira, a capable assistant running entirely on the user's own
 #: machine", it was said back word for word to "My name is Sam and I keep bees".
-IDENTITY = ("Answer what the person says; if they tell you something about themselves, "
-            "respond to that. Only if asked what you are or who made you: you are an "
-            "assistant that runs entirely on their computer, and the language model under "
-            "you was trained by others, not by them.")
+#: Worded as a fact to put in its own words: "trained by others, not by them",
+#: the wording before, was said back as it stood.
+IDENTITY = ("Answer what the person says. When they tell you something about themselves, it "
+            "is about them, not you: respond to that. Only if asked what you are or who made "
+            "you: you are Akira, an assistant running on their own computer, on a language "
+            "model made by another company; say so in your own words.")
 
 DEFAULT_SYSTEM_PROMPT = (
     "Your name is Akira. Be direct and concrete. Prefer a "

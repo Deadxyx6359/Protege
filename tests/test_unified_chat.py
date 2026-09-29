@@ -299,6 +299,13 @@ def test_nothing_is_looked_up_when_it_should_not_be(qt_app, tmp_path, first, web
     assert looker.asked == [] and len(backend.prompts) == 1
 
 
+def test_a_question_about_the_person_is_not_sent_to_the_web(qt_app, tmp_path):
+    """"What's my dentist's name?" was searched for on the web when the answer did not know."""
+    bridge, backend, looker = unsure_chat(tmp_path, first="I don't know your dentist's name.")
+    say(bridge, "What's my dentist's name?")
+    assert looker.asked == [] and len(backend.prompts) == 1
+
+
 def test_a_research_answer_with_nothing_read_says_it_is_from_memory(chat):
     """Told to say so, one gave a prime minister two out of date "as of" today."""
     bridge, _, _, looker, _ = chat
