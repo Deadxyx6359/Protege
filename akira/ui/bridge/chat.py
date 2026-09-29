@@ -243,6 +243,8 @@ class ChatBridge(QObject):
         self._looked_up = False
         # Why nothing could be read for a research turn, or "" when something was.
         self._nothing_read = ""
+        # The reply, as it is, when no page the person gave could be read (`Findings.said`).
+        self._said_instead = ""
         # Sets a reminder, what and when: "" or why not. Without one, a request
         # for a reminder goes to the model, which says it cannot.
         self._remind = remind
@@ -547,6 +549,7 @@ class ChatBridge(QObject):
         # follow-up keeps the kind of the turn before it.
         self._looked_up = False
         self._nothing_read = ""
+        self._said_instead = ""
         choice = choose(payload, previous=self._previous, mode=self._mode)
         self._intent, self._why, self._route = choice.intent, choice.why, choice.route
         if self._intent is Intent.CODE and self._mode == "auto" and teaching(payload):
@@ -712,6 +715,7 @@ class ChatBridge(QObject):
             findings = Findings(note=f"The research failed: {type(exc).__name__}: {exc}")
         self._stageRequested.emit("Writing")
         self._nothing_read = "" if findings.found else findings.note
+        self._said_instead = "" if findings.found else findings.said
         return findings.for_prompt(), list(findings.sources), findings.note
 
     def _run_turn(self, payload: str = "", opening: str = "Thinking") -> None:
@@ -719,6 +723,7 @@ class ChatBridge(QObject):
         try:
             extra, sources, note = (self._gather(payload, opening) if self._context is not None
                                     else ("", [], ""))
+            noted = ""
             if self._researching() and not self._cancel.is_set():
                 found, more, noted = self._look_up(payload)
                 extra = "\n\n".join(part for part in (extra, found) if part)
@@ -739,6 +744,12 @@ class ChatBridge(QObject):
                 self._contextReady.emit((sources, note))
             if self._cancel.is_set():
                 raise Cancelled()
+            if self._said_instead:
+                # No page the person gave could be read, and why is known: said as
+                # it is. Told why, the model said it "cannot access external websites".
+                self._tokenArrived.emit(self._said_instead)
+                self._turnEnded.emit("")
+                return
             if grounding is not None and grounding.banner:
                 # Before the answer, where it will be read: nothing here could be checked.
                 self._tokenArrived.emit(grounding.banner)
@@ -775,9 +786,9 @@ class ChatBridge(QObject):
             if self._researching():
                 # A source the answer names and nothing was read from, checked
                 # rather than trusted: told not to, answers still did.
-                from akira.core.brain.research import unread_note
+                from akira.core.brain.research import only_searched, unread_note
 
-                warning = unread_note("".join(said), sources)
+                warning = unread_note("".join(said), sources, searched=only_searched(noted))
                 if warning:
                     self._tokenArrived.emit(warning)
             self._turnEnded.emit("")

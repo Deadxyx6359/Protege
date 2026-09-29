@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Callable
 
 from akira.core.context.dates import clock_lines, span_lines
+from akira.core.context.forecast import forecast_lines
 from akira.core.context.letters import letter_lines
 from akira.core.context.place import PlaceStore, local_now, now_line
 from akira.core.context.units import unit_lines
@@ -136,5 +137,10 @@ class ContextAssembler:
                         letter_lines(message), unit_lines(message)):
             if counted:
                 parts.append(counted)
+        # Read from the site the person allowed for the weather, not searched for.
+        here = self._place.load().coordinates if self._place is not None else None
+        forecast = forecast_lines(message, policy, audit=self._audit, today=now.date(), here=here)
+        if forecast:
+            parts.append(forecast)
         context.text = "\n\n".join(parts)
         return context

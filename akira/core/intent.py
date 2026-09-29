@@ -71,11 +71,16 @@ _LOOK_UP = re.compile(
     r"latest|news)\b",
     re.IGNORECASE)
 
+#: A web address, which is read rather than answered from memory: given one,
+#: chat said it "cannot access external links", of a site the person allowed.
+_ADDRESS = re.compile(r"\bhttps?://\S+", re.IGNORECASE)
+
 #: Words about now, which ask for the world as it is today unless the question
 #: is about the person's own things: "what's on my screen right now?" is not a
 #: search.
 _NOW = re.compile(
-    r"\b(?:currently|nowadays|these\s+days|recent(?:ly)?|this\s+(?:week|month|year)|"
+    # Not "Traceback (most recent call last)", which is code, not news.
+    r"\b(?:currently|nowadays|these\s+days|(?<!most\s)recent(?:ly)?|this\s+(?:week|month|year)|"
     r"today'?s|up[- ]to[- ]date|as\s+of\s+(?:now|today)|right\s+now)\b", re.IGNORECASE)
 _MINE = re.compile(r"\b(?:my|mine|me|I)\b")
 
@@ -92,11 +97,11 @@ _GIVEN_AMOUNT = re.compile(r"[£$€]\s?\d|\b\d+(?:\.\d+)?\s?(?:dollars|pounds|e
                            r"pence)\b", re.IGNORECASE)
 
 #: Facts that change or that a local model will not have: what something costs,
-#: when a place is open, the weather somewhere, who holds a post now, what came out.
+#: when a place is open, who holds a post now, what came out. Not the weather:
+#: that is read from the forecast (`context.forecast`), not searched for.
 _CURRENT_FACTS = re.compile(
     r"\b(?:price\s+of|how\s+much\s+(?:does|do|is|are)\s+\w[\w\s]{0,40}\s+cost|"
     r"opening\s+(?:hours|times)|open\s+(?:now|today|on\s+sundays?)|"
-    r"weather\s+(?:in|at|for)\s+\w+|forecast\s+(?:in|for)|"
     r"who\s+is\s+the\s+(?:current|new)|who\s+(?:won|is\s+winning)|"
     r"release\s+date|when\s+(?:does|did|will)\s+[\w\s]{1,40}\s+(?:come\s+out|release|launch)|"
     r"exchange\s+rate|stock\s+price|population\s+of)\b", re.IGNORECASE)
@@ -156,7 +161,11 @@ def choose(text: str, *, previous: Intent | None = None, mode: str = "auto") -> 
     # "Who won the 2026 World Cup?" is past what a local model knows; days
     # counted between two dates in 2026 are not.
     recent = bool(_RECENT_YEAR.search(text) and not sums) * (2 if question else 1)
-    code = bool(_CODE_SIGNALS.search(text) or _CODE_SHAPES.search(text))
+    # "https://example.org/news.html" names a page, not a file of code.
+    without_addresses = _ADDRESS.sub(" ", text)
+    code = bool(_CODE_SIGNALS.search(without_addresses) or _CODE_SHAPES.search(without_addresses))
+    if _ADDRESS.search(text) and not code:
+        return _choice(Intent.RESEARCH, "gives a page to read")
     # "The price of items" in a request for code is about the code, and "how
     # much does the ball cost?" after "a bat and a ball cost $1.10" is a puzzle.
     looks_up = (bool(_LOOK_UP.search(text))

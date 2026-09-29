@@ -27,7 +27,8 @@ Sheet {
 
     function reset() {
         var fresh = {};
-        Permissions.starter.forEach(function (c) { fresh[c.id] = { on: c.on, folder: "" }; });
+        // What is granted already is shown as on, not offered again.
+        Permissions.starter.forEach(function (c) { fresh[c.id] = { on: c.on && !c.held, folder: "" }; });
         picked = fresh;
         notice = "";
     }
@@ -123,8 +124,20 @@ Sheet {
                         onClicked: { folderPicker.target = line.modelData.id; folderPicker.open(); }
                     }
 
+                    Text {
+                        objectName: "setupHeld_" + line.modelData.id
+                        visible: line.modelData.held
+                        text: "On"
+                        textFormat: Text.PlainText
+                        font: Theme.type.caption
+                        color: Theme.textSecondary
+                    }
+
                     Toggle {
                         objectName: "setupChoice_" + line.modelData.id
+                        // Ticked whether it was granted or not, "Look things up on the
+                        // web" looked on when only half of it was.
+                        visible: !line.modelData.held
                         label: line.modelData.title
                         // A folder line is allowed once there is a folder to allow.
                         enabled: !line.modelData.folder || line.now.folder !== ""

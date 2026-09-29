@@ -50,6 +50,22 @@ STARTER: tuple[Choice, ...] = (
 BY_ID = {choice.id: choice for choice in STARTER}
 
 
+def held(policy: Policy, choice: Choice) -> bool:
+    """Whether everything \a choice grants is granted already. Never for a folder
+    choice, which can always add another folder.
+
+    Shown ticked whether it was or not, "Look things up on the web" looked on
+    with web search granted and Wikipedia not, and the person took it to be.
+    """
+    if choice.folder:
+        return False
+    for capability, scopes in choice.grants:
+        grant = policy.granted(capability)
+        if grant is None or any(scope not in grant.scopes for scope in scopes):
+            return False
+    return True
+
+
 def planned(choices: list[dict]) -> list[tuple[str, tuple[str, ...]]]:
     """What \a choices would grant: `{id, folder}` each, as the person picked them.
 

@@ -24,10 +24,18 @@ from akira.core.models import Route
     # Facts that change, or that a local model will not have.
     ("How much does a Raspberry Pi 5 cost?", Intent.RESEARCH),
     ("What are the opening hours of the Louvre?", Intent.RESEARCH),
-    ("What is the weather in Paris?", Intent.RESEARCH),
     ("Who is the current prime minister of Japan?", Intent.RESEARCH),
     ("When does the new Zelda come out?", Intent.RESEARCH),
     ("What is the weather like today?", Intent.EVERYDAY),  # the person's own, in context
+    # The forecast is read from Open-Meteo into the context: searched for, it was not found.
+    ("What is the weather in Paris?", Intent.EVERYDAY),
+    ("What's the weather in Leeds tomorrow?", Intent.EVERYDAY),
+    # A page given is read: chat said it "cannot access external links".
+    ("Read https://en.wikipedia.org/wiki/Alan_Turing and tell me where he was born.",
+     Intent.RESEARCH),
+    ("Summarise https://example.org/news/today.html", Intent.RESEARCH),
+    ("Why does main.py fail? Traceback (most recent call last): see https://x.org/a",
+     Intent.CODE),
     ("Write a function to compute the price of items", Intent.CODE),
     ("What is the capital of Australia?", Intent.EVERYDAY),
     ("Can you help me write a birthday card for my sister?", Intent.EVERYDAY),

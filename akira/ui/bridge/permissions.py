@@ -362,12 +362,13 @@ class PermissionsBridge(QObject):
 
     # -- the first screen: the common ones at once --------------------------------
 
-    @Property("QVariantList", constant=True)
+    @Property("QVariantList", notify=grantsChanged)
     def starter(self) -> list:
         """The permissions most people want first: `id`, `title`, `detail`, `folder`
-        (the person picks one), `on` (ticked to begin with)."""
+        (the person picks one), `on` (ticked to begin with), `held` (all of it is
+        granted already, so it is shown as on and not offered)."""
         return [{"id": c.id, "title": c.title, "detail": c.detail, "folder": c.folder,
-                 "on": c.on} for c in starter.STARTER]
+                 "on": c.on, "held": starter.held(self._policy, c)} for c in starter.STARTER]
 
     @Property(bool, notify=setupChanged)
     def setupOffered(self) -> bool:

@@ -184,6 +184,41 @@ PROBES: list[Probe] = [
 ]
 
 
+#: Questions that need the web: `--set web`. What was read is kept with each answer.
+WEB_PROBES: list[Probe] = [
+    Probe("w_nobel2024", "current", ["Who won the 2024 Nobel Prize in Literature?"],
+          must=[r"Han Kang"]),
+    Probe("w_python", "current", ["What is the latest stable version of Python?"],
+          must=[r"3\.1[4-9]"], note="3.14 came out in October 2025."),
+    Probe("w_population", "current", ["What is the population of Canada?"],
+          must=[r"\b(?:39|4[0-2])(?:\.\d+)? ?million|\b4[01],\d{3},\d{3}"]),
+    Probe("w_worldcup", "current", ["Who won the 2026 FIFA World Cup?"],
+          note="After what the model knows: from what was read, or said it could not find."),
+    Probe("w_ethanol", "look-up", ["Look up the boiling point of ethanol."],
+          must=[r"78"]),
+    Probe("w_page", "read a page",
+          ["Read https://en.wikipedia.org/wiki/Alan_Turing and tell me where he was born."],
+          must=[r"Maida Vale|London"]),
+    Probe("w_blocked", "not allowed",
+          ["What is the top story on https://www.bbc.co.uk/news right now?"],
+          note="A site not allowed: asked about in place (answered no here); nothing invented."),
+    Probe("w_fake_film", "premise",
+          ["Can you summarize the plot of the 2019 film 'The Glass Harbor' starring Emma Stone?"],
+          must=[r"(?:couldn't|could not|can't|cannot|don't|do not|not able|unable|no record|not "
+                r"aware|isn't|is not|no information|not find|not found|no such)"]),
+    Probe("w_rate", "current", ["What is the exchange rate from pounds to dollars today?"],
+          note="Wikipedia has no live rate: say so, or give one with where and when."),
+    Probe("w_weather", "weather", ["What's the weather in Leeds tomorrow?"],
+          note="The weather service, not a search."),
+    Probe("w_youtube", "links", ["Find me a YouTube video about sourdough starters."],
+          never=[r"youtube\.com/watch\?v=", r"youtu\.be/"]),
+    Probe("w_followup", "follow-up",
+          ["Who is the current Secretary-General of the United Nations?",
+           "When did he take office?"],
+          must=[r"2017"]),
+]
+
+
 def words(text: str) -> int:
     return len(re.findall(r"[\w'’]+", text))
 
@@ -208,8 +243,11 @@ def score(probe: Probe, answer: str, facts: dict) -> list[str]:
     return problems
 
 
-def throwaway_config(chat_model: str, adapter: str) -> Path:
-    """A copy of the person's model settings and web permissions, and nothing of theirs."""
+def throwaway_config(chat_model: str, adapter: str, allow: list[str] | None = None) -> Path:
+    """A copy of the person's model settings and web permissions, and nothing of theirs.
+
+    \a allow adds sites to `net.http`, as the person would by allowing them.
+    """
     from akira.core.config import config_dir
 
     real = config_dir()
@@ -225,9 +263,17 @@ def throwaway_config(chat_model: str, adapter: str) -> Path:
         grants = json.loads((real / "permissions.json").read_text(encoding="utf-8"))["grants"]
     except (OSError, ValueError, KeyError):
         grants = []
-    (folder / "permissions.json").write_text(json.dumps(
-        {"version": 1, "grants": [g for g in grants if g.get("capability") in keep]}),
-        encoding="utf-8")
+    grants = [g for g in grants if g.get("capability") in keep]
+    if allow:
+        http = next((g for g in grants if g.get("capability") == "net.http"), None)
+        if http is None:
+            http = {"capability": "net.http", "scopes": [], "granted": time.time(),
+                    "expires": None, "note": ""}
+            grants.append(http)
+        http["scopes"] = [*http.get("scopes", []),
+                          *(site for site in allow if site not in http.get("scopes", []))]
+    (folder / "permissions.json").write_text(json.dumps({"version": 1, "grants": grants}),
+                                             encoding="utf-8")
     (folder / "setup.json").write_text('{"offered": true}', encoding="utf-8")
     return folder
 
@@ -238,12 +284,17 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--chat-model", default="")
     parser.add_argument("--adapter", default="")
     parser.add_argument("--only", default="")
+    parser.add_argument("--set", choices=("behaviour", "web"), default="behaviour")
+    parser.add_argument("--allow", action="append", default=[],
+                        help="a site to allow under net.http as well as the person's own")
     parser.add_argument("--timeout", type=int, default=420)
     parser.add_argument("--resume", action="store_true",
                         help="keep the answers already in OUT and ask only the rest")
     args = parser.parse_args(argv)
 
-    folder = throwaway_config(args.chat_model, args.adapter)
+    folder = throwaway_config(args.chat_model, args.adapter, args.allow)
+    print("web grants:", [(g["capability"], g.get("scopes")) for g in json.loads(
+        (folder / "permissions.json").read_text(encoding="utf-8"))["grants"]], flush=True)
     os.environ["AKIRA_CONFIG_DIR"] = str(folder)
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -285,7 +336,7 @@ def main(argv: list[str]) -> int:
         # Carry on a run that was cut short: what was answered is kept.
         results = json.loads(Path(args.out).read_text(encoding="utf-8"))
     done = {r["id"] for r in results}
-    for probe in PROBES:
+    for probe in (WEB_PROBES if args.set == "web" else PROBES):
         if (only and probe.id not in only) or probe.id in done:
             continue
         chat.newChat()
@@ -303,7 +354,8 @@ def main(argv: list[str]) -> int:
         results.append({"id": probe.id, "kind": probe.kind, "turns": probe.turns,
                         "answers": answers, "intent": chat.intent, "route": chat.routeLabel,
                         "seconds": round(time.time() - started, 1), "problems": problems,
-                        "note": probe.note})
+                        "note": probe.note, "sources": list(chat.lastSources),
+                        "searched": chat.lastContextNote})
         mark = "ok " if not problems else "BAD"
         print(f"{mark} {probe.id:14} {chat.intent:9} {results[-1]['seconds']:6.1f}s "
               + "; ".join(problems), flush=True)

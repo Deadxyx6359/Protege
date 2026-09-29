@@ -78,6 +78,17 @@ def _own_the_default_root():
 
 
 @pytest.fixture(autouse=True)
+def _never_the_real_settings(monkeypatch, tmp_path_factory):
+    """No test writes to the person's own settings folder.
+
+    An `AuditLog()` made with no path writes to the activity log in it, and
+    tests that did put fake sites and pytest's folders into the person's real
+    activity log. A test that means to use a folder of its own still sets it.
+    """
+    monkeypatch.setenv("AKIRA_CONFIG_DIR", str(tmp_path_factory.mktemp("settings")))
+
+
+@pytest.fixture(autouse=True)
 def _never_the_real_phone_link(monkeypatch):
     """No test reads the person's real texts.
 

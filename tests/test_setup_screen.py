@@ -43,6 +43,20 @@ def test_it_adds_to_what_is_held_and_keeps_its_end_date():
     assert grant.scopes == ("bbc.co.uk", "en.wikipedia.org") and grant.expires == 4_102_444_800.0
 
 
+def test_a_choice_is_held_only_when_all_of_it_is_granted():
+    """Web search granted and Wikipedia not: the screen showed "Look things up on the
+    web" ticked, and the person took it to be on."""
+    web = starter.BY_ID["web"]
+    policy = Policy()
+    policy.grant("web.search")
+    policy.grant("net.http", ("open-meteo.com",))
+    assert not starter.held(policy, web)
+    starter.apply(policy, starter.planned([{"id": "web"}]))
+    assert starter.held(policy, web) and starter.held(policy, starter.BY_ID["weather"]) is False
+    policy.grant("files.read", ("C:/anything",))
+    assert not starter.held(policy, starter.BY_ID["documents"]), "another folder can be added"
+
+
 def test_a_folder_choice_needs_its_folder():
     with pytest.raises(ValueError, match="Pick a folder"):
         starter.planned([{"id": "notes"}])
@@ -121,6 +135,11 @@ settings = win.findChild(QObject, 'settingsSheet')
 QMetaObject.invokeMethod(settings, 'open'); QTest.qWait(80)
 click('quickSetup')
 assert sheet.property('opened') and not settings.property('opened')
+# What was granted is shown as on, not ticked again as if it were not.
+assert walk(win.contentItem(), 'setupHeld_web') is not None
+assert walk(win.contentItem(), 'setupChoice_web') is None
+assert walk(win.contentItem(), 'setupChoice_weather') is not None
+assert walk(win.contentItem(), 'setupHeld_weather') is None
 click('setupLater')
 assert not sheet.property('opened')
 assert not warnings, '\n'.join(warnings)

@@ -735,6 +735,13 @@ Every half hour in the background; a reading over three hours old is not
 reported as now, and a reading for another place never is. Models are told it
 with the place. A place can be looked up by name for its position, on the same
 site, when the person asks.
+*Done, the forecast (2026-09-29):* asked about the weather in the chat, the
+place named ("in Leeds tomorrow") is found on Open-Meteo's geocoder and its
+seven-day forecast read, under `net.http` for open-meteo.com only; with no place
+named, the person's own, only with `location.read`, sent to one decimal. The days
+asked about go to the model as facts (`core/context/forecast.py`). Weather
+questions are no longer sent to research, which searched for them and found
+nothing.
 
 **C8 ▶ Purchasing** — staged only; `Handover` in `core/net/browser.py`, tool `hand_over_page`
 Assemble the cart, present the total and the payment method, stop. A person

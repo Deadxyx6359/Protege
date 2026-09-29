@@ -30,6 +30,7 @@ from akira.core.excerpt import excerpt
 from akira.core.models import ModelRouter
 from akira.core.net import host_of
 from akira.core.permissions import AuditLog, Policy, SecretStore
+from akira.core.permissions.asking import note_seen
 from akira.core.tools import ToolContext, ToolRegistry
 
 #: Who the activity log records as looking things up for a chat turn.
@@ -51,6 +52,23 @@ READING = ("fetch_page", "browse_page", "read_document", "read_file", "read_note
 #: Tools that read nothing, which do not make research possible on their own.
 _NOT_READING = frozenset({"calculate", "look_at_screen", "list_directory"})
 
+#: Said to the model answering when the page the person gave could not be read.
+#: Told to answer from memory, as `NOTHING` says, it said "I cannot access
+#: external websites" and gave the news "as of my last update".
+UNREAD_PAGE = (
+    "The person gave a page to read, but {}. Tell them, in your own words, that you could "
+    "not read that page and why; if it was not allowed, that they can allow its site when "
+    "asked, or in Settings. Do not say what the page says or might say, and do not say you "
+    "cannot use the internet."
+)
+
+
+def only_searched(note: str) -> bool:
+    """Whether \a note, from `noted`, says search results were read and nothing else."""
+    return (note.startswith("Read ") and "search" in note
+            and re.search(r"\b(?:page|file)s?\b", note) is None)
+
+
 #: Said to the model answering, before what was read.
 PREAMBLE = (
     "Below is what was looked up for the person's message: pages, files and notes as they "
@@ -63,13 +81,14 @@ PREAMBLE = (
 
 #: Said to the model answering when nothing could be looked up. It is not to
 #: name a source: with nothing read, an answer said "This information is from
-#: Wikipedia" of what it remembered.
+#: Wikipedia" of what it remembered. Another gave a remembered exchange rate
+#: "as of" the time now.
 NOTHING = (
     "The person's message asks for something to be looked up, but {}. Say so in one "
     "sentence, then answer from what you know, and say it may be out of date. Nothing was "
-    "read, so do not say any page, site or file says it. If it names a film, book or "
-    "person you have never heard of, say only that, and stop: do not describe what it "
-    "might be."
+    "read, so do not say any page, site or file says it. Never put today's date or time "
+    "on a figure you remember: it is not from today. If it names a film, book or song "
+    "you have never heard of, say only that, and stop: do not describe what it might be."
 )
 
 
@@ -85,6 +104,13 @@ class Findings:
 
     note: str = ""
     """What was read, or why nothing was, in a sentence."""
+
+    given: bool = False
+    """What was to be read was a page the person gave, not something to look up."""
+
+    said: str = ""
+    """The reply to give as it is, when no page the person gave could be read.
+    Told why, the model still said it "cannot access external websites"."""
 
     @property
     def found(self) -> bool:
@@ -104,7 +130,8 @@ class Findings:
                     "it may be out of date. If they do not give the answer, say so, then say "
                     "what you know and that it may be out of date.")
             return f"{PREAMBLE} {read}\n\n{self.material}"
-        return NOTHING.format(self.note[:1].lower() + self.note[1:].rstrip("."))
+        why = self.note[:1].lower() + self.note[1:].rstrip(".")
+        return (UNREAD_PAGE if self.given else NOTHING).format(why)
 
 
 class Researcher:
@@ -185,6 +212,31 @@ class Researcher:
                               # But a site next to the ones allowed may be asked for.
                               ask_scope=self._ask,
                               extra={"project": self._project() or ""})
+
+        pages = given_pages(question)
+        if pages:
+            # "Read https://en.wikipedia.org/wiki/Alan_Turing and tell me...":
+            # the page given is read, and only it. Left to the gatherer, a
+            # Wikipedia search was made instead, and a page on a site not
+            # allowed was never asked about.
+            note_seen(context, question)
+            unread: list[str] = []
+            for url in pages:
+                if is_cancelled is not None and is_cancelled():
+                    raise Cancelled()
+                if on_step is not None:
+                    on_step(step("fetch_page", {"url": url}))
+                result = self._registry.invoke("fetch_page", {"url": url}, context)
+                if result.ok:
+                    read.append(("fetch_page", result.content))
+                    sources.append(cite("fetch_page", {"url": url}))
+                else:
+                    failed.append(result.content.strip().splitlines()[0][:200]
+                                  if result.content.strip() else f"{url} could not be read")
+                    unread.append(not_read(url, failed[-1]))
+            return Findings(material=material(read, "", question), sources=sources,
+                            note=noted(read, failed), given=True,
+                            said="" if read else " ".join(unread))
         # A follow-up to an answer from Wikipedia searched the person's files
         # and gave up. Told at the end where to look, it still did; told first,
         # as the step to start with, it went there.
@@ -208,6 +260,42 @@ class Researcher:
         asked = " ".join([question, *followed(earlier)])
         return Findings(material=material(read, summary, asked), sources=sources,
                         note=noted(read, failed))
+
+
+#: A page given in the message, as far as the first space or bracket.
+_PAGE = re.compile(r"\bhttps?://[^\s<>\"'`]+", re.IGNORECASE)
+_OPENS = {")": "(", "]": "["}
+
+#: At most this many pages given in one message are read.
+MAX_GIVEN_PAGES = 3
+
+
+def given_pages(question: str) -> list[str]:
+    """The web addresses written in \a question, without the full stop after one."""
+    pages: list[str] = []
+    for found in _PAGE.finditer(question):
+        url = found[0].rstrip(".,;:!?")
+        # A closing bracket belongs to the address only if it opened one too:
+        # "(see https://en.wikipedia.org/wiki/Mercury_(planet))".
+        while url[-1:] in _OPENS and url.count(url[-1]) > url.count(_OPENS[url[-1]]):
+            url = url[:-1]
+        if url not in pages:
+            pages.append(url)
+    return pages[:MAX_GIVEN_PAGES]
+
+
+def not_read(url: str, why: str) -> str:
+    """For the person: \a url was not read, and \a why, as `fetch_page` gave it."""
+    try:
+        site = host_of(url)
+    except Exception:  # noqa: BLE001 - an address that cannot be read is still named
+        site = ""
+    if "said no" in why:
+        return f"I didn't read {url}, because you said no when I asked to read {site or 'it'}."
+    if why.startswith("Not permitted") and site:
+        return (f"I couldn't read {url}: reading {site} isn't allowed. To let me, choose Allow "
+                "when I ask, or add the site in Settings → Permissions.")
+    return f"I couldn't read {url}: {why.rstrip('.')}."
 
 
 def followed(earlier: str) -> list[str]:
@@ -263,12 +351,21 @@ def unread_sources(reply: str, sources: list[dict]) -> list[str]:
     return named
 
 
-def unread_note(reply: str, sources: list[dict]) -> str:
-    """A line to add to \a reply for each source it names that was not read, or ""."""
+def unread_note(reply: str, sources: list[dict], *, searched: bool = False) -> str:
+    """A line to add to \a reply for each source it names that was not read, or "".
+
+    \a searched: search results were read, though no page was. The note said
+    "nothing from Wikipedia was read ... from memory" of an answer taken from
+    Wikipedia's own search results, which had been read.
+    """
     named = unread_sources(reply, sources)
     if not named:
         return ""
     listed = ", ".join("Wikipedia" if name.lower() == "wikipedia" else name for name in named)
+    if searched:
+        return (f"\n\nNote: only search results were read for this, not the {listed} "
+                f"page{'' if len(named) == 1 else 's'} they point to: check a detail there "
+                "before relying on it.")
     return (f"\n\nNote: nothing from {listed} was read for this answer, so what it says of "
             f"{'it' if len(named) == 1 else 'them'} is from memory and may be wrong or out of date.")
 
@@ -298,8 +395,9 @@ def noted(read: list[tuple[str, str]], failed: list[str]) -> str:
     files = sum(1 for tool, _ in read if tool in ("read_document", "read_file",
                                                   "read_drive_file", "read_note"))
     searches = len(read) - pages - files
-    bits = [f"{count} {word}{'' if count == 1 else 's'}"
-            for count, word in ((pages, "page"), (files, "file"), (searches, "search"))
+    bits = [f"{count} {word if count == 1 else plural}"
+            for count, word, plural in ((pages, "page", "pages"), (files, "file", "files"),
+                                        (searches, "search", "searches"))
             if count]
     return "Read " + (", ".join(bits) if bits else "nothing") + "."
 
