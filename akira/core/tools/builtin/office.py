@@ -147,9 +147,18 @@ def _run_create(arguments: dict, context: ToolContext) -> ToolResult:
 
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
+        # Claimed first: never over a file that appeared since it was checked,
+        # since nobody was asked.
+        path.open("xb").close()
+    except FileExistsError:
+        raise ToolError(f"{path.name} appeared meanwhile; choose a new name.") from None
     except OSError as exc:
-        raise ToolError(f"could not create {path.parent}: {exc}") from None
-    _save(path, raw)
+        raise ToolError(f"could not create {path}: {exc}") from None
+    try:
+        _save(path, raw)
+    except ToolError:
+        path.unlink(missing_ok=True)
+        raise
     return ToolResult.success(f"Created {path}: {described}.", data={"path": str(path)})
 
 
@@ -165,6 +174,8 @@ create_document = Tool(
     ),
     requires=(Requirement("docs.write", scope_from="path"),),
     reversible=False,
+    # A new file replaces nothing, so saving one does not ask.
+    asks=lambda arguments, context: False,
     run=_run_create,
 )
 

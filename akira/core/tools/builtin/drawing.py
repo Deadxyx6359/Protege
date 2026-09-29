@@ -87,12 +87,14 @@ def _run_save(arguments: dict, context: ToolContext) -> ToolResult:
 save_drawing = Tool(
     name="save_drawing",
     summary=("Save an SVG drawing as a new file where the person allows writing: as .svg, or "
-             "as a picture in a .png. It is cleaned first, so it cannot run or fetch anything, "
-             "and the person sees it before it is saved."),
+             "as a picture in a .png. It is cleaned first, so it cannot run or fetch "
+             "anything."),
     parameters=(Parameter("path", "string", "Full path of the new .svg or .png file."),
                 Parameter("svg", "string", "The whole SVG, from <svg> to </svg>.")),
     requires=(Requirement("files.write", scope_from="path"),),
     reversible=False,
+    # A new file replaces nothing, so saving one does not ask.
+    asks=lambda arguments, context: False,
     run=_run_save,
     describe=_describe_save,
 )

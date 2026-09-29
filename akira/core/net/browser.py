@@ -571,6 +571,14 @@ class Session:
                               "read. Read it again with open_page.")
         return found
 
+    def same(self, found: Control) -> Control | None:
+        """The one control now on the page that is \a found as it was: its kind, its
+        label and where its form sends. None when there is not exactly one. After
+        typing, a page is read again and numbered afresh; this finds its button."""
+        matches = [c for c in self._controls.values()
+                   if (c.kind, c.label, c.action) == (found.kind, found.label, found.action)]
+        return matches[0] if len(matches) == 1 else None
+
     def form(self, number: int) -> list[Field]:
         """What the form holding control \a number holds now; empty when it is in none."""
         page = self._running()

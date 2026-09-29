@@ -6,8 +6,10 @@ Three tiers of consequence, each behind the gate it deserves:
     `git_diff` and `git_log` read history; `open_in_editor` shows a file to the
     person. Reversible, so no prompt.
   * **Running** — `run_python` and `run_tests` execute code, which can do
-    anything the user can. That is `shell.run`: irreversible, so every single
-    run is confirmed, whatever the grant says.
+    anything the user can. That is `shell.run`: irreversible, so every run is
+    confirmed, whatever the grant says. A yes covers the very same run again in
+    the same piece of work (`Tool.repeatable`); a script is shown in full, so a
+    changed script asks again.
   * **Recording and publishing** — `git_commit` writes history and `git_push`
     sends it to a remote. Each is confirmed, every time.
 
@@ -293,6 +295,27 @@ def _run_python(arguments: dict, context: ToolContext) -> ToolResult:
     return _report(head, code, out, err, timed_out, python)
 
 
+def _describe_python(arguments: dict, context: ToolContext) -> str:
+    """The question before running a script: the script itself, not only its name.
+
+    A yes covers running the same script again in this piece of work, so what
+    is shown, and remembered, is what it holds: changed, it asks again.
+    """
+    script = real(arguments["path"])
+    if not script.is_file() or script.suffix.lower() not in (".py", ".pyw"):
+        raise ToolError(f"{script} is not a Python file")
+    extra = _strings(arguments.get("arguments"))
+    try:
+        text = script.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        raise ToolError(f"{script} could not be read: {exc}") from None
+    shown = text if len(text) <= 4000 else text[:4000] + "\n… (and more)"
+    lines = text.count("\n") + 1
+    return (f"Run the Python script\n{script}" + (f"\nwith {' '.join(extra)}" if extra else "")
+            + f"\n\nIt can do anything you can on this computer. It holds {lines} "
+            f"line{'' if lines == 1 else 's'}:\n\n{shown}")
+
+
 run_python = Tool(
     name="run_python",
     summary="Run a Python script and return what it printed.",
@@ -302,9 +325,12 @@ run_python = Tool(
                   required=False),
     ),
     requires=(Requirement("shell.run", scope_from="path"),),
-    # Code can do anything the user can. Every run is approved by a person.
+    # Code can do anything the user can. Every run is approved by a person,
+    # once per piece of work for the very same script.
     reversible=False,
+    repeatable=True,
     run=_run_python,
+    describe=_describe_python,
 )
 
 
@@ -350,6 +376,8 @@ run_tests = Tool(
     ),
     requires=(Requirement("shell.run", scope_from="path"),),
     reversible=False,
+    # The tests again after a fix: asked once per piece of work for the same run.
+    repeatable=True,
     run=_run_tests,
 )
 

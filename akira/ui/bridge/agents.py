@@ -322,6 +322,8 @@ class AgentsBridge(QObject):
         context = ToolContext(policy=self._policy(), audit=self._audit,
                               secrets=self._secret_store, actor=actor,
                               confirm=self._confirm, ask_scope=self._ask_scope,
+                              # Started from the window, with the person there.
+                              attended=True,
                               workspace=workspace,
                               # Conversations it may search: this project's and personal.
                               extra={"project": str(self._project().get("id", ""))})

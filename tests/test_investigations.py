@@ -271,6 +271,8 @@ def test_run_search_reads_final_answers_and_not_sources_or_tool_logs(system):
 def test_artifacts_come_from_confirmed_successful_writes_and_survive_restart(system, tmp_path, approved):
     app, policy, _, _, build = system
     path = tmp_path / 'report.md'
+    # Replacing a file asks; a new one would be saved without asking.
+    path.write_text('the old report', encoding='utf-8')
     content = 'Private output body; not separately archived.'
     call = '<tool_call>' + json.dumps({'name': 'write_file', 'arguments': {'path': str(path), 'content': content}}) + '</tool_call>'
     bridge = build([call, 'Finished the task.'])
@@ -282,7 +284,7 @@ def test_artifacts_come_from_confirmed_successful_writes_and_survive_restart(sys
     assert len(confirmations) == 1
     run = bridge.currentRun
     assert len(run['artifacts']) == (1 if approved else 0)
-    assert path.exists() == approved
+    assert (path.read_text(encoding='utf-8') == content) == approved
     if approved:
         assert run['artifacts'][0]['path'] == str(path.resolve())
         assert build().record(run['id'])['artifacts'] == run['artifacts']

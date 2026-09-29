@@ -21,6 +21,7 @@ from pathlib import Path
 
 from akira.security.paths import real
 
+from ..registry import confirmed
 from ..schema import Parameter, Requirement, Tool, ToolContext, ToolError, ToolResult
 
 #: Files bigger than this are summarised rather than returned. Roughly 50k
@@ -276,6 +277,23 @@ search_files = Tool(
 # -- write -------------------------------------------------------------------
 
 
+#: New files that still ask: what could be run, or could change what runs. A
+#: script saved without a word, then run as "the tests", would be code the
+#: person never saw.
+RUNNABLE = frozenset({
+    ".py", ".pyw", ".pth", ".ps1", ".psm1", ".psd1", ".bat", ".cmd", ".sh", ".bash",
+    ".js", ".mjs", ".cjs", ".ts", ".vbs", ".vbe", ".wsf", ".wsh", ".hta", ".jse",
+    ".exe", ".dll", ".msi", ".scr", ".com", ".lnk", ".url", ".reg", ".jar",
+    ".rb", ".pl", ".php", ".toml", ".ini", ".cfg", ".json", ".yaml", ".yml",
+})
+
+
+def _asks_to_write(where: str) -> bool:
+    """Whether writing \a where stops for the person: replacing, or anything runnable."""
+    path = real(where)
+    return path.exists() or path.suffix.lower() in RUNNABLE or not path.suffix
+
+
 def _describe_write(arguments: dict, context: ToolContext) -> str:
     """The question before writing: new or replaced, where, and every line of it."""
     path = real(arguments["path"])
@@ -304,10 +322,19 @@ def _run_write(arguments: dict, context: ToolContext) -> ToolResult:
     existed = path.exists()
     if existed and path.is_dir():
         raise ToolError(f"{path} is a directory")
+    if existed and not confirmed(context):
+        # New when it was checked, so nobody was asked; it is not replaced now.
+        raise ToolError(f"{path} appeared meanwhile. Write it again to be asked about "
+                        "replacing it.")
 
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8", newline="\n")
+        # A new file is made new: "x" never replaces one that appeared since.
+        with path.open("w" if existed else "x", encoding="utf-8", newline="\n") as stream:
+            stream.write(content)
+    except FileExistsError:
+        raise ToolError(f"{path} appeared meanwhile. Write it again to be asked about "
+                        "replacing it.") from None
     except OSError as exc:
         raise ToolError(f"could not write {path}: {exc}") from None
 
@@ -321,14 +348,17 @@ def _run_write(arguments: dict, context: ToolContext) -> ToolResult:
 
 write_file = Tool(
     name="write_file",
-    summary="Write text to a file, replacing anything already there.",
+    summary=("Write text to a file. A new file is saved straight away; replacing one that "
+             "exists asks the person first."),
     parameters=(
         Parameter("path", "string", "Absolute path to the file."),
         Parameter("content", "string", "The complete new contents of the file."),
     ),
     requires=(Requirement("files.write", scope_from="path"),),
-    # Replacing a file's contents cannot be undone from here, so it asks.
+    # Replacing a file's contents cannot be undone from here, so that asks. A new
+    # file replaces nothing, and does not, unless it is one that could be run.
     reversible=False,
+    asks=lambda arguments, context: _asks_to_write(arguments["path"]),
     run=_run_write,
     describe=_describe_write,
 )

@@ -83,6 +83,8 @@ save_screenshot = Tool(
     parameters=(Parameter("path", "string", "Full path of the .png file to create."),),
     requires=(Requirement("screen.capture"), Requirement("files.write", scope_from="path")),
     reversible=False,
+    # A new file replaces nothing, so saving one does not ask.
+    asks=lambda arguments, context: False,
     run=_run_save,
 )
 

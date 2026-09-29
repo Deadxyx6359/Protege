@@ -138,6 +138,12 @@ class ToolContext:
     """Asks a person to approve an irreversible action. Defaults to *no*: a
     context assembled without a way to ask cannot approve on the user's behalf."""
 
+    attended: bool = False
+    """A person started this work and is at hand: an agent run from the window.
+    Only then does a tool that need not ask (`Tool.asks`, a new file) go ahead
+    without a question. Scheduled jobs, watches and research are not attended,
+    and everything irreversible asks or is refused there, as it always did."""
+
     ask_scope: Callable[[Any], str] | None = None
     """Asks a person, in place, to allow a site or folder a grant does not cover:
     `akira.core.permissions.asking`. None, the default, never asks: work that
@@ -210,6 +216,17 @@ class Tool:
     """What to ask the person before an irreversible call, when the arguments
     alone do not say it: a push names the address it goes to and how many
     commits. It may raise `ToolError` to refuse before anyone is asked."""
+
+    asks: Callable[[dict, ToolContext], bool] | None = None
+    """For an irreversible tool, whether this call stops for a person. None asks
+    every time. Saving a new file replaces nothing, so it need not: the tool
+    then keeps its word when it runs, and makes the file only if it is still new
+    (`confirmed` says whether this call was asked about)."""
+
+    repeatable: bool = False
+    """A yes covers the very same call again in the same piece of work: the
+    project's tests run again after a fix, without asking again. A call that
+    differs in anything the person was shown asks again."""
 
     pure: bool = False
     """Touches nothing: no file, no network, no account, no device. It only

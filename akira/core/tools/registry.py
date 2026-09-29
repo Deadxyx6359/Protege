@@ -23,7 +23,7 @@ from akira.core.permissions import Policy
 from akira.core.permissions.asking import ask_in_place, note_seen
 from akira.core.permissions.capabilities import get as get_capability
 
-from .schema import Tool, ToolContext, ToolError, ToolResult
+from .schema import Asking, Tool, ToolContext, ToolError, ToolResult
 
 
 class ToolRegistry:
@@ -133,7 +133,8 @@ class ToolRegistry:
                 )
 
         # -- irreversible actions stop for a person ---------------------------
-        if not tool.reversible:
+        context.extra[CONFIRMED] = False
+        if not tool.reversible and _asks(tool, cleaned, context):
             try:
                 summary = (tool.describe(cleaned, context) if tool.describe is not None
                            else _describe(tool, cleaned))
@@ -144,16 +145,29 @@ class ToolRegistry:
                     duration_ms=int((time.monotonic() - started) * 1000))
                 return ToolResult.failure(str(exc))
             approved = False
-            try:
-                approved = bool(context.confirm(summary))
-            except Exception:  # noqa: BLE001 - a broken prompt must mean "no"
-                approved = False
-            context.audit.confirmation(context.actor, name,
-                                       approved=approved, summary=summary)
+            earlier = context.extra.setdefault(APPROVED, set())
+            same = (name, str(summary))
+            if tool.repeatable and same in earlier:
+                # The very call the person said yes to, again, in the same work.
+                approved = True
+                context.audit.confirmation(context.actor, name, approved=True,
+                                           summary=f"{summary}\n(approved earlier in this work)")
+            else:
+                if tool.repeatable:
+                    summary = _with_note(summary, REPEAT_NOTE)
+                try:
+                    approved = bool(context.confirm(summary))
+                except Exception:  # noqa: BLE001 - a broken prompt must mean "no"
+                    approved = False
+                context.audit.confirmation(context.actor, name,
+                                           approved=approved, summary=summary)
+                if approved and tool.repeatable:
+                    earlier.add(same)
             if not approved:
                 return ToolResult.failure(
                     "The user did not approve this action, so it was not carried out."
                 )
+            context.extra[CONFIRMED] = True
 
         # -- run ---------------------------------------------------------------
         try:
@@ -177,6 +191,37 @@ class ToolRegistry:
             error="" if result.ok else result.content,
             result=result.content if result.ok else None)
         return result
+
+
+#: In `ToolContext.extra` while a tool runs: whether a person said yes to this call.
+CONFIRMED = "confirmed"
+#: The calls a person said yes to in this piece of work, for `Tool.repeatable`.
+APPROVED = "approved_calls"
+REPEAT_NOTE = ("Yes also covers this same call again during this piece of work; "
+               "anything different asks again.")
+
+
+def confirmed(context: ToolContext) -> bool:
+    """Whether the call running now was asked about and approved."""
+    return bool(context.extra.get(CONFIRMED))
+
+
+def _asks(tool: Tool, arguments: dict, context: ToolContext) -> bool:
+    # Unattended work asks about everything irreversible, a new file included.
+    if tool.asks is None or not context.attended:
+        return True
+    try:
+        return bool(tool.asks(arguments, context))
+    except Exception:  # noqa: BLE001 - unsure means ask
+        return True
+
+
+def _with_note(summary, note: str):
+    """\a summary with \a note after it, keeping a picture that came with it."""
+    text = f"{summary}\n\n{note}"
+    if isinstance(summary, Asking):
+        return Asking(text, summary.image, summary.marks, summary.kind)
+    return text
 
 
 def _describe(tool: Tool, arguments: dict) -> str:

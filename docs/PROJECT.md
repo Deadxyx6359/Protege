@@ -146,6 +146,13 @@ These are settled. Changing one is a conversation, not a commit.
    silent fallback.
 8. **Irreversible actions confirm individually**, regardless of any grant. The
    grant says an agent *may try*; the confirmation is a separate promise.
+   Refined by the person on 2026-09-27, to ask less where the answer adds
+   nothing: the very same script or test run again in the same piece of work
+   is covered by the first yes (a changed script asks again); typing into a
+   form and pressing its button can be one question that shows both; and
+   saving a new file, which replaces nothing, does not ask in work the person
+   started. Replacing a file asks, and so does a new file that could be run.
+   Unattended work asks about everything, as before.
 9. **A routine security audit runs on a schedule** (A7) and its findings are
    surfaced, not logged quietly.
 
@@ -293,7 +300,8 @@ signal of their own rather than waiting in a list.
 **A8 ✅ Coding environment on the gate** — `core/tools/builtin/coding.py`
 Port the legacy coding surface onto the tool layer: run code, run tests, read
 diagnostics, VS Code integration, git through `vcs.read`/`vcs.write`. Shell
-access is `shell.run` — irreversible, therefore always confirmed.
+access is `shell.run` — irreversible, therefore always confirmed (a yes covers
+the very same run again in the same piece of work).
 *Done:* `check_syntax` (parses, never executes), `run_python`, `run_tests`,
 `git_status`/`git_diff`/`git_log`/`git_commit`, `open_in_editor`. Code runs
 behind the network guard with a scrubbed environment. Git is hardened

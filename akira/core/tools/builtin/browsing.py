@@ -17,6 +17,9 @@ every page, an empty profile — and closes when the work ends
   before anything is sent, so the person sees every field and every word first.
   A press shows the button, the page, where its form sends, and what the form
   holds; a form that sends to another site needs `web.submit` for that site too.
+  `fill_in` may name the button to press after typing: one question shows both,
+  and the button is pressed only if it is found again as it was once the page
+  has been read afresh.
 
 Refused before anyone is asked, whatever the grants say: typing into a field
 recognisably for a password, a card or account number, a code or an identity
@@ -195,36 +198,87 @@ def _typing(arguments: dict, context: ToolContext):
     return session, entries, controls
 
 
+def _then(arguments: dict, context: ToolContext):
+    """The button to press after typing, checked as `press_button` checks it, or None."""
+    if arguments.get("press") in (None, ""):
+        return None
+    return _pressing({"site": arguments["site"], "number": arguments["press"]}, context)
+
+
 def _describe_fill(arguments: dict, context: ToolContext) -> Asking:
     session, entries, controls = _typing(arguments, context)
-    lines = [f"Type into the page on {session.site}.",
+    then = _then(arguments, context)
+    lines = [f"Type into the page on {session.site}" + (", then press a button." if then else "."),
              f"Page: {session.title or '(untitled)'} — {session.url}", ""]
     for number, text in entries.items():
         lines.append(f"{controls[number].label or f'Field {number}'}: {text}")
-    lines += ["", f"What is typed reaches {session.site} as it is typed, before anything is "
-                  "sent."]
-    return _with_picture("\n".join(lines), session, list(entries))
+    marked = list(entries)
+    if then is None:
+        lines += ["", f"What is typed reaches {session.site} as it is typed, before anything is "
+                      "sent."]
+    else:
+        _, found, held, sends_to = then
+        marked.append(found.number)
+        typed = {controls[n].label for n in entries if controls[n].label}
+        others = [f for f in held if not f.label or f.label not in typed]
+        button = f'"{found.label}"' if found.label else "an unlabelled button"
+        lines += ["", f"Then press {button}."]
+        if sends_to:
+            lines.append(f"It sends its form to {sends_to}"
+                         + (", with what is typed above and:" if others else ", with what is "
+                            "typed above."))
+            lines += [f"  {field.label or 'Unlabelled'}: "
+                      f"{'(not shown)' if field.secret else field.value}" for field in others]
+        else:
+            lines.append("It is not part of a form, so what it does is up to the page.")
+        lines += ["", "Pressing it may send, post or change something, and that cannot be "
+                      "taken back. Yes covers the typing and the press."]
+    return _with_picture("\n".join(lines), session, marked)
 
 
 def _run_fill(arguments: dict, context: ToolContext) -> ToolResult:
     session, entries, _ = _typing(arguments, context)
+    then = _then(arguments, context)
     try:
         seen = session.fill(entries)
     except browser.BrowseError as exc:
         raise ToolError(str(exc)) from None
-    return ToolResult.success(_page(seen, session.site, heading="Filled in. The page now: "),
-                              data=_data(seen))
+    if then is None:
+        return ToolResult.success(_page(seen, session.site, heading="Filled in. The page now: "),
+                                  data=_data(seen))
+    # Typing reads the page again, numbered afresh: the button approved is found
+    # again as it was, and checked again, or it is not pressed.
+    found = then[1]
+    again = session.same(found)
+    if again is None:
+        return ToolResult.success(_page(seen, session.site, heading=(
+            f"Filled in, but \"{found.label}\" changed when the page was read again, so it was "
+            "not pressed. Press it with press_button, which asks again. The page now: ")),
+            data=_data(seen))
+    try:
+        _pressing({"site": arguments["site"], "number": again.number}, context)
+        pressed = session.press(again.number)
+    except browser.BrowseError as exc:
+        raise ToolError(f"Filled in, but not pressed: {exc}") from None
+    return ToolResult.success(
+        _page(pressed, session.site, heading=f"Filled in and pressed \"{found.label}\". "
+                                             "The page now: "),
+        data=_data(pressed))
 
 
 fill_in = Tool(
     name="fill_in",
     summary=("Type into fields on the page open_page opened, by their numbers: text into a "
-             "field, a choice from a list, yes or no for a box. The person sees every field "
-             "and every word and approves them first. Passwords, card numbers and codes are "
-             "never typed."),
+             "field, a choice from a list, yes or no for a box; and, if you name one, press a "
+             "button after, such as Send or Search. The person sees every field, every word "
+             "and the button, and approves them together once. Passwords, card numbers and "
+             "codes are never typed."),
     parameters=(Parameter("site", "string", "The site the page is on, as open_page said."),
                 Parameter("entries", "array", "Each as the field's number, a colon, and what to "
-                                              "type, such as \"3: Mark Rose\".")),
+                                              "type, such as \"3: Mark Rose\"."),
+                Parameter("press", "integer", "The number of the button to press after typing, "
+                                              "such as Send. Leave it out to only type.",
+                          required=False)),
     requires=(Requirement("web.submit", scope_from="site", scope_of=_site),),
     run=_run_fill,
     reversible=False,

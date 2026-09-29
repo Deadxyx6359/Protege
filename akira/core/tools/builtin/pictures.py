@@ -93,8 +93,8 @@ def _run(arguments: dict, context: ToolContext) -> ToolResult:
 make_image = Tool(
     name="make_image",
     summary=("Make a picture from a description, on this computer's graphics card, and save it "
-             "as a new PNG where the person allows writing. The person sees the picture before "
-             "it is saved. Describe what it shows plainly: subject, setting, style, light."),
+             "as a new PNG where the person allows writing. Describe what it shows plainly: "
+             "subject, setting, style, light."),
     parameters=(Parameter("prompt", "string", "What the picture shows."),
                 Parameter("path", "string", "Full path of the new .png file."),
                 Parameter("width", "integer", "Width in pixels, 384 to 1024; rounded to a "
@@ -107,6 +107,8 @@ make_image = Tool(
                                              "new one.", required=False, default=-1)),
     requires=(Requirement("files.write", scope_from="path"),),
     reversible=False,
+    # A new file replaces nothing, so saving one does not ask.
+    asks=lambda arguments, context: False,
     run=_run,
     describe=_describe,
 )
