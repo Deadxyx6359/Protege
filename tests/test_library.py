@@ -225,3 +225,13 @@ def test_a_document_too_large_to_search_is_said_to_be(bridge, tmp_path, monkeypa
     source = doc(tmp_path / "downloads", "RM0440.pdf", "x" * 50)
     said = documents.addFiles([source.as_uri()])
     assert said.startswith("Added 1 file.") and "kept but not searched" in said
+
+
+def test_the_warning_put_first_is_not_shown_to_the_model(tmp_path):
+    # Shown the "Not checked" line at the start of its own reply, the model wrote it again.
+    bridge, prompts = chat_with(tmp_path, [], "GPIO 32 to 39.")
+    bridge.send("Which GPIO pins on an ESP32 can I use for analog input?")
+    answer = finished(bridge)
+    assert answer.count("Not checked") == 1
+    assert all("Not checked" not in m.content for m in prompts[0] if m.role != "system")
+    assert prompts[0][-1].role == "user"

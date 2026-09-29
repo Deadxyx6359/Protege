@@ -20,7 +20,9 @@ from __future__ import annotations
 
 from akira.core.net import NetError, browser, fetch, host_of
 from akira.core.net.page import PageError, page_text
-from akira.core.net.search import SearchError, search
+from akira.core.net.client import with_query
+from akira.core.net.search import SearchError, search, wikipedia, wikipedia_host
+from akira.core.permissions.asking import ask_in_place, note_seen
 
 from ..schema import Parameter, Requirement, Tool, ToolContext, ToolError, ToolResult
 
@@ -95,6 +97,26 @@ def _run_search(arguments: dict, context: ToolContext) -> ToolResult:
     try:
         hits = search(query, policy=context.policy, audit=context.audit, actor=context.actor)
     except SearchError as exc:
+        # Told it could open Wikipedia itself, a model still answered from
+        # memory: so Wikipedia's own search is asked, when reading it is allowed,
+        # and the person is asked in place when it is not.
+        if not wikipedia_host(context.policy):
+            address = with_query("https://en.wikipedia.org/w/index.php", {"search": query})
+            note_seen(context, address)
+            ask_in_place(context, "net.http", "en.wikipedia.org", detail=address,
+                         why="Search Wikipedia instead: DuckDuckGo refused the search.")
+        found = wikipedia(query, policy=context.policy, audit=context.audit,
+                          actor=context.actor)
+        if found:
+            lines = [f"{i}. {hit.title}\n   {hit.url}" + (f"\n   {hit.snippet}" if hit.snippet
+                                                        else "")
+                     for i, hit in enumerate(found, 1)]
+            return ToolResult.success(
+                f"{exc} So these are from Wikipedia's own search for {query!r}. Read the "
+                f"article that answers it with fetch_page before relying on a detail.\n\n"
+                f"{SEARCH_FRAME}\n\n" + "\n\n".join(lines),
+                data={"hits": [{"title": h.title, "url": h.url, "snippet": h.snippet}
+                               for h in found]})
         # With the search refused, a model said it could not reach Wikipedia,
         # which it could, and answered from memory. It is told what it can do.
         raise ToolError(f"{exc} {_without_search(context)}") from None

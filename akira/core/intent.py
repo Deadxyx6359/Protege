@@ -68,9 +68,28 @@ _LOOK_UP = re.compile(
     r"\b(?:research|look\s+(?:it|this|that|them)?\s*up|find\s+out|search\s+(?:the\s+web|"
     r"online|for)|google\s+it|on\s+(?:the\s+)?(?:web|internet|wikipedia)|online|"
     r"check\s+(?:online|the\s+web|wikipedia|the\s+news)|fact[- ]?check|investigate|"
-    r"latest|news|currently|nowadays|these\s+days|recent(?:ly)?|this\s+(?:week|month|year)|"
-    r"today'?s|up[- ]to[- ]date|as\s+of\s+(?:now|today)|right\s+now)\b",
+    r"latest|news)\b",
     re.IGNORECASE)
+
+#: Words about now, which ask for the world as it is today unless the question
+#: is about the person's own things: "what's on my screen right now?" is not a
+#: search.
+_NOW = re.compile(
+    r"\b(?:currently|nowadays|these\s+days|recent(?:ly)?|this\s+(?:week|month|year)|"
+    r"today'?s|up[- ]to[- ]date|as\s+of\s+(?:now|today)|right\s+now)\b", re.IGNORECASE)
+_MINE = re.compile(r"\b(?:my|mine|me|I)\b")
+
+#: Working with dates, not asking about them: "how many days between March 3
+#: and April 17, 2026?" names this year and needs no search.
+_DATE_SUM = re.compile(
+    r"\bhow\s+many\s+(?:days|weeks|months|years|hours|minutes)\b|"
+    r"\b(?:days?|weeks?)\s+(?:between|until|till|since|from)\b|"
+    r"\bwhat\s+day\s+of\s+the\s+week\b|\b(?:add|plus|minus)\s+\d+\s+days\b",
+    re.IGNORECASE)
+
+#: An amount given in the question: a word problem, not a price to look up.
+_GIVEN_AMOUNT = re.compile(r"[£$€]\s?\d|\b\d+(?:\.\d+)?\s?(?:dollars|pounds|euros|cents|"
+                           r"pence)\b", re.IGNORECASE)
 
 #: Facts that change or that a local model will not have: what something costs,
 #: when a place is open, the weather somewhere, who holds a post now, what came out.
@@ -133,12 +152,17 @@ def choose(text: str, *, previous: Intent | None = None, mode: str = "auto") -> 
     if _ACKNOWLEDGED.match(text):
         return _choice(Intent.EVERYDAY, "conversation")
     question = bool(_QUESTION.search(text))
-    # "Who won the 2026 World Cup?" is past what a local model knows.
-    recent = bool(_RECENT_YEAR.search(text)) * (2 if question else 1)
+    sums = bool(_DATE_SUM.search(text))
+    # "Who won the 2026 World Cup?" is past what a local model knows; days
+    # counted between two dates in 2026 are not.
+    recent = bool(_RECENT_YEAR.search(text) and not sums) * (2 if question else 1)
     code = bool(_CODE_SIGNALS.search(text) or _CODE_SHAPES.search(text))
-    # "The price of items" in a request for code is about the code.
-    looks_up = bool(_LOOK_UP.search(text)) or (
-        bool(_CURRENT_FACTS.search(text)) and not code)
+    # "The price of items" in a request for code is about the code, and "how
+    # much does the ball cost?" after "a bat and a ball cost $1.10" is a puzzle.
+    looks_up = (bool(_LOOK_UP.search(text))
+                or (bool(_NOW.search(text)) and not _MINE.search(text) and not sums)
+                or (bool(_CURRENT_FACTS.search(text)) and not code
+                    and not _GIVEN_AMOUNT.search(text)))
     research = (2 * looks_up + 2 * bool(_SOURCES.search(text))
                 + 2 * bool(_THEIR_FILES.search(text)) + bool(_COMPARE.search(text)) + recent)
 

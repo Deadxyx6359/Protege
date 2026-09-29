@@ -134,6 +134,63 @@ def test_an_agent_whose_search_was_refused_is_told_what_it_can_still_open(wire, 
     assert "Do not answer from memory" in closed.content and "fetch_page" not in closed.content
 
 
+WIKI = ("/w/api.php?action=query&list=search&srsearch=tomato+blight&format=json&srlimit=8"
+        "&utf8=1")
+WIKI_BODY = (b'{"query": {"search": [{"title": "Tomato blight", "snippet": "Blight is a '
+             b'<span class=\\"searchmatch\\">disease</span> of tomatoes &amp; potatoes"}, '
+             b'{"title": "Phytophthora infestans", "snippet": "An oomycete"}]}}')
+
+
+def test_refused_by_duckduckgo_it_searches_the_wikipedia_the_person_allows(wire, tmp_path):
+    """One afternoon every research question came back with nothing and was
+    answered from memory. Reading Wikipedia was allowed all along."""
+    site = wire({(SEARCH_HOST, PATH): html(b"<div class='anomaly-modal'>Are you a person?</div>"),
+                 (search_module.INSTANT_HOST, INSTANT): instant(),
+                 ("en.wikipedia.org", WIKI): Reply(200, WIKI_BODY,
+                                                   {"Content-Type": "application/json"})})
+    context = ToolContext(policy=allowed(("web.search",), ("net.http", "en.wikipedia.org")),
+                          audit=AuditLog(tmp_path / "a.jsonl"), secrets=SecretStore(tmp_path / "s"),
+                          actor="gatherer")
+    result = default_registry().invoke("web_search", {"query": "tomato blight"}, context)
+    assert result.ok, result.content
+    assert "from Wikipedia's own search" in result.content
+    assert "https://en.wikipedia.org/wiki/Tomato_blight" in result.content
+    assert "disease of tomatoes & potatoes" in result.content and "<span" not in result.content
+    assert site.requests[-1]["host"] == "en.wikipedia.org"
+
+
+def test_without_wikipedia_allowed_the_person_is_asked_in_place(wire, tmp_path):
+    """The person's only site was the weather's: research read nothing at all."""
+    site = wire({(SEARCH_HOST, PATH): html(b"<div class='anomaly-modal'>Are you a person?</div>"),
+                 (search_module.INSTANT_HOST, INSTANT): instant(),
+                 ("en.wikipedia.org", WIKI): Reply(200, WIKI_BODY,
+                                                   {"Content-Type": "application/json"})})
+    asked = []
+    context = ToolContext(policy=allowed(("web.search",), ("net.http", "open-meteo.com")),
+                          audit=AuditLog(tmp_path / "a.jsonl"), secrets=SecretStore(tmp_path / "s"),
+                          actor="gatherer", ask_scope=lambda request: asked.append(request) or "once")
+    result = default_registry().invoke("web_search", {"query": "tomato blight"}, context)
+    assert result.ok and "Tomato_blight" in result.content
+    (request,) = asked
+    assert request.scope == "en.wikipedia.org" and "search=tomato+blight" in request.detail
+    # Said no, nothing is sent there.
+    wire({(SEARCH_HOST, PATH): html(b"<div class='anomaly-modal'>Are you a person?</div>"),
+          (search_module.INSTANT_HOST, INSTANT): instant()})
+    refusing = ToolContext(policy=allowed(("web.search",), ("net.http", "open-meteo.com")),
+                           audit=AuditLog(tmp_path / "b.jsonl"), secrets=SecretStore(tmp_path / "s"),
+                           actor="gatherer", ask_scope=lambda request: "no")
+    assert not default_registry().invoke("web_search", {"query": "tomato blight"}, refusing).ok
+
+
+def test_without_wikipedia_allowed_nothing_is_sent_there(wire, tmp_path):
+    site = wire({(SEARCH_HOST, PATH): html(b"<div class='anomaly-modal'>Are you a person?</div>"),
+                 (search_module.INSTANT_HOST, INSTANT): instant()})
+    context = ToolContext(policy=allowed(("web.search",)), audit=AuditLog(tmp_path / "a.jsonl"),
+                          secrets=SecretStore(tmp_path / "s"), actor="gatherer")
+    assert not default_registry().invoke("web_search", {"query": "tomato blight"}, context).ok
+    assert "en.wikipedia.org" not in {request["host"] for request in site.requests}
+
+
 def test_a_request_under_another_capability_must_name_its_hosts():
     with pytest.raises(ValueError, match="must name the hosts"):
         net.fetch("https://example.com/", policy=Policy(), capability="web.search")

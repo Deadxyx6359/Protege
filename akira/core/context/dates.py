@@ -48,6 +48,9 @@ _NAMED = {"christmas eve": (12, 24), "christmas day": (12, 25), "christmas": (12
 _NAMED_DAY = re.compile(r"\b(" + "|".join(re.escape(name).replace("s\\ ", "['’]?s\\ ")
                                            for name in _NAMED) + r")\b", re.IGNORECASE)
 
+#: What joins the two ends of a range: "March 3 and April 17", "3 March to 17 April".
+_RANGE = re.compile(r"\s*(?:,\s*)?(?:and|to|through|until|till|-|–|—)\s*", re.IGNORECASE)
+
 #: At most this many dates are counted, so a long note does not flood the prompt.
 MAX_DATES = 6
 
@@ -76,20 +79,27 @@ def dates_in(text: str, today: date) -> list[tuple[str, date]]:
         day = _made(int(match[1]), int(match[2]), int(match[3]))
         if day is not None and free(match):
             found.append((match.start(), match[0], day))
+    written: list[tuple[re.Match, int, int, int | None]] = []
     for pattern, day_group, month_group in ((_DAY_MONTH, 1, 2), (_MONTH_DAY, 2, 1)):
         for match in pattern.finditer(text):
-            if not free(match):
-                continue
-            month = _MONTHS[match[month_group].lower()]
-            number = int(match[day_group])
-            if match[3]:
-                day = _made(int(match[3]), month, number)
-            else:
-                day = _made(today.year, month, number)
-                if day is not None and day < today:
-                    day = _made(today.year + 1, month, number)
-            if day is not None:
-                found.append((match.start(), match[0].strip(), day))
+            if free(match):
+                written.append((match, _MONTHS[match[month_group].lower()],
+                                int(match[day_group]), int(match[3]) if match[3] else None))
+    written.sort(key=lambda item: item[0].start())
+    for index, (match, month, number, year) in enumerate(written):
+        if year is None and index + 1 < len(written):
+            # "Between March 3 and April 17, 2026": the year is said once, for both.
+            after, month_after, number_after, year_after = written[index + 1]
+            if year_after is not None and _RANGE.fullmatch(text[match.end():after.start()]):
+                year = year_after - ((month, number) > (month_after, number_after))
+        if year is not None:
+            day = _made(year, month, number)
+        else:
+            day = _made(today.year, month, number)
+            if day is not None and day < today:
+                day = _made(today.year + 1, month, number)
+        if day is not None:
+            found.append((match.start(), match[0].strip(), day))
     for match in _NAMED_DAY.finditer(text):
         if not free(match):
             continue
@@ -151,6 +161,18 @@ def span_lines(message: str, texts: list[str], today: date) -> str:
             lines.append(f"- {written} ({day:%A} {day.day} {day:%B %Y}): {_counted(day, today)}")
     if not lines:
         return ""
+    asked = dates_in(message, today)
+    if len(asked) >= 2:
+        # "How many days between March 3 and April 17?" is the gap between them,
+        # not each from today: given only those, a model subtracted wrongly.
+        (first, start), (second, end) = asked[0], asked[1]
+        gap = abs((end - start).days)
+        weeks, days = divmod(gap, 7)
+        in_weeks = (f", which is {weeks} week{'s' if weeks != 1 else ''}"
+                    + (f" and {days} day{'s' if days != 1 else ''}" if days else "")
+                    if weeks else "")
+        lines.append(f"- Between {first} and {second}: {gap} day{'s' if gap != 1 else ''}"
+                     f"{in_weeks}, counting from one to the other")
     return ("Counted exactly from today, for this question (use these numbers, do not "
             "count again):\n" + "\n".join(lines))
 

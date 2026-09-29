@@ -34,6 +34,14 @@ from akira.core.models import Route
     ("In 2026 I want to plant more beans.", Intent.EVERYDAY),
     ("Is it too late to phone a shop that shuts at 6pm?", Intent.EVERYDAY),
     ("Compare these two recipes for me", Intent.EVERYDAY),
+    # Found by asking the real models: none of these is a search.
+    ("What's on my screen right now?", Intent.EVERYDAY),
+    ("How many days are there between March 3 and April 17, 2026?", Intent.EVERYDAY),
+    ("A bat and a ball cost $1.10 in total. The bat costs $1.00 more than the ball. "
+     "How much does the ball cost?", Intent.EVERYDAY),
+    # And these still are.
+    ("What's the price of bitcoin right now?", Intent.RESEARCH),
+    ("Who is winning the election currently?", Intent.RESEARCH),
 ])
 def test_a_message_is_sorted_by_what_it_asks(text, intent):
     assert choose(text).intent is intent

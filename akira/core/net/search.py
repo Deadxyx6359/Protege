@@ -23,14 +23,23 @@ Answer API, which answers programs without asking. When the results page asks,
 the query goes there instead. It is still DuckDuckGo, still under
 `web.search`, and gets fewer results: a summary with its source, usually
 Wikipedia, a definition, and official sites. The tool says which it was.
+
+**Wikipedia's own search.** A question phrased as a question often has no
+instant answer, and one afternoon every research question came back with
+nothing and was answered from memory. When the person allows reading
+Wikipedia (`net.http`), the `web_search` tool then asks Wikipedia's search
+(`wikipedia`): a page on a site already allowed, the same one agents were told
+they could open themselves, and did not.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 from dataclasses import dataclass
+from html import unescape as html_unescape
 from html.parser import HTMLParser
 
 from .client import NetError, fetch, query_value, with_query
@@ -58,7 +67,8 @@ class Hit:
     url: str
     snippet: str
     kind: str = "result"
-    """`result`, from the results page, or `instant`, from the Instant Answer API."""
+    """`result`, from the results page, `instant`, from the Instant Answer API, or
+    `wikipedia`, from Wikipedia's own search when DuckDuckGo gave nothing."""
 
 
 class _Results(HTMLParser):
@@ -151,6 +161,62 @@ def _instant(words: str, *, policy, audit, actor: str) -> list[Hit]:
         if isinstance(item, dict):
             add(item.get("Text"), item.get("FirstURL"), item.get("Text"))
     return hits[:MAX_RESULTS]
+
+
+def wikipedia_host(policy) -> str:
+    """The Wikipedia the person allows reading under `net.http`, or ""."""
+    grant = policy.granted("net.http")
+    if grant is None:
+        return ""
+    if policy.allows("net.http", "en.wikipedia.org"):
+        return "en.wikipedia.org"
+    for scope in grant.scopes:
+        host = scope.strip().lower()
+        if host.endswith(".wikipedia.org") and policy.allows("net.http", host):
+            return host
+    return ""
+
+
+def wikipedia(words: str, *, policy, audit=None, actor: str = "assistant") -> list[Hit]:
+    """Wikipedia's own search, when the person allows reading Wikipedia; [] otherwise.
+
+    For when DuckDuckGo asks whether a person is searching, which it did on every
+    search one afternoon, so research answered everything from memory. This is
+    not `web.search`: it is a page on a site the person allows under `net.http`,
+    the same as an agent opening Wikipedia's search page itself, which agents
+    were told they could do and did not. Nothing reaches a site not allowed.
+    """
+    host = wikipedia_host(policy)
+    if not host:
+        return []
+    try:
+        response = fetch(with_query(f"https://{host}/w/api.php",
+                                    {"action": "query", "list": "search", "srsearch": words,
+                                     "format": "json", "srlimit": "8", "utf8": "1"}),
+                         policy=policy, audit=audit, actor=actor, capability="net.http",
+                         hosts=(host,), max_bytes=MAX_INSTANT_BYTES)
+        data = json.loads(response.text()) if response.ok else {}
+    except Exception:  # noqa: BLE001 - a second try at a search never breaks the first
+        return []
+    found = ((data.get("query") or {}).get("search") or []) if isinstance(data, dict) else []
+    hits = []
+    for item in found:
+        if not isinstance(item, dict) or not item.get("title"):
+            continue
+        title = " ".join(str(item["title"]).split())
+        snippet = re.sub(r"<[^>]+>", "", str(item.get("snippet") or ""))
+        hits.append(Hit(f"{title} (Wikipedia)",
+                        f"https://{host}/wiki/" + _article(title),
+                        " ".join(html_unescape(snippet).split())[:600], "wikipedia"))
+    return hits[:MAX_RESULTS]
+
+
+def _article(title: str) -> str:
+    """A Wikipedia title as its address: spaces as underscores, the rest percent-encoded.
+    Done here rather than with urllib, which only the chokepoint may import."""
+    return "".join(c if c.isascii() and (c.isalnum() or c in "()_,'-.~") else
+                   "".join(f"%{b:02X}" for b in c.encode("utf-8"))
+                   for c in title.replace(" ", "_"))
 
 
 def _last_time() -> float:

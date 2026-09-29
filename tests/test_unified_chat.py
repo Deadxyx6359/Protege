@@ -309,6 +309,7 @@ def test_a_research_answer_with_nothing_read_says_it_is_from_memory(chat):
     text = model.data(model.index(model.rowCount() - 1, 0), model.TextRole)
     assert text.endswith("so this answer is from memory and may be out of date.")
     assert "DuckDuckGo asked whether a person is searching" in text
+    assert "(Nothing could be read (" not in text, "brackets inside brackets"
     # With something read, no such note.
     looker.findings = Findings(material="What was read:\n\nX.", sources=[], note="Read 1 page.")
     say(bridge, "Look it up online: and the president of France?")

@@ -26,6 +26,7 @@ from typing import Any, Callable
 import numpy as np
 
 from akira.core.permissions import Policy
+from akira.core.plain_maths import plain_maths
 from akira.core.voice import KOKORO_MODEL, KOKORO_VOICES, VoiceError, load_engines, missing
 
 
@@ -164,6 +165,7 @@ def _times(text: str) -> str:
 
 def speakable(text: str) -> str:
     """\a text as it should be heard: what is written for the eye taken out."""
+    text = plain_maths(text)  # "$ x $" is heard as x, not as two dollars
     text = _FENCE.sub(f" {CODE_SAID} ", text)
     text = _IMAGE.sub(r"\1", text)
     text = _LINK.sub(r"\1", text)

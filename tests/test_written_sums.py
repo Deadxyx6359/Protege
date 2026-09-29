@@ -31,3 +31,10 @@ def test_right_or_rounded_sums_and_other_text_are_left_alone(text):
 def test_each_wrong_sum_is_reported():
     assert wrong_sums("2 + 2 = 5, 3 × 4 = 12, 7 - 2 = 4") == [("2 + 2 = 5", "4"),
                                                                ("7 - 2 = 4", "5")]
+
+
+def test_a_step_whose_result_is_a_fraction_is_not_corrected():
+    # "40 × 5/9 = 200/9" was corrected to 22.22 as if it claimed 200: it was right.
+    assert wrong_sums("40 × 5/9 = 200/9 ≈ 22.22") == []
+    assert wrong_sums("so 3 × 4 = 12 / 2 = 6") == []
+    assert wrong_sums("40 × 5/9 = 23") == [("40 × 5/9 = 23", "22.22")]

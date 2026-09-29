@@ -94,3 +94,22 @@ def test_clock_times_in_a_message_are_counted_from_now():
     assert lines.count("09:30") == 1, "9:30am was counted twice"
     assert clock_lines("at 12am or 12pm", now).count("\n- ") == 2
     assert clock_lines("no times, a ratio of 3:1, 24:00 or 7:75", now) == ""
+
+
+def test_a_year_said_once_belongs_to_both_ends_of_a_range():
+    """Given "March 3 and April 17, 2026", March 3 was taken as next March, and the
+    model answered that there were no days between them."""
+    today = date(2026, 9, 29)
+    assert [d.isoformat() for _, d in dates_in("between March 3 and April 17, 2026", today)] \
+        == ["2026-03-03", "2026-04-17"]
+    assert [d.isoformat() for _, d in dates_in("from 20 December to 5 January 2027", today)] \
+        == ["2026-12-20", "2027-01-05"]
+    # Two dates that are not a range keep their own meaning.
+    assert dates_in("the party is on March 3 and my exam is on April 17, 2027", today)[0][1] \
+        == date(2027, 3, 3)
+
+
+def test_the_days_between_two_dates_are_counted_for_the_model():
+    lines = span_lines("How many days are there between March 3 and April 17, 2026?", [],
+                       date(2026, 9, 29))
+    assert "Between March 3 and April 17, 2026: 45 days, which is 6 weeks and 3 days" in lines

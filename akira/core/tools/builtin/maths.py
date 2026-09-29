@@ -98,7 +98,9 @@ _LABEL = r"(?:\s*\([^()\d]*\))?"
 #: A sum written out with its result: "12.5 + 6.8 + 30 = 70.7", "3 × £4.20 = £12.60".
 _WRITTEN_SUM = re.compile(
     rf"((?:(?:{_NUMBER}){_LABEL}\s*(?:[-+×*/÷]|\bx\b)\s*)+(?:{_NUMBER}){_LABEL})\s*=\s*"
-    rf"(-?(?:{_NUMBER}))(?![\d.]*\d)")
+    # A result that is itself a sum, "40 × 5/9 = 200/9 ≈ 22.22", is a step, not a
+    # result: its first number alone was once corrected, and it was right.
+    rf"(-?(?:{_NUMBER}))(?![\d.]*\d)(?!\s*(?:[-+×*/÷^]|\bx\b)\s*[£$€]?\d)")
 
 
 def wrong_sums(text: str) -> list[tuple[str, str]]:

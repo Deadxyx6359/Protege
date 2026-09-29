@@ -159,6 +159,7 @@ def build_prompt(
     *,
     reply_budget: int,
     extra_system: str = "",
+    writing: bool = False,
 ) -> list[ChatMessage]:
     """Assemble the messages to send, newest-first until the context is full.
 
@@ -169,7 +170,8 @@ def build_prompt(
 
     \a extra_system is context for this turn only — the open project, what was
     retrieved — added after the system prompt and never saved with the
-    conversation.
+    conversation. With \a writing, the conversation's last message is the reply
+    being written, and it is left out.
     """
     limit = max(512, backend.n_ctx - reply_budget - _CONTEXT_HEADROOM)
 
@@ -180,7 +182,13 @@ def build_prompt(
     used = backend.count_tokens(prompt)
 
     kept: list[ChatMessage] = []
-    for message in reversed(conversation.messages):
+    messages = conversation.messages
+    if writing and messages and messages[-1].role == "assistant":
+        # The reply being written is not part of what it answers. It may already
+        # hold a line Akira put first, "Not checked: …", and shown to the model
+        # that line came back a second time, word for word.
+        messages = messages[:-1]
+    for message in reversed(messages):
         if message.role not in ("user", "assistant") or not message.text:
             continue
         cost = backend.count_tokens(message.text) + 4
@@ -239,7 +247,7 @@ class Responder:
 
         with self._router.acquire(resolved) as backend:
             messages = build_prompt(conversation, backend, reply_budget=reply_budget,
-                                    extra_system=extra_system)
+                                    extra_system=extra_system, writing=True)
             result = backend.generate(
                 messages,
                 max_tokens=reply_budget,

@@ -42,6 +42,7 @@ from akira.core.conversations import ConversationError, ConversationStore, relat
 from akira.core import reminders
 from akira.core.brain.grounding import TEACHING, Grounding, subject_of, teaching
 from akira.core.intent import LABELS, MODES, ROUTES, Intent, choose
+from akira.core.plain_maths import plain_maths
 from akira.core.reminders import Asked
 from akira.core.models import ModelRouter, Route
 from akira.models.base import ModelError
@@ -128,7 +129,8 @@ class MessageListModel(QAbstractListModel):
                 # plain text, as written. The transcript keeps everything as is.
                 if message.role != "assistant" or message.error:
                     return message.text
-                return inert_markdown(message.text)
+                # LaTeX the model writes despite being told not to is shown plainly.
+                return inert_markdown(plain_maths(message.text))
             case self.ErrorRole:
                 return message.error
         return None
@@ -542,6 +544,10 @@ class ChatBridge(QObject):
         self._nothing_read = ""
         choice = choose(payload, previous=self._previous, mode=self._mode)
         self._intent, self._why, self._route = choice.intent, choice.why, choice.route
+        if self._intent is Intent.CODE and self._mode == "auto" and teaching(payload):
+            # Asked to be taught, not given code, the coding model wrote the whole
+            # program anyway, every time it was tried. The chat model explains.
+            self._route = ROUTES[Intent.EVERYDAY]
         self.routeChanged.emit()
         # What the last turn read, before this turn's sources replace it.
         self._looked_in = [str(source.get("cite", "")) for source in self._sources
@@ -747,10 +753,14 @@ class ChatBridge(QObject):
             if self._researching() and self._nothing_read:
                 # Told to say so, an answer with nothing read gave a prime
                 # minister two out of date as "as of" today. Said here instead.
+                # The reason alone: "Nothing could be read (DuckDuckGo asked …)" in
+                # the note's brackets read as brackets inside brackets.
+                wrapped = re.match(r"\s*nothing could be (?:read|looked up)[^(]*\((.*)\)\W*$",
+                                   self._nothing_read, re.IGNORECASE | re.DOTALL)
+                reason = (wrapped.group(1) if wrapped else self._nothing_read).strip().rstrip(".")
                 self._tokenArrived.emit(
-                    f"\n\nNote: nothing could be looked up for this "
-                    f"({self._nothing_read.rstrip('.')}), so this answer is from memory and may "
-                    "be out of date.")
+                    f"\n\nNote: nothing could be looked up for this ({reason}), so this answer "
+                    "is from memory and may be out of date.")
             if grounding is not None:
                 # Every library name in the answer, looked up in the library's
                 # own files: those that are not there are named, with the closest.
