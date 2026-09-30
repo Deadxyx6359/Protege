@@ -5,10 +5,11 @@ Each module exposes `ALL`, a tuple of its tools. `default_registry()` in
 """
 
 from . import (accounts, browsing, coding, coursework, drawing, files, knowledge, maths,
-               money, notes, office, pictures, screen, texts, web)
+               money, notes, office, pictures, planner, screen, texts, web)
 
 MODULES = (files, coding, office, notes, knowledge, web, browsing, screen, accounts,
-           coursework, money, texts, drawing, pictures, maths)
+           coursework, money, texts, drawing, pictures, maths, planner)
 
 __all__ = ["accounts", "browsing", "coding", "coursework", "drawing", "money", "files",
-           "knowledge", "maths", "notes", "office", "pictures", "screen", "texts", "web", "MODULES"]
+           "knowledge", "maths", "notes", "office", "pictures", "planner", "screen", "texts",
+           "web", "MODULES"]

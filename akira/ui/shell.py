@@ -37,6 +37,7 @@ from akira.core.making.training import Trainer
 from akira.core.models import ModelRouter, Route
 from akira.core.net import browser
 from akira.core.permissions import AuditLog, Policy, SecretStore
+from akira.core import planner
 from akira.core.projects import ProjectStore
 from akira.core.review import ensure_review_job, register_review_action
 from akira.core.schedule import ActionRegistry, Scheduler, SchedulerService
@@ -59,6 +60,7 @@ from akira.ui.bridge import (
     MonitorBridge,
     PermissionsBridge,
     PlaceBridge,
+    PlannerBridge,
     ProjectsBridge,
     ScheduleBridge,
     SettingsBridge,
@@ -107,10 +109,13 @@ class AppContext:
     drafts: DraftsBridge | None = None
     images: ImagesBridge | None = None
     training: TrainingBridge | None = None
+    planner: PlannerBridge | None = None
     scheduler: Scheduler | None = None
     service: SchedulerService | None = None
     monitor_service: MonitorService | None = None
     weather_service: WeatherService | None = None
+    reminders: planner.Reminders | None = None
+    reminder_service: planner.ReminderService | None = None
 
     housekeeping: Callable[[], None] | None = None
     """Tidying that runs once at start: dropping what expired grants no longer
@@ -128,7 +133,8 @@ class AppContext:
                           ("Accounts", self.accounts), ("Documents", self.documents),
                           ("Coding", self.coding), ("Voice", self.voice),
                           ("Drawing", self.drawing), ("Drafts", self.drafts),
-                          ("Images", self.images), ("Training", self.training)):
+                          ("Images", self.images), ("Training", self.training),
+                          ("Planner", self.planner)):
             if obj is not None:
                 exposed[name] = obj
         return exposed
@@ -152,6 +158,9 @@ class AppContext:
         if self.place is not None and self.place.reader is not None and self.weather_service is None:
             self.weather_service = WeatherService(self.place.reader)
             self.weather_service.start()
+        if self.reminders is not None and self.reminder_service is None:
+            self.reminder_service = planner.ReminderService(self.reminders)
+            self.reminder_service.start()
 
     def close(self) -> None:
         self.chat.historySearch.close()
@@ -180,6 +189,8 @@ class AppContext:
             self.allow.close()
         if self.weather_service is not None:
             self.weather_service.stop()
+        if self.reminder_service is not None:
+            self.reminder_service.stop()
         # Stop looking for changes before stopping what would act on them.
         if self.monitor_service is not None:
             self.monitor_service.stop()
@@ -393,10 +404,22 @@ def build_context(*, persist: bool = True) -> AppContext:
             "trigger": {"kind": "once", "at": time.strftime("%Y-%m-%dT%H:%M", time.localtime(at))},
             "arguments": {"text": what, "title": "Reminder"}, "missed": "run_late"})
 
+    # The calendar kept in Akira: the person's own, under the global grants. One
+    # store for the window, the chat and agents' tools, so each hears of the
+    # others' changes. A reminder is a notice, given while notices are allowed.
+    calendar = planner.shared()
+    planner_bridge = PlannerBridge(calendar, policy=live_policy)
+    permissions.grantsChanged.connect(planner_bridge.refresh_access)
+    calendar_reminders = planner.Reminders(
+        calendar, notify=monitor.notify,
+        allowed=lambda: bool(permissions.policy.allows("notify.send")),
+        record=lambda title: audit.tool_call("calendar", "notify", {"title": title},
+                                             allowed=True, capability="notify.send"))
+
     chat = ChatBridge(router, config, context=assembler, project=projects.store.current_id,
                       researcher=researcher, remind=remind,
                       notices=lambda: bool(permissions.policy.allows("notify.send")),
-                      ground=grounder)
+                      ground=grounder, calendar=calendar)
     # Replies are read aloud as they stream in, and a call talks to this chat.
     voice.follow(chat)
 
@@ -428,6 +451,8 @@ def build_context(*, persist: bool = True) -> AppContext:
         training=TrainingBridge(
             ConversationStore(), Trainer(set_aside=router.set_aside),
             in_use=lambda: [m.adapter for m in config.models.values() if m.adapter]),
+        planner=planner_bridge,
+        reminders=calendar_reminders,
         housekeeping=sweep_indexes,
     )
 

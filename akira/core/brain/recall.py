@@ -27,6 +27,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+from akira.core.agenda import agenda_lines
 from akira.core.context.dates import clock_lines, span_lines
 from akira.core.context.forecast import forecast_lines
 from akira.core.context.letters import letter_lines
@@ -142,5 +143,9 @@ class ContextAssembler:
         forecast = forecast_lines(message, policy, audit=self._audit, today=now.date(), here=here)
         if forecast:
             parts.append(forecast)
+        # What is in the calendar kept in Akira, for the days asked about.
+        calendar = agenda_lines(message, policy, today=now.date())
+        if calendar:
+            parts.append(calendar)
         context.text = "\n\n".join(parts)
         return context

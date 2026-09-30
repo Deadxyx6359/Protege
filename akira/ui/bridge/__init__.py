@@ -18,6 +18,7 @@ from .memory import MemoryBridge
 from .monitor import MonitorBridge
 from .permissions import AllowBridge, ConfirmBridge, PermissionsBridge
 from .place import PlaceBridge
+from .planner import PlannerBridge
 from .projects import ProjectsBridge
 from .schedule import ScheduleBridge
 from .settings import SettingsBridge
@@ -31,5 +32,5 @@ __all__ = [
     "TraceBridge", "TraceListModel", "AgentsBridge", "MemoryBridge",
     "ProjectsBridge", "GraphBridge", "MonitorBridge", "PlaceBridge", "AccountsBridge",
     "DocumentsBridge", "CodingBridge", "VoiceBridge", "DrawingBridge", "DraftsBridge",
-    "ImagesBridge", "TrainingBridge",
+    "ImagesBridge", "TrainingBridge", "PlannerBridge",
 ]

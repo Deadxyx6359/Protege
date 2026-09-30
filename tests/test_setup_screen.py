@@ -124,6 +124,17 @@ click('setupChoice_weather')                 # off
 folder = sys.argv[2]
 QMetaObject.invokeMethod(sheet, 'set', Q_ARG('QVariant', 'documents'), Q_ARG('QVariant', True),
                          Q_ARG('QVariant', folder)); QTest.qWait(40)
+# Six choices and a folder are taller than this window: scrolled to the end, as a
+# person would, before the button is pressed.
+def scrolled(it):
+    for child in it.childItems():
+        if 'Flickable' in child.metaObject().className():
+            child.setProperty('contentY', max(0.0, child.property('contentHeight') - child.height()))
+            return True
+        if scrolled(child):
+            return True
+    return False
+assert scrolled(sheet); QTest.qWait(60)
 click('setupAllow')
 assert not sheet.property('opened') and sheet.property('notice') == ''
 policy = ctx.permissions.policy

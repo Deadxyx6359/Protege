@@ -39,6 +39,10 @@ STARTER: tuple[Choice, ...] = (
     Choice("notices", "Notices",
            "For reminders you set in the chat, and for folders or pages you watch.",
            (("notify.send", ()),)),
+    Choice("calendar", "Your calendar",
+           "Let the chat and agents read the calendar kept in Akira, on this computer, and "
+           "ask to add to it. Each change is shown to you first.",
+           (("planner.read", ()), ("planner.write", ()))),
     Choice("notes", "Your notes",
            "Read the notes in one folder, such as an Obsidian vault.",
            (("vault.read", ()),), folder=True, on=False),

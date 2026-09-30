@@ -168,7 +168,8 @@ def test_anything_the_secretary_can_change_stops_for_the_person():
     assert all(tools), "the secretary names a tool that does not exist"
     changes = {t.name for t in tools
                if any(CATALOGUE[r.capability].direction is Direction.WRITE for r in t.requires)}
-    assert changes == {"send_mail", "add_event", "move_event", "cancel_event"}
+    assert changes == {"send_mail", "add_event", "move_event", "cancel_event",
+                       "calendar_add", "calendar_change", "calendar_remove"}
     assert {t.name for t in tools if not t.reversible} == changes, \
         "the secretary can change something without being asked each time"
 

@@ -73,6 +73,7 @@ before changing it.
 | `Drafts` | `DraftsBridge` | What content pipelines drafted, waiting for the person to publish |
 | `Images` | `ImagesBridge` | Making a picture from a description, and saving it |
 | `Training` | `TrainingBridge` | Teaching a model from chosen conversations, and the adapters trained |
+| `Planner` | `PlannerBridge` | The calendar kept in Akira, on this computer: month, week and day, and changing it |
 
 Registered in `akira/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
@@ -87,7 +88,7 @@ these names, so renaming one is a deliberate, coordinated act.
 | `grants` | Property, notifies `grantsChanged` | What is held: `id`, `scopes`, `expires` (0 = never), `kept` |
 | `grant(id, scopes)` | Slot → string | `""` on success, otherwise **the reason** it was refused. Show it |
 | `revoke(id)`, `revokeAll()` | Slots | |
-| `starter` | List, changes with the grants | The permissions most people want first, for the first screen (`SetupSheet.qml`): `id`, `title`, `detail`, `folder` (the person picks one), `on` (ticked to begin with), `held` (all of it is granted already: shown as "On", with no switch, and not offered again; never for a folder choice). Web search and Wikipedia; the weather (location and Open-Meteo); notices; a notes folder; a documents folder (2026-09-28; `held` 2026-09-29) |
+| `starter` | List, changes with the grants | The permissions most people want first, for the first screen (`SetupSheet.qml`): `id`, `title`, `detail`, `folder` (the person picks one), `on` (ticked to begin with), `held` (all of it is granted already: shown as "On", with no switch, and not offered again; never for a folder choice). Web search and Wikipedia; the weather (location and Open-Meteo); notices; your calendar (the one kept in Akira, `planner.read` and `planner.write`); a notes folder; a documents folder (2026-09-28; `held` 2026-09-29; the calendar 2026-09-30) |
 | `applyStarter(choices)` | Slot → string | Grant what was picked, `{id, folder}` each, all or nothing: `""` or why not. Adds to what is held; recorded as "chosen on the first screen" |
 | `setupOffered`, `markSetupOffered()` | Property (notifies `setupChanged`), Slot | Whether the first screen has been shown, or anything is allowed already. The application opens it once when this is false (`Main.openSetup()`); Settings → General → Quick setup opens it again |
 | `keep(id, kept)` | Slot → string | Keep a grant with no end date on purpose, or stop: `""` or why not. The security review then stops asking about it. `describe(id)` carries `kept` and `noEndDate` (2026-09-28) |
@@ -909,6 +910,17 @@ the question says so. These replies are ordinary assistant messages, emitted
 on `replyGrew`/`replyEnded`, so a call reads them aloud and hears the yes. No
 new members: nothing for the interface to do.
 
+### The calendar in the chat — 2026-09-30
+
+"Add dentist to my calendar on Friday at 3pm" is not sent to a model either.
+The chat reads what and when (`akira/core/agenda.py`), answers "Add to your
+calendar: Dentist, Fri 2 Oct 2026, 15:00 to 16:00? Say yes to add it, or no.",
+and only a yes adds it to the calendar kept in Akira (see `Planner`). A day
+with no time is all day; with no day or time said, it asks when. Asked what is
+on ("what's on this week?", "am I free on Friday?"), the days asked about are
+read from the calendar and given to the model, only with `planner.read`. No new
+members: nothing for the interface to do beyond the `Planner` page.
+
 ### `Allow` — may this work read here too — 2026-09-27
 
 When an agent or a research turn reaches a site or folder next to what a grant
@@ -1134,6 +1146,46 @@ Navigation counts use existing `Memory.pendingCount`, `Monitor.notices.length`
 and `Schedule.criticalCount`. These mean pending notes, saved notices and the
 latest review's critical findings. They are not unread counts. Clearing a notice
 or resolving a proposal updates the UI through the existing bridge signals.
+
+## `Planner` — the calendar kept in Akira — 2026-09-30
+
+The person's own calendar, on this computer and nowhere else
+(`akira/core/planner.py`; `calendar.json` in the settings folder). No account,
+nothing sent anywhere, and no sync to a phone. What the person does on this
+page is their own act and needs no grant. `planner.read` and `planner.write`
+are for the chat's models and for agents (`calendar_list`, `calendar_add`,
+`calendar_change`, `calendar_remove`), and every agent change is shown to the
+person in `Confirm` first. Reminders are notices (`Monitor`'s), given once,
+while `notify.send` is allowed.
+
+Dates cross as text, never as JavaScript dates: `2026-10-02` for all day,
+`2026-10-02T15:00` otherwise. There are no time zones: 15:00 is 15:00 on this
+computer's clock. An all-day event's `end` is the last day it covers.
+
+| Member | Kind | Meaning |
+|---|---|---|
+| `changed` | signal | Anything in the calendar changed: the window, the chat, or an agent (from its own thread, carried across). Ask again for what is shown |
+| `revision` | int, notify `changed` | Goes up with every change. Bind to it: `model: { Planner.revision; return Planner.month(year, month, sundayFirst) }` |
+| `count` | int, notify `changed` | Events kept, a repeating one counted once |
+| `today` | string | `2026-10-02` |
+| `month(year, month, sundayFirst = false)` | list | The six weeks that show a month: 42 days, from Monday (or Sunday). Each day: `date`, `day` (number), `weekday` (`Mon`), `label` (`Friday 2 October`), `inMonth`, `today`, `weekend`, `events`. `[]` for a month that is not one |
+| `week(day, sundayFirst = false)` | list | The seven days of the week `day` is in, the same shape |
+| `day(day)` | list | The events on one day, all-day first |
+| `upcoming(days)` | list | Events from today for so many days (at most 366), in order, each with its `date` |
+| an event, in those | map | `id`, `title`, `allDay`, `start`, `end`, `time` and `endTime` (`15:00`, "" for all day or a day it only carries on), `when` (`Fri 2 Oct, 15:00 to 16:00`), `where`, `notes`, `repeats`, `repeatWords` (`every week until 28 Dec 2026`), `remind` (minutes, -1 none), `days` (how many it covers). In a day: `first` and `last` (whether it starts and ends that day), and for a timed one `startMinute` and `endMinute` from midnight, clipped to the day: for placing it in a week's hours |
+| `event(id)` | map | One event whole, for the editor: `id`, `title`, `start`, `end`, `allDay`, `where`, `notes`, `repeat` (`""`, `daily`, `weekly`, `fortnightly`, `monthly`, `yearly`), `until` (last day, or ""), `remind` (-1 none), and in words `when`, `repeatWords`, `remindWords`. `{}` if it is gone |
+| `repeats` | list | The repeat picker: `id`, `label` (`Does not repeat`, `Every week`, …) |
+| `reminders` | list | The reminder picker: `minutes` (-1 none, 0 at the start, then 5, 10, 15, 30, 60, 120, 1440, 2880, 10080), `label` |
+| `read(text)` | map | A line the person typed, for a quick-add field: "Dentist Friday 3pm" gives `title`, `start`, `end`, `allDay`, `when`; `start` is "" with no day or time in it |
+| `add(fields)` | string | Add: `title`, `start`, and any of `end`, `where`, `notes`, `repeat`, `until`, `remind`. "" or why not, in words to show. `added(id)` carries the new id |
+| `change(id, fields)` | string | Keep `fields` in place of the event, all of them as `add` takes them (start from `event(id)`). "" or why not |
+| `move(id, start, end = "")` | string | For dragging: to a day (a timed event keeps its time) or a date and time; as long as it was unless `end` is given. "" or why not |
+| `remove(id)` | string | Remove it, every time it repeats. "" or why not |
+| `agentsRead`, `agentsChange`, `noticesAllowed` | bool, notify `accessChanged` | Whether the chat and agents may read it, may ask to change it, and whether reminders can be shown. For a quiet line on the page with the way to allow them (Quick setup, "Your calendar"; or Permissions) |
+
+Titles, places and notes are what the person (or an agent, approved) wrote:
+shown as plain text, like everything that did not come from Akira itself.
+Removing has no undo, so the page should ask once before `remove`.
 
 ## Not reachable yet
 

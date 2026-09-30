@@ -39,10 +39,11 @@ from PySide6.QtCore import (
 from akira.core.config import AppConfig
 from akira.core.conversation import Cancelled, Conversation, Responder
 from akira.core.conversations import ConversationError, ConversationStore, relative_time
-from akira.core import reminders
+from akira.core import agenda, planner, reminders
 from akira.core.brain.grounding import TEACHING, Grounding, subject_of, teaching
 from akira.core.intent import LABELS, MODES, ROUTES, Intent, choose
 from akira.core.plain_maths import plain_maths
+from akira.core.planner import PlannerError, PlannerStore
 from akira.core.reminders import Asked
 from akira.core.models import ModelRouter, Route
 from akira.models.base import ModelError
@@ -220,6 +221,7 @@ class ChatBridge(QObject):
         remind: Callable[[str, float], str] | None = None,
         notices: Callable[[], bool] | None = None,
         ground: Callable[[str, str], Grounding] | None = None,
+        calendar: PlannerStore | None = None,
     ) -> None:
         super().__init__(parent)
         self._router = router
@@ -252,6 +254,11 @@ class ChatBridge(QObject):
         self._notices = notices
         # A reminder asked for and not yet agreed to: what, and when or None.
         self._reminder: Asked | None = None
+        # The calendar kept in Akira, which "add ... to my calendar" is put in on
+        # the person's yes. Without one, such a message goes to the model.
+        self._calendar = calendar
+        # An event asked for and not yet agreed to: its title, and when or None.
+        self._event: agenda.Asked | None = None
         # For a message about a chip or board: the vendor's own names before the
         # answer, and a check of the answer's after (`akira.core.brain.grounding`).
         self._ground = ground
@@ -529,7 +536,12 @@ class ChatBridge(QObject):
 
         # "Remind me ..." is read here and set on the person's yes, never by
         # a model, which once answered "Reminder set" with nothing set.
+        # "Add ... to my calendar" likewise: read here, added on the person's yes.
         said = self._reminding(payload)
+        if said:
+            self._event = None  # a later "yes" is to the reminder, not an event before it
+        else:
+            said = self._adding(payload)
         if said:
             self._say(said)
             return
@@ -620,6 +632,52 @@ class ChatBridge(QObject):
         if why:
             return f"The reminder could not be set: {why}"
         return f"Done. I'll remind you {reminders.described(asked.when)}: {asked.what or 'this'}."
+
+    # -- the calendar ----------------------------------------------------------
+
+    def _adding(self, text: str) -> str:
+        """The reply to \a text if it is about adding to the calendar, or "" to answer it
+        as usual."""
+        if self._calendar is None:
+            return ""
+        pending, self._event = self._event, None
+        if pending is not None:
+            if pending.start is not None:
+                answer = reminders.answer(text)
+                if answer == "yes":
+                    return self._add_event(pending)
+                if answer == "no":
+                    return "All right, nothing added."
+            else:
+                said = agenda.read(text)
+                if said.start is not None:
+                    return self._offer_event(agenda.Asked(pending.title, said.start, said.end))
+                if reminders.answer(text) == "no":
+                    return "All right, nothing added."
+            # Anything else is a new message; the event is let go.
+        if not agenda.asks_to_add(text):
+            return ""
+        asked = agenda.read(text)
+        if asked.start is None:
+            self._event = asked
+            return ("When is it" + (f", {asked.title}" if asked.title else "") + "? For example: "
+                    "Friday at 3pm, tomorrow from 10 to 11, or 5 October for all day.")
+        return self._offer_event(asked)
+
+    def _offer_event(self, asked: agenda.Asked) -> str:
+        try:
+            said = agenda.offer(asked)
+        except PlannerError as exc:
+            return f"That could not go in the calendar: {exc}"
+        self._event = asked
+        return said
+
+    def _add_event(self, asked: agenda.Asked) -> str:
+        try:
+            event = self._calendar.add(asked.event())
+        except (PlannerError, OSError) as exc:
+            return f"The event was not added: {exc}"
+        return f"Added to your calendar: {event.title}, {planner.when(event.start, event.end)}."
 
     def _say(self, text: str) -> None:
         """Answer at once, without a model: kept, shown and read aloud like any reply."""

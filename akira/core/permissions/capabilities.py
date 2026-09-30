@@ -157,6 +157,18 @@ CATALOGUE: dict[str, Capability] = {
            "Create and edit Word, Excel and PowerPoint files.",
            Direction.WRITE, Risk.MEDIUM, ScopeKind.PATH, irreversible=True),
 
+        # -- your own calendar ---------------------------------------------
+        #
+        # The one kept in Akira, on this computer: nothing about it is sent
+        # anywhere. Google's is `calendar.read` and `calendar.write`, below.
+        _c("planner.read", "Read the calendar kept in Akira",
+           "See the events in your own calendar, which stays on this computer.",
+           Direction.READ, Risk.MEDIUM),
+        _c("planner.write", "Change the calendar kept in Akira",
+           "Add, change and remove events in your own calendar. Each one is shown to you "
+           "first.",
+           Direction.WRITE, Risk.MEDIUM, irreversible=True),
+
         # -- version control -----------------------------------------------
         _c("vcs.read", "Read repositories",
            "Inspect git history, branches and diffs.",

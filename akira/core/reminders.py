@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 #: A message asking for a reminder: "remind me ...", "set a reminder ...".
 _ASKS = re.compile(
@@ -77,20 +77,14 @@ def read(text: str, now: datetime | None = None) -> Asked:
     return Asked(what[:200], when)
 
 
-def when_said(text: str, now: datetime) -> tuple[datetime | None, list[tuple[int, int]]]:
-    """The time \a text names, from \a now, and where in it that was said."""
-    spans: list[tuple[int, int]] = []
-    found = _IN.search(text)
-    if found:
-        amount = _NUMBERS.get(found.group(1).lower())
-        amount = float(found.group(1)) if amount is None else amount
-        unit = found.group(2).lower()
-        step = (timedelta(minutes=amount) if unit.startswith("m") else
-                timedelta(hours=amount) if unit.startswith("h") else
-                timedelta(weeks=amount) if unit.startswith("w") else timedelta(days=amount))
-        spans.append(found.span())
-        return (now + step).replace(second=0, microsecond=0), spans
+def day_and_time(text: str, now: datetime) -> tuple[
+        "date | None", "tuple[int, int] | None", str, list[tuple[int, int]]]:
+    """The day and the clock time \a text names, each or neither, with the part of
+    the day said ("evening") and where in \a text they were said.
 
+    A clock time that cannot be (25:00) is given as (-1, -1).
+    """
+    spans: list[tuple[int, int]] = []
     day, part = None, None
     found = _DAY.search(text)
     if found:
@@ -108,7 +102,7 @@ def when_said(text: str, now: datetime) -> tuple[datetime | None, list[tuple[int
             if ahead == 0 and "next" not in text[found.start():found.end()].lower():
                 day = now.date()  # "on Friday" said on a Friday: today, if still to come
 
-    hour = minute = None
+    clock = None
     found = _AT.search(text)
     if found:
         spans.append(found.span())
@@ -129,13 +123,26 @@ def when_said(text: str, now: datetime) -> tuple[datetime | None, list[tuple[int
             hour, minute = (0, 0) if groups[7].lower() == "midnight" else (12, 0)
             if groups[7].lower() == "midnight" and day is None:
                 day = now.date() + timedelta(days=1)
-        if not (0 <= hour <= 23 and 0 <= minute <= 59):
-            return None, spans
+        clock = (hour, minute) if 0 <= hour <= 23 and 0 <= minute <= 59 else (-1, -1)
+    return day, clock, (part or "").lower(), spans
 
-    if day is None and hour is None:
+
+def when_said(text: str, now: datetime) -> tuple[datetime | None, list[tuple[int, int]]]:
+    """The time \a text names, from \a now, and where in it that was said."""
+    found = _IN.search(text)
+    if found:
+        amount = _NUMBERS.get(found.group(1).lower())
+        amount = float(found.group(1)) if amount is None else amount
+        unit = found.group(2).lower()
+        step = (timedelta(minutes=amount) if unit.startswith("m") else
+                timedelta(hours=amount) if unit.startswith("h") else
+                timedelta(weeks=amount) if unit.startswith("w") else timedelta(days=amount))
+        return (now + step).replace(second=0, microsecond=0), [found.span()]
+
+    day, clock, part, spans = day_and_time(text, now)
+    if clock == (-1, -1) or (day is None and clock is None):
         return None, spans
-    if hour is None:
-        hour, minute = _PART_HOUR.get((part or "morning").lower(), 9), 0
+    hour, minute = clock if clock is not None else (_PART_HOUR.get(part or "morning", 9), 0)
     when = datetime.combine(day or now.date(), datetime.min.time()).replace(hour=hour,
                                                                            minute=minute)
     if when <= now:
