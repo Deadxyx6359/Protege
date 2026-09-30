@@ -53,7 +53,7 @@ def logged(tmp_path) -> str:
 
 def test_nothing_granted_searches_nothing_but_the_date_is_always_given(tmp_path, vault):
     context = assembler(tmp_path, Policy(), vault=vault)("when do I stake the tomatoes")
-    assert context.text == "It is Friday 11 September 2026, 14:05 (day)."
+    assert context.text == "It is Friday 11 September 2026, 14:05."
     assert context.sources == []
     assert "search_" not in logged(tmp_path), "an ungranted source was tried anyway"
 

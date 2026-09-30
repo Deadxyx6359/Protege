@@ -46,7 +46,7 @@ def test_the_part_of_day_follows_the_scenes_names(clock, name):
 
 
 def test_every_model_is_told_the_date_and_time():
-    assert describe_now(FRIDAY) == "It is Friday 11 September 2026, 14:05 (day)."
+    assert describe_now(FRIDAY) == "It is Friday 11 September 2026, 14:05."
 
 
 def test_the_place_and_zone_only_when_location_may_be_known():

@@ -277,7 +277,7 @@ def test_a_computer_set_to_the_wrong_zone_is_told_the_places_time(tmp_path):
     readings.save(Reading("clear", "clear sky", 29.5, 10.0, moment.timestamp() - 300, *logan,
                           "America/Chicago", -5 * 3600))
     said = line()
-    assert said.startswith("It is Saturday 26 September 2026, 17:45 (")
+    assert said.startswith("It is Saturday 26 September 2026, 17:45")
     assert "The local time zone is Central Daylight Time (UTC-05:00)." in said
     assert "may be set wrong" not in said
 

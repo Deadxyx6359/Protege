@@ -85,6 +85,16 @@ def test_the_offer_says_the_whole_of_it():
     # Looking for one thing: further ahead.
     ("When is my dentist appointment?", TODAY, date(2026, 11, 30)),
     ("What's in my diary?", TODAY, date(2026, 10, 13)),
+    # Asked in the app and not read as about the calendar at all.
+    ("what do i have going on tomorrow?", date(2026, 10, 1), date(2026, 10, 1)),
+    ("look at my calander", TODAY, date(2026, 10, 13)),
+    ("check my calender", TODAY, date(2026, 10, 13)),
+    ("What am I doing on Friday?", date(2026, 10, 2), date(2026, 10, 2)),
+    ("what's happening tomorrow?", date(2026, 10, 1), date(2026, 10, 1)),
+    ("What does my week look like?", TODAY, date(2026, 10, 6)),
+    ("what does my day look like", TODAY, TODAY),
+    ("is there anything on tomorrow?", date(2026, 10, 1), date(2026, 10, 1)),
+    ("whats on my schedual today", TODAY, TODAY),
 ])
 def test_the_days_asked_about(message, first, last):
     assert agenda.asks_what_is_on(message)
@@ -97,6 +107,9 @@ def test_the_days_asked_about(message, first, last):
     "what's happening in Ukraine",
     "show me the scheduled jobs",
     "Add dentist to my calendar on Friday at 3pm",
+    "What do I have to do to fix this bug?",
+    "what is going on with my code",
+    "what am I doing wrong",
 ])
 def test_other_questions_are_not_about_the_calendar(message):
     assert not agenda.asks_what_is_on(message)

@@ -35,7 +35,8 @@ from akira.core.planner import Event, PlannerError, PlannerStore
 _POLITE = (r"^\s*(?:(?:hey|ok|okay)[, ]+(?:akira[, ]+)?)?(?:akira[, ]+)?"
            r"(?:(?:can|could|would|will) you\s+|please\s+)?")
 _VERB = r"(?:add|put|pencil(?:\s+in)?|book|enter|note|schedule|create|make|set\s+up)"
-_BOOK = r"(?:calendar|diary)"
+#: The calendar as it is typed, often not as it is spelt: calender, calander.
+_BOOK = r"(?:cal[ae]nd[ae]r|diary)"
 #: "... to my calendar", "... in the diary".
 _IN_THE_BOOK = re.compile(rf"\s*\b(?:to|in|into|on)\s+(?:my|the|our)\s+{_BOOK}\b", re.IGNORECASE)
 #: A message asking for an event: "add dentist to my calendar ...", "put ... in
@@ -179,16 +180,28 @@ def _past(event: Event) -> bool:
 # -- asked what is on --------------------------------------------------------------------------------
 
 #: A message about the calendar: what is on, whether the person is free, when something is.
+_DAY_WORD = (r"(?:today|tonight|tomorrow|this\s+(?:morning|afternoon|evening|week|weekend)|"
+             r"next\s+week|the\s+weekend|(?:on\s+)?(?:mon|tues|wednes|thurs|fri|satur|sun)day)")
+#: Asked "what do I have going on tomorrow?" and "look at my calander", chat
+#: read neither as about the calendar, and the model said it could not know.
 _ABOUT = re.compile(
-    r"\b(?:my|the|our)\s+(?:calendar|diary|schedule|agenda|appointments?|plans)\b|"
+    rf"\b(?:my|the|our)\s+(?:{_BOOK}|sched(?:ule|ual)|agenda|appointments?|plans)\b|"
     # "What's on tomorrow?", not "what's on TV?".
     r"\bwhat(?:'s| is)\s+on\s*(?:\?|$|(?:for\s+)?(?:today|tomorrow|tonight|this\s|next\s|"
     r"(?:on\s+)?(?:mon|tues|wednes|thurs|fri|satur|sun)day|(?:the\s+)?\d))|"
     r"\bwhat(?:'s| is)\s+(?:planned|coming up)\b|"
-    r"\bwhat (?:have i got|do i have)\s+(?:on|planned|coming up)\b|"
+    # "What's happening tomorrow?", not "what's happening in the news?".
+    rf"\bwhat(?:'s| is)\s+(?:going on|happening)\s+{_DAY_WORD}|"
+    # "What do I have going on tomorrow?", "what am I doing on Friday?".
+    r"\bwhat\s+(?:have i got|do i have|have i|am i doing|are we doing|do we have)"
+    rf"(?:\s+\w+){{0,2}}?\s+(?:on|planned|going on|coming up|happening|scheduled|booked|"
+    rf"{_DAY_WORD})\b|"
+    rf"\bwhat does\s+(?:my\s+|the\s+)?(?:day|week|weekend|{_DAY_WORD})\s+look like\b|"
     r"\b(?:am i|are we)\s+(?:free|busy|doing anything)\b|"
     r"\b(?:do|have) i (?:have|got)\s+(?:anything|something|any(?:\s+\w+)?\s+(?:events?|"
     r"appointments?|meetings?|plans))\b|"
+    r"\b(?:is there|anything)\s+(?:anything\s+)?(?:on|planned|scheduled|booked|going on|"
+    rf"happening)\s+{_DAY_WORD}|"
     r"\bwhen(?:'s| is| are)\s+my\s+(?:next\s+)?\w+", re.IGNORECASE)
 #: Akira's own Schedule of jobs is not the calendar.
 _JOBS = re.compile(r"\b(?:scheduled\s+jobs?|the\s+scheduler|cron)\b", re.IGNORECASE)
@@ -220,7 +233,7 @@ def days_asked(message: str, today: date) -> tuple[date, date]:
     if re.search(r"\bnext week\b", text):
         monday = today + timedelta(days=7 - today.weekday())
         return monday, monday + timedelta(days=6)
-    if re.search(r"\b(?:this|the) week\b|\bweek ahead\b|\bnext (?:few|7|seven) days\b", text):
+    if re.search(r"\b(?:this|the|my) week\b|\bweek ahead\b|\bnext (?:few|7|seven) days\b", text):
         return today, today + timedelta(days=6)
     if re.search(r"\bweekend\b", text):
         saturday = today + timedelta(days=(5 - today.weekday()) % 7)
@@ -229,7 +242,7 @@ def days_asked(message: str, today: date) -> tuple[date, date]:
         return saturday, saturday + timedelta(days=1)
     if re.search(r"\btomorrow\b", text):
         return today + timedelta(days=1), today + timedelta(days=1)
-    if re.search(r"\b(?:today|tonight|now|this (?:morning|afternoon|evening))\b", text):
+    if re.search(r"\b(?:today|tonight|now|my day|this (?:morning|afternoon|evening))\b", text):
         return today, today
     for number, name in enumerate(_WEEKDAYS):
         if re.search(rf"\b{name}\b", text):

@@ -190,8 +190,10 @@ def describe_now(now: datetime, *, place: Place | None = None, located: bool = F
     wrong = zone_mismatch(local, weather) if located else None
     shown = local if wrong is None else local.astimezone(wrong)
     there = f" in {place.name}" if wrong is not None and place is not None and place.name else ""
+    # Not the scenes' name for the light: "(golden hour)" was listed as an event
+    # in "what does my week look like?", at the time it was said.
     text = (f"It is {shown.strftime('%A')} {shown.day} {shown.strftime('%B %Y')}, "
-            f"{shown.strftime('%H:%M')}{there} ({part_of_day(shown)}).")
+            f"{shown.strftime('%H:%M')}{there}.")
     if not located:
         return text
     bits = [text]
