@@ -114,6 +114,7 @@ Window {
         { id: "chats", icon: "chat", label: "Chat", group: "Chat" },
         { id: "documents", icon: "document", label: "Documents", group: "Library" },
         { id: "memory", icon: "clock", label: "Memory", group: "Library", countLabel: "pending note" },
+        { id: "calendar", icon: "calendar", label: "Calendar", group: "Library" },
         { id: "code", icon: "code", label: "Code", group: "Tools" },
         { id: "research", icon: "search", label: "Research", group: "Tools" },
         { id: "agents", icon: "team", label: "Agents", group: "Tools" },
@@ -486,6 +487,14 @@ Window {
                     anchors.fill: parent
                     visible: win.currentNav === "documents"
                     onPermissionsRequested: permissionsSheet.open()
+                }
+
+                CalendarView {
+                    objectName: "calendarView"
+                    anchors.fill: parent
+                    visible: win.currentNav === "calendar"
+                    onPermissionsRequested: permissionsSheet.open()
+                    onSetupRequested: win.openSetup()
                 }
 
                 ChatView {

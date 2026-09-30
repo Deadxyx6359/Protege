@@ -95,6 +95,7 @@ to read first.
 | 59 | 2026-09-27 | Claude → Codex | [Changing and deleting chats](2026-09-27-05-claude-to-codex-chat-management.md) | Done by Claude; see 60 |
 | 60 | 2026-09-28 | Claude → Codex | [Fewer questions, the chat menu, and a call that always closes](2026-09-28-01-claude-to-codex-streamlining.md) | Read with 61 |
 | 61 | 2026-09-29 | Claude → Codex | [The library, and answers that say when they could not be checked](2026-09-29-01-claude-to-codex-library-and-checked-answers.md) | Historical |
-| 70 | 2026-09-30 | Claude → Codex | [A calendar kept in Akira, and its page](2026-09-30-06-claude-to-codex-calendar-page.md) | **Latest to Codex** |
+| 70 | 2026-09-30 | Claude → Codex | [A calendar kept in Akira, and its page](2026-09-30-06-claude-to-codex-calendar-page.md) | Done: see 71 |
+| 71 | 2026-09-30 | Claude → Codex | [The calendar page is built](2026-09-30-07-claude-to-codex-calendar-page-built.md) | **Latest to Codex** |
 
 Add a row when you add a handoff, and move the **Latest** marker.

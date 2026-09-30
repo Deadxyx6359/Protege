@@ -1187,6 +1187,17 @@ Titles, places and notes are what the person (or an agent, approved) wrote:
 shown as plain text, like everything that did not come from Akira itself.
 Removing has no undo, so the page should ask once before `remove`.
 
+**The page (2026-09-30):** `CalendarView.qml`, in the Library beside Documents
+and Memory (`currentNav` `"calendar"`), with `CalendarEventSheet.qml` for adding
+and changing. A month or a week (weeks start on the locale's first day), the day
+chosen beside it when the page is 900 wide or more, a quick-add line (a line
+with a day or a time is added at once, with Undo; one without opens the editor),
+and dragging an event to another day, or in the week to another time. The page
+takes no click while the editor is open: a press on the editor's Save was also
+taken, passively, by the day under it, which the release chose once the sheet
+had closed. Any page with its own pointer handlers under a `Sheet` can meet the
+same.
+
 ## Not reachable yet
 
 - **Tools in the conversation.** `Chat` does not call tools on the model's

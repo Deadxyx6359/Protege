@@ -47,6 +47,8 @@ NoticeBanner 1.0 NoticeBanner.qml
 ScheduleView 1.0 ScheduleView.qml
 MemoryView 1.0 MemoryView.qml
 DocumentsView 1.0 DocumentsView.qml
+CalendarView 1.0 CalendarView.qml
+CalendarEventSheet 1.0 CalendarEventSheet.qml
 ProjectSheet 1.0 ProjectSheet.qml
 AccountsSheet 1.0 AccountsSheet.qml
 VoiceSheet 1.0 VoiceSheet.qml

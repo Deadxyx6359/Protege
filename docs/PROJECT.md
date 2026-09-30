@@ -91,7 +91,7 @@ measured benchmarks, not from optimism.
 | Web search | **Done**: DuckDuckGo, under its own permission that reaches DuckDuckGo and nothing else | C2 |
 | Full computer use — forms, posting, reservations, scraping without APIs, job applications, product testing | Fine — Playwright drives a real browser | C3 |
 | Screenshots | **Done**: agents read the words on screen; the person can save a capture where writing is allowed | C4 |
-| Email, calendar, text, Canvas, docs | **Gmail and Google Calendar reading, and Gmail sending, done**, once the person connects an address: its own permission, a sealed sign-in, a secretary agent that reads and sends only what the person approves, each message shown whole. Calendar changes and other connectors to come. **A calendar kept in Akira, on this computer only, done** (2026-09-30): its page is the interface's to build | C5 |
+| Email, calendar, text, Canvas, docs | **Gmail and Google Calendar reading, and Gmail sending, done**, once the person connects an address: its own permission, a sealed sign-in, a secretary agent that reads and sends only what the person approves, each message shown whole. Calendar changes and other connectors to come. **A calendar kept in Akira, on this computer only, done** (2026-09-30), with its page in the Library | C5 |
 | Banking | **Read-only, permanently** | C5 |
 | Monitoring agent — watch for changes | **Folders, pages, feeds and Gmail inboxes done**: changes wake scheduled jobs, which can put up notices or set an agent to work | C6 |
 | Time-based and event-based processes (daily/weekly/monthly/custom) | **Done** | A6 |
@@ -628,8 +628,9 @@ for coursework); Google's tools stay for an address the person names. In the
 chat, "add dentist to my calendar on Friday at 3pm" is read by rules and added
 on the person's yes, and "what's on this week?" is answered from the calendar
 with `planner.read` (`core/agenda.py`). Quick setup offers "Your calendar". The
-page itself is the interface's: the `Planner` bridge gives month, week and day
-views and the editor what they need (QML_BRIDGES.md, handoff 2026-09-30-06).
+page, built the same day at the person's asking, is in the Library: a month or
+a week, the day chosen, a quick-add line, dragging to move, and an editor
+(`CalendarView.qml`, `CalendarEventSheet.qml`; handoffs 2026-09-30-06 and -07).
 *Done since, Google Drive:* the person chose Drive, Canvas, read-only banking
 and messages as the connectors to add. Drive is a fifth service on the same
 address, under a new permission, `cloud.read` (high risk, though it only reads:
