@@ -230,6 +230,10 @@ Window {
     Connections { target: Projects; function onCurrentChanged() { win.projectChanged() } }
     Connections {
         target: Chat
+        function onSlowNoticed(message) { banners.show("Akira is writing slowly", message, false); }
+    }
+    Connections {
+        target: Chat
         function onBusyChanged() { if (!Chat.busy && win.pendingProjectReset) win.finishProjectSwitch(); }
     }
 
@@ -318,6 +322,7 @@ Window {
 
     // Above everything, sheets included: an irreversible action waits on it.
     ConfirmDialog {
+        id: confirmDialog
         objectName: "confirmDialog"
         z: 100
     }
@@ -371,9 +376,33 @@ Window {
         }
     }
 
+    // -- what is over the page -------------------------------------------------
+    //
+    // A press on a button in a sheet is taken, passively, by whatever control on
+    // the page is under it as well. When that press closed the sheet, the release
+    // then went to that control: Save in the calendar's editor also chose the day
+    // beneath it. So the page takes no press while a sheet, a confirmation or a
+    // link's question is up. The allow banner is not one: the work waits on it,
+    // and the window is meant to stay in use.
+    property int _overlayTick: 0
+    /*! For `Sheet`: one opened or closed. */
+    function overlayChanged() { win._overlayTick += 1; }
+    readonly property bool overlayUp: {
+        win._overlayTick;
+        if (confirmDialog.visible || linkPrompt.visible)
+            return true;
+        const items = win.contentItem.children;
+        for (let i = 0; i < items.length; i++)
+            if (items[i].opened === true)
+                return true;
+        return false;
+    }
+
     RowLayout {
+        objectName: "workspaceLayout"
         anchors.fill: parent
         spacing: 0
+        enabled: !win.overlayUp
 
         Sidebar {
             id: sidebar
@@ -569,6 +598,9 @@ Window {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.bottom: composer.top
+                    // Clear of the backing behind the composer, which reaches above
+                    // it: the context note under the last reply was cut off by it.
+                    anchors.bottomMargin: composerBacking.visible ? -composerBacking.anchors.topMargin : 0
                     model: Chat.messages
                     busy: Chat.busy
                     busyStage: Chat.stage
@@ -603,6 +635,8 @@ Window {
                 }
 
                 Rectangle {
+                    id: composerBacking
+                    objectName: "composerBacking"
                     visible: megastructure.visible || caveGarden.visible
                     anchors.fill: composer
                     anchors.margins: -12

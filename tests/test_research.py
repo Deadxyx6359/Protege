@@ -243,3 +243,78 @@ def test_why_a_page_was_not_read_is_said_plainly():
 def test_the_pages_given_are_found_without_the_punctuation_after_them(question, wanted):
     from akira.core.brain.research import given_pages
     assert given_pages(question) == wanted
+
+
+def test_the_answer_is_told_when_what_it_read_was_read():
+    """A price came back with no time: a figure that changes is worth no more than when."""
+    from akira.core.brain.research import Findings
+
+    prompt = Findings(material="What was read:\n\nNVDA 229.61",
+                      sources=[{"source": "web", "cite": "https://example.org/nvda"}],
+                      read_at="Thursday 1 October 2026, 21:40").for_prompt()
+    assert "It was read on Thursday 1 October 2026, 21:40." in prompt
+    assert "such as a price, a rate or a score, say when" in prompt
+    assert "It was read on" not in Findings(material="x").for_prompt()
+
+
+def test_what_is_looked_up_says_when(tmp_path, pages):
+    policy = Policy()
+    policy.grant("net.http", ("en.wikipedia.org",))
+    found = researcher(tmp_path, policy, Scripted([]))(
+        "Read https://en.wikipedia.org/wiki/Alan_Turing and tell me where he was born.")
+    import re
+    assert re.fullmatch(r"\w+day \d{1,2} \w+ \d{4}, \d\d:\d\d", found.read_at)
+
+
+def test_the_best_result_is_the_first_worth_reading_as_a_page():
+    from akira.core.brain.research import best_result
+
+    results = ("Results for 'sourdough'.\n\n1. A video\n   https://www.youtube.com/watch?v=abc\n\n"
+               "2. A guide\n   https://www.kingarthurbaking.com/sourdough.\n\n"
+               "3. Another\n   https://example.org/b")
+    assert best_result([("web_search", results)]) == "https://www.kingarthurbaking.com/sourdough"
+    assert best_result([("read_file", "https://example.org/a")]) == ""
+    assert best_result([]) == ""
+
+
+def test_with_only_search_results_read_the_best_page_is_read_too(tmp_path, pages, monkeypatch):
+    """Told to read a page when excerpts do not answer, the gatherer stopped at them anyway."""
+    from akira.core.net.search import Hit
+    from akira.core.tools.builtin import web
+
+    monkeypatch.setattr(web, "search", lambda query, **_: [
+        Hit("Alan Turing (Wikipedia)", "https://en.wikipedia.org/wiki/Alan_Turing",
+            "An English mathematician.", "tavily")])
+    policy = Policy()
+    policy.grant("web.search")
+    policy.grant("net.http", ("en.wikipedia.org",))
+    searching = '<tool_call>{"name": "web_search", "arguments": {"query": "Alan Turing born"}}</tool_call>'
+    steps = []
+    found = researcher(tmp_path, policy, Scripted([searching, "He was a mathematician."]))(
+        "Where was Alan Turing born?", on_step=steps.append)
+    assert "Maida Vale" in found.material
+    assert found.sources == [{"source": "web", "cite": "https://en.wikipedia.org/wiki/Alan_Turing"}]
+    assert steps[-1] == "Reading en.wikipedia.org" and found.note == "Read 1 page, 1 search."
+
+
+@pytest.mark.parametrize("text, kept", [
+    ("I cannot directly access external websites or tools to perform a lookup. However, "
+     "based on the material provided, the board resets with a power cycle.",
+     "Based on the material provided, the board resets with a power cycle."),
+    ("I can't browse the web. The rate is 1.32.", "The rate is 1.32."),
+    ("The Broncos won 30-26.", "The Broncos won 30-26."),
+    ("iPhone 17 lasts a day.", "iPhone 17 lasts a day."),
+    ("I cannot find a factory reset in what was read.",
+     "I cannot find a factory reset in what was read."),
+])
+def test_an_opening_saying_it_cannot_reach_the_web_is_dropped(text, kept):
+    """Told not to, the model opened an answer from a page it had read with it."""
+    from akira.core.brain.research import OpeningHeld, without_false_disclaimer
+
+    assert without_false_disclaimer(text) == kept
+    shown = []
+    held = OpeningHeld(shown.append)
+    for piece in [text[i:i + 7] for i in range(0, len(text), 7)]:
+        held.feed(piece)
+    held.finish()
+    assert "".join(shown) == kept

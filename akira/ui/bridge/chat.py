@@ -79,6 +79,10 @@ DID_NOT_KNOW = re.compile(
     r"\bI(?:'m|\s+am)\s+not\s+(?:sure|certain|familiar\s+with|aware\s+of)\b",
     re.IGNORECASE)
 
+#: Writing slower than this, in tokens a second, on the graphics card is worth a word:
+#: the person's card gives 30 to 40.
+SLOW_TOKENS_PER_S = 5.0
+
 #: Sources found by searching before the answer, kept only when it cites them.
 #: What research read (`web`, `files`, `drive`) was read for the answer and stays.
 SEARCHED = frozenset({"notes", "documents", "conversations"})
@@ -203,6 +207,10 @@ class ChatBridge(QObject):
     #: came back empty, and nothing more of it should be read.
     replyEnded = Signal(str)
 
+    #: The model wrote far slower than it should, and why, for the person: once a
+    #: session. A research answer came at half a word a second, with no word why.
+    slowNoticed = Signal(str)
+
     _tokenArrived = Signal(str)
     _turnEnded = Signal(str)
     _stageRequested = Signal(str)
@@ -259,6 +267,8 @@ class ChatBridge(QObject):
         self._calendar = calendar
         # An event asked for and not yet agreed to: its title, and when or None.
         self._event: agenda.Asked | None = None
+        # Whether the person was told this session that the model writes slowly.
+        self._told_slow = False
         # For a message about a chip or board: the vendor's own names before the
         # answer, and a check of the answer's after (`akira.core.brain.grounding`).
         self._ground = ground
@@ -633,6 +643,29 @@ class ChatBridge(QObject):
             return f"The reminder could not be set: {why}"
         return f"Done. I'll remind you {reminders.described(asked.when)}: {asked.what or 'this'}."
 
+    # -- speed -----------------------------------------------------------------
+
+    def _check_speed(self, result) -> None:
+        """Tell the person, once, when a model on the graphics card wrote far too slowly.
+
+        Worker thread: emits a signal only. The 8B model writes 30 to 40 tokens a
+        second on the person's card; when something else holds the card's memory,
+        part of the model runs from ordinary memory and it falls to one or two.
+        """
+        rate = getattr(result, "writing_rate", None)
+        if self._told_slow or rate is None or rate >= SLOW_TOKENS_PER_S:
+            return
+        model = self._config.models.get(self._router.resolve(self._route).value)
+        if model is None or model.n_gpu_layers == 0:
+            return  # on the processor alone, slow is how it is
+        self._told_slow = True
+        words = max(0.1, rate * 0.75)
+        self.slowNoticed.emit(
+            f"That reply came at about {words:.1f} words a second; the model usually writes "
+            "20 or more. Part of it is probably running from ordinary memory because "
+            "something else is using the graphics card. Close games, browsers or other "
+            "programs that use it, then restart Akira.")
+
     # -- the calendar ----------------------------------------------------------
 
     def _adding(self, text: str) -> str:
@@ -813,17 +846,27 @@ class ChatBridge(QObject):
                 self._tokenArrived.emit(grounding.banner)
             said: list[str] = []
 
-            def token(chunk: str) -> None:
+            def shown(chunk: str) -> None:
                 said.append(chunk)
                 self._tokenArrived.emit(chunk)
 
-            self._responder.respond(
+            # An answer written from what was read opened "I cannot directly access
+            # external websites": its first sentence is held until it is whole.
+            from akira.core.brain.research import OpeningHeld
+
+            opening = (OpeningHeld(shown) if self._researching() and not self._nothing_read
+                       else None)
+            token = opening.feed if opening is not None else shown
+            result = self._responder.respond(
                 self._conversation,
                 route=self._route,
                 on_token=token,
                 is_cancelled=self._cancel.is_set,
                 extra_system=extra,
             )
+            if opening is not None:
+                opening.finish()
+            self._check_speed(result)
             if self._researching() and self._nothing_read:
                 # Told to say so, an answer with nothing read gave a prime
                 # minister two out of date as "as of" today. Said here instead.

@@ -930,6 +930,16 @@ the question says so. These replies are ordinary assistant messages, emitted
 on `replyGrew`/`replyEnded`, so a call reads them aloud and hears the yes. No
 new members: nothing for the interface to do.
 
+### Writing slowly — 2026-09-30
+
+`Chat.slowNoticed(message)` is emitted, once a session, when a model on the
+graphics card wrote a reply at under 5 tokens a second (it writes 30 to 40 on
+the person's card): part of it is then running from ordinary memory because
+something else holds the card's memory. `message` says how fast, why, and what
+to do; `Main.qml` shows it as a banner. Research answers built on what was read
+have their first sentence held back until whole, so a false "I cannot access
+websites" opening is dropped before it is shown.
+
 ### The calendar in the chat — 2026-09-30
 
 "Add dentist to my calendar on Friday at 3pm" is not sent to a model either.

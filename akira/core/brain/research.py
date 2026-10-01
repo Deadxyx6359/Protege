@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import PurePath
 from typing import Callable
 
@@ -116,6 +117,9 @@ class Findings:
     """The reply to give as it is, when no page the person gave could be read.
     Told why, the model still said it "cannot access external websites"."""
 
+    read_at: str = ""
+    """When it was read, as "Thursday 1 October 2026, 21:40", or "" if not known."""
+
     @property
     def found(self) -> bool:
         return bool(self.material)
@@ -133,7 +137,12 @@ class Findings:
                     "can be out of date: say the answer comes from search results, and that "
                     "it may be out of date. If they do not give the answer, say so, then say "
                     "what you know and that it may be out of date.")
-            return f"{PREAMBLE} {read}\n\n{self.material}"
+            # A price came back with no time: a figure that changes is worth no
+            # more than when it was so.
+            when = (f" It was read on {self.read_at}. For a figure that changes, such as a "
+                    "price, a rate or a score, say when what was read says it was so; if it "
+                    "does not say, say it was read then." if self.read_at else "")
+            return f"{PREAMBLE} {read}{when}\n\n{self.material}"
         why = self.note[:1].lower() + self.note[1:].rstrip(".")
         return (UNREAD_PAGE if self.given else NOTHING).format(why)
 
@@ -239,7 +248,7 @@ class Researcher:
                                   if result.content.strip() else f"{url} could not be read")
                     unread.append(not_read(url, failed[-1]))
             return Findings(material=material(read, "", question), sources=sources,
-                            note=noted(read, failed), given=True,
+                            note=noted(read, failed), given=True, read_at=_now_said(),
                             said="" if read else " ".join(unread))
         # A follow-up to an answer from Wikipedia searched the person's files
         # and gave up. Told at the end where to look, it still did; told first,
@@ -256,6 +265,25 @@ class Researcher:
         if outcome.stopped == "cancelled":
             raise Cancelled()
 
+        # A search result is a line or two. Told to read a page when they do not
+        # answer, the gatherer stopped at them anyway: a price came back with no
+        # date, and "how to reset the board" with forum fragments. So when only
+        # searches were read, the best result is read too, asked about in place
+        # like any page a search came across.
+        if not any(tool in ("fetch_page", "browse_page") for tool, _ in read):
+            best = best_result(read)
+            if best:
+                if is_cancelled is not None and is_cancelled():
+                    raise Cancelled()
+                if on_step is not None:
+                    on_step(step("fetch_page", {"url": best}))
+                page = self._registry.invoke("fetch_page", {"url": best}, context)
+                if page.ok:
+                    read.append(("fetch_page", page.content))
+                    cited = cite("fetch_page", {"url": best})
+                    if cited not in sources:
+                        sources.append(cited)
+
         # What it made of nothing is what it remembers, not what it found.
         summary = outcome.answer.strip() if (outcome.ok or outcome.partial) and read else ""
         # What a follow-up is about is partly in the question it follows: "what
@@ -263,7 +291,7 @@ class Researcher:
         # launch, and the page is cut to its launch, not to Webb in general.
         asked = " ".join([question, *followed(earlier)])
         return Findings(material=material(read, summary, asked), sources=sources,
-                        note=noted(read, failed))
+                        note=noted(read, failed), read_at=_now_said())
 
 
 #: A page given in the message, as far as the first space or bracket.
@@ -286,6 +314,106 @@ def given_pages(question: str) -> list[str]:
         if url not in pages:
             pages.append(url)
     return pages[:MAX_GIVEN_PAGES]
+
+
+#: An opening that says what is not so, of an answer written from what was read:
+#: "I cannot directly access external websites. However, based on the material...".
+_FALSE_DISCLAIMER = re.compile(
+    r"\A\s*I\s+(?:cannot|can't|can not|am unable to|am not able to|do not have the ability to|"
+    r"don't have the ability to)\s+(?:directly\s+)?(?:access|browse|visit|open|look up|search|"
+    r"reach|use)\b[^.!?\n]*[.!?]\s*(?:However,?\s*)?", re.IGNORECASE)
+#: What a dropped disclaimer led into.
+_HOWEVER = re.compile(r"\A\s*However,?\s*", re.IGNORECASE)
+#: Where a first sentence ends.
+_SENTENCE_END = re.compile(r"[.!?](?:\s|$)")
+#: How much is held back, at most, to see whether the first sentence is one.
+MAX_HELD = 300
+
+
+def without_false_disclaimer(text: str) -> str:
+    """\a text without an opening saying it cannot reach the web, which it just did."""
+    found = _FALSE_DISCLAIMER.match(text)
+    if not found:
+        return text
+    rest = text[found.end():]
+    return rest[:1].upper() + rest[1:]
+
+
+class OpeningHeld:
+    """Holds back the start of an answer written from what was read, until its first
+    sentence is whole, and lets it go without `without_false_disclaimer`'s kind.
+
+    Told not to, the model still opened answers drawn from pages it had just read
+    with "I cannot directly access external websites".
+    """
+
+    def __init__(self, emit) -> None:
+        self._emit = emit
+        self._held: list[str] = []
+        self._holding = True
+        # A disclaimer was dropped: what follows is held a little longer, for the
+        # "However," it ended on, which may not have arrived with it.
+        self._dropped = False
+
+    def feed(self, chunk: str) -> None:
+        if not self._holding:
+            self._emit(chunk)
+            return
+        self._held.append(chunk)
+        text = "".join(self._held)
+        if self._dropped:
+            if len(text) >= len("However, ") + 1:
+                self._release()
+            return
+        if _SENTENCE_END.search(text) is None and len(text) < MAX_HELD:
+            return
+        kept = without_false_disclaimer(text)
+        if kept != text and not self._dropped:
+            self._dropped = True
+            self._held = [kept]
+            if len(kept) >= len("However, ") + 1:
+                self._release()
+            return
+        self._release()
+
+    def finish(self) -> None:
+        if self._holding:
+            self._release()
+
+    def _release(self) -> None:
+        self._holding = False
+        text = "".join(self._held)
+        if self._dropped:
+            text = _HOWEVER.sub("", text, count=1)
+            text = text[:1].upper() + text[1:]
+        else:
+            text = without_false_disclaimer(text)
+        self._held = []
+        if text:
+            self._emit(text)
+
+
+#: Results not worth reading as a page: a video's page is its player, not what it says.
+_NOT_READ_AS_PAGES = ("youtube.com", "youtu.be", "vimeo.com", "tiktok.com")
+
+
+def best_result(read: list[tuple[str, str]]) -> str:
+    """The first result of the first web search in \a read worth reading as a page, or ""."""
+    for tool, text in read:
+        if tool != "web_search":
+            continue
+        for url in _PAGE.findall(text):
+            url = url.rstrip(".,;:!?)")
+            site = _site(url)
+            if url.startswith("https://") and not any(
+                    site == host or site.endswith("." + host) for host in _NOT_READ_AS_PAGES):
+                return url
+    return ""
+
+
+def _now_said() -> str:
+    now = datetime.now()
+    return f"{now:%A} {now.day} {now:%B %Y}, {now:%H:%M}"
 
 
 def not_read(url: str, why: str) -> str:

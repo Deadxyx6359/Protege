@@ -30,6 +30,9 @@ Item {
     readonly property bool opened: _open
 
     default property alias content: body.data
+    /*! What stays below the content, however far it scrolls: a sheet's own buttons.
+        In a window 700 high, Quick setup's "Allow these" was below the fold. */
+    property alias footer: footerRow.data
 
     property bool _open: false
     property var returnFocus: null
@@ -62,6 +65,13 @@ Item {
     opacity: _open ? 1 : 0
     // Nothing behind a closed sheet should be unclickable.
     enabled: _open
+    // The window stops the page under an open sheet taking presses (Main.qml,
+    // `overlayUp`): a press on the sheet's button was also taken by the page.
+    onOpenedChanged: {
+        const w = root.Window.window;
+        if (w && typeof w.overlayChanged === "function")
+            w.overlayChanged();
+    }
 
     Behavior on opacity {
         NumberAnimation { duration: Theme.duration.fast }
@@ -134,7 +144,8 @@ Item {
         // Both of the content's margins, top and bottom: counting one left
         // every sheet short by the other and cut off its last row.
         height: Math.min(root.sheetMaxHeight,
-                         header.height + Theme.space.lg + body.implicitHeight + Theme.space.xl)
+                         header.height + Theme.space.lg + body.implicitHeight + Theme.space.xl
+                         + footerArea.height)
 
         scale: root._open ? 1.0 : 0.96
         y: root._open ? 0 : Theme.space.lg
@@ -218,9 +229,10 @@ Item {
             anchors.top: header.bottom
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.bottom: parent.bottom
+            anchors.bottom: footerArea.top
             anchors.margins: Theme.space.xl
             anchors.topMargin: Theme.space.lg
+            anchors.bottomMargin: footerArea.height > 0 ? Theme.space.md : Theme.space.xl
             contentWidth: availableWidth
             clip: true
             layer.enabled: true
@@ -229,6 +241,26 @@ Item {
                 id: body
                 width: parent.width
                 spacing: Theme.space.xl
+            }
+        }
+
+        // -- footer: the sheet's own buttons, never scrolled away ----------------
+
+        Item {
+            id: footerArea
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.leftMargin: Theme.space.xl
+            anchors.rightMargin: Theme.space.xl
+            height: footerRow.children.length > 0 && footerRow.implicitHeight > 0
+                    ? footerRow.implicitHeight + Theme.space.xl : 0
+            Item {
+                id: footerRow
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                implicitHeight: childrenRect.height
             }
         }
     }

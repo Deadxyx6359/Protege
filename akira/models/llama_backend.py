@@ -187,6 +187,7 @@ class LlamaBackend(ModelBackend):
             )
 
             chunks: list[str] = []
+            first = 0.0
             finish_reason = "stop"
             timed_out = False
             # Reasoning spans are filtered at the stream level, not only at the
@@ -203,6 +204,8 @@ class LlamaBackend(ModelBackend):
                     if piece:
                         visible = think.feed(piece)
                         if visible:
+                            if not chunks:
+                                first = time.monotonic() - started
                             chunks.append(visible)
                             if on_token:
                                 on_token(visible)
@@ -240,6 +243,7 @@ class LlamaBackend(ModelBackend):
                 completion_tokens=self.count_tokens(text),
                 stop_reason=finish_reason or "stop",
                 duration_s=time.monotonic() - started,
+                first_token_s=first,
             )
 
     def count_tokens(self, text: str) -> int:

@@ -235,7 +235,14 @@ class LabeledSlider(tk.Frame):
         return int(self.scale.get())
 
     def set(self, value: int) -> None:
+        """Move the slider to \a value, its band and whoever listens told at once.
+
+        Tk calls a scale's command for a new value only once its window is drawn:
+        set while not drawn, the change went unnoticed, and closing then asked
+        nothing about unsaved edits.
+        """
         self.scale.set(value)
+        self._changed(str(value))
 
 
 class ScrollableFrame(tk.Frame):

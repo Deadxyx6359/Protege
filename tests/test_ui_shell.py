@@ -365,6 +365,10 @@ def test_the_fab_and_its_card_stay_inside_the_window(vault, tk_available):
             raise
         pytest.skip("Tk is unavailable in this environment")
     try:
+        # The rain redraws on a timer; on a busy machine each redraw outlasts it,
+        # and update() never ran out of work. Where things sit needs no rain.
+        win.rain_left.stop()
+        win.rain_right.stop()
         win.geometry("1200x800")
         win.update()
         parent = win.fab.master

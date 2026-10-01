@@ -251,3 +251,32 @@ def test_names_written_in_the_sentences_are_checked_too(sdk, tmp_path):
 
 def test_the_model_is_told_not_to_cite_pages_it_has_not_read(tmp_path):
     assert "Never cite a page" in grounder([], tmp_path)(QUESTION).reference
+
+
+# -- registers, and names in sentences (checked against ST's own G4 package, 2026-09-30) ----------
+
+
+def _g4():
+    from akira.core.brain.grounding import Grounding, Header, Subject
+
+    symbols = {"ADC_CR_ADEN", "ADC_CR_ADSTART", "ADC_CR_ADCAL", "ADC_SQR1_SQ1", "ADC_SQR4_SQ15",
+               "ADC_DR_RDATA", "ADC_CFGR_CONT", "ADC12_COMMON_BASE", "RCC_AHB2ENR_ADC12EN",
+               "HAL_ADC_Start"}
+    return Grounding(subject=Subject("STM32G474RE", "stm32g4"), documented=True,
+                     headers=[Header(Path("stm32g474xx.h"), symbols)])
+
+
+def test_a_register_another_family_has_is_found_in_a_sentence():
+    """ADC1->SQR5 and ADC_CR2_ADON are an STM32F1's, written in a sentence, and not checked."""
+    note = _g4().check("Set the channel in ADC1->SQR1, start with ADC_CR_ADSTART and read "
+                       "ADC1->DR. On older parts you would write ADC1->SQR5 and ADC_CR2_ADON.")
+    assert note.startswith("\n\nCheck before using: 2 of the 5 STM32G474RE library names")
+    assert "- `ADC1->SQR5` (the closest there: `ADC1->SQR4`, `ADC1->SQR1`)" in note
+    assert "- `ADC_CR2_ADON` (the closest there: `ADC_CR_ADEN`" in note
+    assert "`ADC1->DR`" not in note and "`ADC1->SQR1`" not in note.split("closest")[0]
+
+
+def test_registers_the_headers_know_pass_and_a_peripheral_they_do_not_is_not_judged():
+    note = _g4().check("```c\nADC1->CR |= ADC_CR_ADEN;\nADC1->CFGR |= ADC_CFGR_CONT;\n"
+                       "GPIOA->MODER |= 3;\n```")
+    assert note.startswith("\n\nChecked: the 4 STM32G474RE library names in this answer are all")

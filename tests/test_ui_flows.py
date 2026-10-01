@@ -282,15 +282,19 @@ def test_personality_edit_then_close_warns(root, vault, monkeypatch):
     asked = []
     monkeypatch.setattr(mb, "askokcancel", lambda *a, **k: asked.append(a) or False)
     window = make_settings(root, vault)
-    window.update_idletasks()
-    window._sliders_moved = window.personality_panel._sliders["directness"].set(95)
-    window.update_idletasks()
+    try:
+        window.update_idletasks()
+        window.personality_panel._sliders["directness"].set(95)
+        window.update_idletasks()
 
-    window._cancel()
-    assert asked, "closing with unsaved personality edits must confirm"
-    assert "personality" in asked[0][1]
-    assert window.winfo_exists(), "declining the prompt must keep the window open"
-    window.destroy()
+        window._cancel()
+        assert asked, "closing with unsaved personality edits must confirm"
+        assert "personality" in asked[0][1]
+        assert window.winfo_exists(), "declining the prompt must keep the window open"
+    finally:
+        # Left open by a failure, the window held up every Tk test after it.
+        if window.winfo_exists():
+            window.destroy()
 
 
 def test_field_edit_then_close_warns(root, vault, monkeypatch):

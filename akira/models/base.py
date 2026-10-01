@@ -68,6 +68,10 @@ class ChatMessage:
         return {"role": self.role, "content": self.content}
 
 
+#: The shortest reply whose writing speed is worth judging.
+MIN_TOKENS_TIMED = 30
+
+
 @dataclass(frozen=True)
 class GenerationResult:
     text: str
@@ -75,6 +79,16 @@ class GenerationResult:
     completion_tokens: int = 0
     stop_reason: str = "stop"  # "stop" | "length" | "timeout"
     duration_s: float = 0.0
+    first_token_s: float = 0.0
+    """How long after the start the first word came: reading the prompt."""
+
+    @property
+    def writing_rate(self) -> float | None:
+        """Tokens a second once the first came, or None for a reply too short to say."""
+        writing = self.duration_s - self.first_token_s
+        if self.completion_tokens < MIN_TOKENS_TIMED or writing <= 0 or self.first_token_s <= 0:
+            return None
+        return self.completion_tokens / writing
 
     @property
     def truncated(self) -> bool:

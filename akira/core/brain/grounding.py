@@ -283,10 +283,26 @@ class Grounding:
             return ""
         known: set[str] = set().union(*(h.symbols for h in self.headers))
         firsts = {_first(n) for n in known}
-        checked = [n for n in names if _first(n) in firsts]
+        checked, missing = [], []
+        registers: dict[str, set[str]] = {}
+        for name in names:
+            if "->" in name:
+                # Judged by the peripheral's bit names; a peripheral the headers
+                # do not know is not judged.
+                instance, register = name.split("->")
+                if instance not in registers:
+                    registers[instance] = _registers(instance, known)
+                if not registers[instance]:
+                    continue
+                checked.append(name)
+                if register not in registers[instance]:
+                    missing.append(name)
+            elif _first(name) in firsts:
+                checked.append(name)
+                if name not in known:
+                    missing.append(name)
         if not checked:
             return ""
-        missing = [n for n in checked if n not in known]
         where = self.subject.name
         if not missing:
             return (f"\n\nChecked: the {len(checked)} {where} library "
@@ -296,7 +312,12 @@ class Grounding:
                     "them with the datasheet.")
         lines = []
         for name in missing[:8]:
-            close = _closest(name, known)
+            if "->" in name:
+                instance, register = name.split("->")
+                close = [f"{instance}->{c}" for c in difflib.get_close_matches(
+                    register, sorted(registers[instance]), n=2, cutoff=0.5)]
+            else:
+                close = _closest(name, known)
             lines.append(f"- `{name}`" + (" (the closest there: "
                                           + ", ".join(f"`{c}`" for c in close) + ")"
                                           if close else ""))
@@ -402,23 +423,58 @@ def _digest(header: Header, topics: tuple[str, ...]) -> str:
 
 
 def _names_in(reply: str) -> list[str]:
-    # In code blocks and in `inline code` both: a teaching answer names most of
-    # what it uses in its sentences.
+    # In code blocks, in `inline code`, and in the sentences: a teaching answer
+    # names most of what it uses in its sentences, and not always in backticks.
+    # "ADC1->SQR5 and ADC_CR2_ADON", from another STM32 family, were written in a
+    # sentence and not checked.
     blocks = _CODE_BLOCK.findall(reply)
     prose = _CODE_BLOCK.sub(" ", reply)
     code = "\n".join([*blocks, *_INLINE.findall(prose)])
-    if not code:
-        return []
+    text = code + "\n" + _INLINE.sub(" ", prose)
     own = {n for pair in _DEFINED_HERE.findall(code) for n in pair if n}
     out: list[str] = []
-    for name in _NAME.findall(code):
+    for name in _NAME.findall(text):
         if name in own or name in out or not any(c.isupper() for c in name):
             continue
         # A variable of the person's own, such as adc_value, is not a library's.
         if name.lower() == name:
             continue
         out.append(name)
+    for found in _REGISTER.finditer(text):
+        access = f"{found[1]}->{found[2]}"
+        if access not in out:
+            out.append(access)
     return out
+
+
+#: A register reached through its peripheral: ADC1->SQR1, GPIOA->MODER.
+_REGISTER = re.compile(r"\b([A-Z][A-Z0-9]*)->([A-Z][A-Z0-9]*)\b")
+
+
+def _peripherals(instance: str) -> list[str]:
+    """What a peripheral's own names may start with: ADC1 → ADC1, ADC; GPIOA → GPIOA, GPIO."""
+    names = [instance]
+    bare = instance.rstrip("0123456789")
+    if bare and bare != instance:
+        names.append(bare)
+    if len(instance) > 4 and instance[-1].isalpha() and instance[:-1] not in names:
+        names.append(instance[:-1])
+    return names
+
+
+def _registers(instance: str, known: set[str]) -> set[str]:
+    """The registers \a instance has, read from its bit names: ADC_SQR1_SQ1 says ADC has
+    SQR1. Empty when the headers name none of its registers.
+
+    Every prefix it may go by, together: ADC1's own names (ADC12_COMMON...) said
+    nothing of CR, which ADC_CR_ADEN does.
+    """
+    found: set[str] = set()
+    for prefix in _peripherals(instance):
+        lead = prefix + "_"
+        found |= {name[len(lead):].split("_", 1)[0] for name in known
+                  if name.startswith(lead) and name.count("_") >= 2}
+    return found
 
 
 def _first(name: str) -> str:

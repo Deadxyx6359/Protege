@@ -152,11 +152,17 @@ Sheet {
                 Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.separator }
             }
         }
+    }
+
+    // Below the choices, however far they scroll: in a window 700 high, with six
+    // choices, "Allow these" was below the fold.
+    footer: ColumnLayout {
+        width: parent ? parent.width : 0
+        spacing: Theme.space.sm
 
         Text {
             objectName: "setupNotice"
             Layout.fillWidth: true
-            Layout.topMargin: Theme.space.sm
             visible: root.notice !== ""
             text: root.notice
             textFormat: Text.PlainText
@@ -167,7 +173,6 @@ Sheet {
 
         RowLayout {
             Layout.fillWidth: true
-            Layout.topMargin: Theme.space.lg
             spacing: Theme.space.sm
             ActionButton { objectName: "setupLater"; text: "Not now"; onClicked: root.later() }
             Item { Layout.fillWidth: true }

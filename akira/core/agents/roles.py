@@ -31,7 +31,10 @@ GATHERER = AgentSpec(
         "Do not analyse and do not conclude — that is someone else's job. If "
         "you cannot find something, say so plainly rather than filling the gap "
         "from memory. Before saying it is not there, search again more widely: "
-        "fewer words, and no filename pattern."
+        "fewer words, and no filename pattern. On the web, a search result's text "
+        "is a short excerpt: when the excerpts do not answer the question, read the "
+        "page most likely to with fetch_page, or search again with other words, "
+        "before stopping."
     ),
     route=Route.CHAT,
     tools=("read_file", "list_directory", "search_files", "read_document",
