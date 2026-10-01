@@ -48,7 +48,7 @@ def enum_value(item, name):
     return value
 invoke('open')
 tabs = win.findChild(QObject, 'accountSections')
-click(tabs, .5)
+click(tabs, .375)  # the middle of the second of four tabs: Canvas
 assert sheet.property('section') == 'canvas' and sheet.property('opened')
 assert win.findChild(QObject, 'canvasConnection').property('visible')
 assert not win.findChild(QObject, 'googleConnection').property('visible')

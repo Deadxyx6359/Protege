@@ -88,7 +88,7 @@ measured benchmarks, not from optimism.
 
 | Capability | Verdict | Item |
 |---|---|---|
-| Web search | **Done**: DuckDuckGo, under its own permission that reaches DuckDuckGo and nothing else | C2 |
+| Web search | **Done**: DuckDuckGo, and the whole web through Tavily with the person's key, under its own permission that reaches those and nothing else | C2 |
 | Full computer use — forms, posting, reservations, scraping without APIs, job applications, product testing | Fine — Playwright drives a real browser | C3 |
 | Screenshots | **Done**: agents read the words on screen; the person can save a capture where writing is allowed | C4 |
 | Email, calendar, text, Canvas, docs | **Gmail and Google Calendar reading, and Gmail sending, done**, once the person connects an address: its own permission, a sealed sign-in, a secretary agent that reads and sends only what the person approves, each message shown whole. Calendar changes and other connectors to come. **A calendar kept in Akira, on this computer only, done** (2026-09-30), with its page in the Library | C5 |
@@ -486,6 +486,18 @@ engine's wrapped links are unwrapped, and results reach agents framed as
 material; reading one is `fetch_page` under `net.http` for that site. When
 DuckDuckGo asks whether a person is searching, the answer is "try later".
 The gatherer may search.
+*Done since, the whole web (2026-09-30):* DuckDuckGo turned every search
+away, and Wikipedia is one site, so the person chose a whole-web search
+service: Tavily, whose free plan is 1,000 searches a month with no card. Its
+key is added in Accounts, Search, checked with one search, and kept sealed with
+DPAPI; it goes only to Tavily's host, through `client.call`, in its header,
+under the same `web.search`, and neither it nor the words reach the log or a
+model. Akira makes at most 950 searches a month there (`MONTHLY_LIMIT`, counted
+on this computer), so a key on a paid plan is not run up unseen; past it, or
+when Tavily fails, DuckDuckGo is tried as before. Reading a result is still
+`fetch_page`, asked about site by site. Brave Search was the other choice: its
+own index, but a card on file and metered billing, and a header `call` does not
+carry.
 
 **C3 ✅ Browser and computer use** — `core/net/browser.py`, `core/net/proxy.py`, `client.tunnel`, tools in `core/tools/builtin/browsing.py`
 Playwright driving a real browser: navigate, read, fill, click, scrape without

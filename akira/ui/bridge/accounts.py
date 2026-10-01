@@ -27,6 +27,8 @@ from akira.core.connect.canvas import Canvas
 from akira.core.connect.simplefin import Bank
 from akira.core.net import host_of
 from akira.core.net.loopback import Receiver
+from akira.core.net.search import (MONTHLY_LIMIT, TAVILY_SECRET, SearchError, Usage,
+                                   has_whole_web, tavily, tavily_key)
 from akira.core.permissions import AuditLog, Policy, SecretStore
 from akira.core.permissions.capabilities import CATALOGUE
 
@@ -68,11 +70,20 @@ class AccountsBridge(QObject):
     #: Private: from the claim's worker to this thread.
     _bank_done = Signal(bool, str)
 
+    searchChanged = Signal()
+
+    #: ok, message — once per search key added, however its check ended.
+    searchFinished = Signal(bool, str)
+
+    #: Private: from the key's check to this thread.
+    _search_done = Signal(bool, str)
+
     def __init__(self, *, vault: SecretStore, policy: Callable[[], Policy], audit: AuditLog,
                  store: AccountStore | None = None,
                  open_page: Callable[[str], None] = open_in_browser,
                  canvas: Canvas | None = None,
                  banks: Bank | None = None,
+                 usage: Usage | None = None,
                  parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._google = GoogleAccounts(vault=vault, store=store)
@@ -88,6 +99,11 @@ class AccountsBridge(QObject):
         self._done.connect(self._on_done)
         self._canvas_done.connect(self._on_canvas_done)
         self._bank_done.connect(self._on_bank_done)
+        # The whole-web search's key, and how many searches it made this month.
+        self._vault = vault
+        self._usage = usage if usage is not None else Usage()
+        self._search_checking = False
+        self._search_done.connect(self._on_search_done)
 
     @property
     def google(self) -> GoogleAccounts:
@@ -360,3 +376,79 @@ class AccountsBridge(QObject):
         note = self._bank.disconnect(bridge)
         self.bankChanged.emit()
         return note
+
+    # -- searching the whole web, through Tavily ---------------------------------------------
+
+    @Property(str, constant=True)
+    def searchHelp(self) -> str:
+        """Where a key comes from, and what Akira does with it, for the person."""
+        return ("Get a key at tavily.com: its free plan is 1,000 searches a month and needs no "
+                "card. Akira keeps the key sealed on this computer, sends it only to Tavily, "
+                f"and makes at most {MONTHLY_LIMIT} searches a month there. Searches then "
+                "cover the whole web; reading a page found is still asked about, site by site.")
+
+    @Property(bool, notify=searchChanged)
+    def searchConnected(self) -> bool:
+        """Whether a key has been added, so searches go to the whole web."""
+        return has_whole_web(self._vault)
+
+    @Property(bool, notify=searchChanged)
+    def searchChecking(self) -> bool:
+        """Whether a key is being checked."""
+        return self._search_checking
+
+    @Property(int, notify=searchChanged)
+    def searchUsed(self) -> int:
+        """Whole-web searches made this month."""
+        return self._usage.used()
+
+    @Property(int, constant=True)
+    def searchLimit(self) -> int:
+        """The most whole-web searches Akira makes in a month."""
+        return MONTHLY_LIMIT
+
+    @Slot(str, result=str)
+    def connectSearch(self, key: str) -> str:
+        """Check \a key with one search and keep it sealed. Returns "" once started, or why not."""
+        if self._search_checking:
+            return "Already checking a key."
+        found = tavily_key(key)
+        if not found:
+            return ("That is not a Tavily key: one starts with tvly-. Copy it from your "
+                    "dashboard on tavily.com.")
+        if not self._policy().allows("web.search"):
+            return (f"Not permitted: allow {CATALOGUE['web.search'].title} first (Quick setup, "
+                    "or Permissions).")
+        self._search_checking = True
+        self.searchChanged.emit()
+        threading.Thread(target=self._connect_search, args=(found,), name="search-key",
+                         daemon=True).start()
+        return ""
+
+    def _connect_search(self, key: str) -> None:
+        """Worker thread. Emits a signal; touches no Qt property."""
+        try:
+            self._vault.put(TAVILY_SECRET, key)
+            tavily("Akira checking its search key", policy=self._policy(), secrets=self._vault,
+                   audit=self._audit, actor="person", usage=self._usage)
+            self._search_done.emit(True, "Added. Searches now cover the whole web, through "
+                                         "Tavily.")
+        except SearchError as exc:
+            self._vault.delete(TAVILY_SECRET)
+            self._search_done.emit(False, f"The key was not kept: {exc}")
+        except Exception as exc:  # noqa: BLE001 - a crashed check must still report back
+            self._vault.delete(TAVILY_SECRET)
+            self._search_done.emit(False, f"The key was not kept: {type(exc).__name__}: {exc}")
+
+    def _on_search_done(self, ok: bool, message: str) -> None:
+        self._search_checking = False
+        self.searchChanged.emit()
+        self.searchFinished.emit(ok, message)
+
+    @Slot(result=str)
+    def disconnectSearch(self) -> str:
+        """Forget the key. Returns what the person should also do at Tavily."""
+        self._vault.delete(TAVILY_SECRET)
+        self.searchChanged.emit()
+        return ("Removed. Searches go to DuckDuckGo again. To end the key itself, delete it on "
+                "tavily.com too.")

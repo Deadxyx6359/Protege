@@ -30,19 +30,36 @@ nothing and was answered from memory. When the person allows reading
 Wikipedia (`net.http`), the `web_search` tool then asks Wikipedia's search
 (`wikipedia`): a page on a site already allowed, the same one agents were told
 they could open themselves, and did not.
+
+**The whole web, with a key (2026-09-30).** DuckDuckGo turned every search
+away, and Wikipedia is one site. The person chose a search service that covers
+the whole web: Tavily, whose free plan is 1,000 searches a month and takes no
+card. With its key added (sealed with DPAPI, `TAVILY_SECRET`), a search goes
+there first, under the same `web.search`, through `client.call` to Tavily's
+own host and nowhere else; the key goes only in its header and never into a
+prompt or the log. Akira makes at most `MONTHLY_LIMIT` searches there a month,
+inside the free plan, so a key on a paid plan is not run up unseen. When it
+fails, or the month's searches are used, DuckDuckGo is tried as before.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
+import os
 import re
+import tempfile
 import threading
 import time
 from dataclasses import dataclass
+from datetime import date
 from html import unescape as html_unescape
 from html.parser import HTMLParser
+from pathlib import Path
 
-from .client import NetError, fetch, query_value, with_query
+from akira.core.permissions.secrets import SecretError
+
+from .client import NetError, call, fetch, query_value, with_query
 
 SEARCH_HOST = "html.duckduckgo.com"
 SEARCH_URL = f"https://{SEARCH_HOST}/html/"
@@ -67,8 +84,9 @@ class Hit:
     url: str
     snippet: str
     kind: str = "result"
-    """`result`, from the results page, `instant`, from the Instant Answer API, or
-    `wikipedia`, from Wikipedia's own search when DuckDuckGo gave nothing."""
+    """`result`, from the results page, `instant`, from the Instant Answer API,
+    `wikipedia`, from Wikipedia's own search when DuckDuckGo gave nothing, or
+    `tavily`, from the whole-web search the person added a key for."""
 
 
 class _Results(HTMLParser):
@@ -228,14 +246,154 @@ def _mark() -> None:
     _last = time.monotonic()
 
 
-def search(query: str, *, policy, audit=None, actor: str = "assistant") -> list[Hit]:
-    """Results for \a query from DuckDuckGo. Raises `SearchError` with a reason."""
-    global _last
+# -- the whole web, through Tavily, with the person's key ------------------------------------------
+
+TAVILY_HOST = "api.tavily.com"
+TAVILY_URL = f"https://{TAVILY_HOST}/search"
+#: Where the key is kept, sealed (`SecretStore`).
+TAVILY_SECRET = "search.tavily"
+#: What a Tavily key looks like.
+_TAVILY_KEY = re.compile(r"tvly-[A-Za-z0-9_-]{8,200}")
+#: Searches a month Akira makes there: inside the free plan's 1,000.
+MONTHLY_LIMIT = 950
+TAVILY_RESULTS = 8
+#: How much of a result's text is kept.
+MAX_SNIPPET = 600
+
+
+def tavily_key(text: str) -> str:
+    """\a text as a Tavily key, or "" when it is not one. Spaces around it are let go."""
+    key = str(text or "").strip()
+    return key if _TAVILY_KEY.fullmatch(key) else ""
+
+
+def has_whole_web(secrets) -> bool:
+    """Whether a key for the whole-web search has been added."""
+    return secrets is not None and secrets.has(TAVILY_SECRET)
+
+
+class Usage:
+    """How many whole-web searches were made this month, in `search_usage.json`.
+
+    Counted here, on this computer, so the limit holds whatever the service's
+    own plan would allow.
+    """
+
+    def __init__(self, path: Path | None = None) -> None:
+        from akira.core.config import config_dir
+
+        self.path = path if path is not None else config_dir() / "search_usage.json"
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def _month() -> str:
+        return date.today().strftime("%Y-%m")
+
+    def used(self) -> int:
+        """Searches made this month."""
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return 0
+        if not isinstance(data, dict) or data.get("month") != self._month():
+            return 0
+        count = data.get("tavily")
+        return count if isinstance(count, int) and count >= 0 else 0
+
+    def counted(self) -> int:
+        """Count one search. The count after it."""
+        from akira.core import files
+
+        with self._lock:
+            count = self.used() + 1
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            handle, temporary = tempfile.mkstemp(prefix=".", suffix=".tmp", dir=self.path.parent)
+            try:
+                with os.fdopen(handle, "w", encoding="utf-8") as stream:
+                    json.dump({"month": self._month(), "tavily": count}, stream)
+                files.replace(temporary, self.path)
+            except BaseException:
+                with contextlib.suppress(OSError):
+                    os.unlink(temporary)
+                raise
+            return count
+
+
+_TAVILY_REFUSED = {
+    401: "Tavily refused the key. Check it, or add it again, in Settings, Accounts, Search.",
+    403: "Tavily refused the key. Check it, or add it again, in Settings, Accounts, Search.",
+    429: "Tavily asked for fewer searches at once.",
+    432: "Tavily says this key's searches for the month are used up.",
+    433: "Tavily says this key's searches for the month are used up.",
+}
+
+
+def tavily(words: str, *, policy, secrets, audit=None, actor: str = "assistant",
+           usage: Usage | None = None) -> list[Hit]:
+    """Results for \a words from the whole web, through Tavily. Raises `SearchError`."""
+    usage = usage if usage is not None else Usage()
+    if usage.used() >= MONTHLY_LIMIT:
+        raise SearchError(f"Akira has made its {MONTHLY_LIMIT} whole-web searches for this "
+                          "month, which keeps inside Tavily's free plan.")
+    try:
+        response = call("POST", TAVILY_URL, policy=policy, capability="web.search", scope="",
+                        hosts=(TAVILY_HOST,), audit=audit, actor=actor,
+                        bearer=lambda: secrets.get(TAVILY_SECRET),
+                        payload={"query": words, "max_results": TAVILY_RESULTS,
+                                 "search_depth": "basic"},
+                        max_bytes=MAX_INSTANT_BYTES)
+    except NetError as exc:
+        raise SearchError(str(exc)) from None
+    except SecretError:
+        raise SearchError("No Tavily key has been added, or it could not be unsealed.") from None
+    if not response.ok:
+        raise SearchError(_TAVILY_REFUSED.get(
+            response.status, f"Tavily answered {response.status} {response.reason}."))
+    usage.counted()
+    try:
+        data = json.loads(response.text())
+    except ValueError:
+        raise SearchError("Tavily's answer could not be read.") from None
+    found = data.get("results") if isinstance(data, dict) else None
+    hits: list[Hit] = []
+    for item in found if isinstance(found, list) else []:
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("url") or "").strip()
+        title = " ".join(str(item.get("title") or url).split())[:200]
+        if not url.startswith("https://") or url in {hit.url for hit in hits}:
+            continue
+        hits.append(Hit(title, url, " ".join(str(item.get("content") or "").split())[:MAX_SNIPPET],
+                        "tavily"))
+        if len(hits) >= MAX_RESULTS:
+            break
+    return hits
+
+
+def search(query: str, *, policy, audit=None, actor: str = "assistant",
+           secrets=None) -> list[Hit]:
+    """Results for \a query: the whole web through Tavily when its key was added
+    (\a secrets), else DuckDuckGo. Raises `SearchError` with a reason."""
     words = " ".join((query or "").split())
     if not words:
         raise SearchError("Give something to search for.")
     if len(words) > MAX_QUERY_CHARS:
         raise SearchError(f"A search is at most {MAX_QUERY_CHARS} characters.")
+    whole_web = ""
+    if has_whole_web(secrets):
+        try:
+            return tavily(words, policy=policy, secrets=secrets, audit=audit, actor=actor)
+        except SearchError as exc:
+            # Said with whatever DuckDuckGo then says, if it fails too.
+            whole_web = f"{exc} "
+    try:
+        return _duckduckgo(words, policy=policy, audit=audit, actor=actor)
+    except SearchError as exc:
+        raise SearchError(f"{whole_web}{exc}") from None
+
+
+def _duckduckgo(words: str, *, policy, audit, actor: str) -> list[Hit]:
+    global _last
     with _lock:
         wait = MIN_INTERVAL_S - (time.monotonic() - _last)
         if wait > 0:

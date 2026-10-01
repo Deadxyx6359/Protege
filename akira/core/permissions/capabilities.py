@@ -180,7 +180,8 @@ CATALOGUE: dict[str, Capability] = {
 
         # -- the network ---------------------------------------------------
         _c("web.search", "Search the web",
-           "Send search queries to DuckDuckGo, and nowhere else.",
+           "Send search queries to DuckDuckGo, or to Tavily once you add its key in Accounts, "
+           "and nowhere else.",
            Direction.READ, Risk.MEDIUM, leaves_machine=True),
         _c("net.http", "Fetch web pages",
            "Request pages and data from sites you allow.",

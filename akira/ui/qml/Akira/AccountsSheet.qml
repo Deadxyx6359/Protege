@@ -26,7 +26,7 @@ Sheet {
     property bool setupDetails: false
     onSectionChanged: { root.armed = ""; root.scrollToTop(); }
     onOpenedChanged: {
-        if (!opened) { root.canvasToken = ""; root.bankToken = ""; root.armed = ""; }
+        if (!opened) { root.canvasToken = ""; root.bankToken = ""; root.searchKey = ""; root.armed = ""; }
     }
 
     property string address: ""
@@ -43,6 +43,8 @@ Sheet {
     property string canvasToken: ""
     /*! The SimpleFIN setup token, held only until it is handed over, then cleared. */
     property string bankToken: ""
+    /*! The whole-web search's key, held only until it is handed over, then cleared. */
+    property string searchKey: ""
 
     Connections {
         target: Permissions
@@ -51,6 +53,11 @@ Sheet {
 
     Connections {
         target: Accounts
+        function onSearchFinished(ok, message) {
+            root.noticeSection = "search";
+            root.notice = message;
+            root.good = ok;
+        }
         function onBankFinished(ok, message) {
             root.noticeSection = "banks";
             root.notice = message;
@@ -248,12 +255,14 @@ Sheet {
             Layout.fillWidth: true
             Layout.preferredHeight: 36
             current: root.section
-            options: [{id: "google", label: "Google"}, {id: "canvas", label: "Canvas"}, {id: "banks", label: "Banks"}]
+            options: [{id: "google", label: "Google"}, {id: "canvas", label: "Canvas"}, {id: "banks", label: "Banks"},
+                      {id: "search", label: "Search"}]
             onSelected: function (id) { root.section = id; }
         }
         Text {
             Layout.fillWidth: true
-            text: root.section === "google" ? "Mail, calendars & Drive" : root.section === "canvas" ? "Your coursework, in reach" : "Your finances, read only"
+            text: root.section === "google" ? "Mail, calendars & Drive" : root.section === "canvas" ? "Your coursework, in reach"
+                : root.section === "search" ? "The whole web, through Tavily" : "Your finances, read only"
             textFormat: Text.PlainText
             font: Theme.type.headline
             color: Theme.textPrimary
@@ -263,6 +272,7 @@ Sheet {
             Layout.fillWidth: true
             text: root.section === "google" ? "Choose individual services. Sending mail and changing events are optional."
                 : root.section === "canvas" ? "Read courses and assignments from the school you connect."
+                : root.section === "search" ? "Search every site, not only Wikipedia. Reading a page found is still asked about, site by site."
                 : "Read balances and transactions through SimpleFIN. Akira cannot move money."
             textFormat: Text.PlainText
             font: Theme.type.callout
@@ -280,7 +290,8 @@ Sheet {
                 id: feedback
                 objectName: "accountFeedback"
                 anchors.fill: parent; anchors.margins: 12
-                text: (root.noticeSection === "google" ? "Google · " : root.noticeSection === "canvas" ? "Canvas · " : "Banks · ") + root.notice
+                text: (root.noticeSection === "google" ? "Google · " : root.noticeSection === "canvas" ? "Canvas · "
+                       : root.noticeSection === "search" ? "Search · " : "Banks · ") + root.notice
                 textFormat: Text.PlainText
                 font: Theme.type.callout
                 color: root.good ? Theme.success : Theme.danger
@@ -760,6 +771,95 @@ Sheet {
                     kind: linked.isArmed ? "danger" : "secondary"
                     onClicked: root.disconnectBank(linked.modelData.bridge)
                 }
+            }
+        }
+    }
+
+    // -- searching the whole web ---------------------------------------------------------
+
+    function connectSearch() {
+        root.noticeSection = "search";
+        root.notice = Accounts.connectSearch(root.searchKey);
+        root.good = false;
+        root.searchKey = "";
+    }
+
+    function disconnectSearch() {
+        root.noticeSection = "search";
+        root.notice = Accounts.disconnectSearch();
+        root.good = true;
+    }
+
+    ColumnLayout {
+        objectName: "searchSetup"
+        visible: root.section === "search"
+        width: parent.width
+        spacing: Theme.space.md
+
+        SectionLabel { text: "Search the whole web" }
+
+        Text {
+            Layout.fillWidth: true
+            text: Accounts.searchHelp
+            textFormat: Text.PlainText
+            font: Theme.type.caption
+            color: Theme.textTertiary
+            wrapMode: Text.Wrap
+        }
+
+        Field {
+            objectName: "searchKey"
+            visible: !Accounts.searchConnected
+            label: "Tavily key"
+            Layout.fillWidth: true
+            secret: true
+            text: root.searchKey
+            placeholder: "tvly-…"
+            onEdited: function (value) { root.searchKey = value }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            visible: !Accounts.searchConnected
+            spacing: Theme.space.sm
+            Item { Layout.fillWidth: true }
+            ActionButton {
+                objectName: "connectSearch"
+                text: Accounts.searchChecking ? "Checking…" : "Add key"
+                kind: "primary"
+                enabled: root.searchKey.trim() !== "" && !Accounts.searchChecking
+                onClicked: root.connectSearch()
+            }
+        }
+
+        RowLayout {
+            objectName: "searchConnected"
+            Layout.fillWidth: true
+            visible: Accounts.searchConnected
+            spacing: Theme.space.sm
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 1
+                Text {
+                    Layout.fillWidth: true
+                    text: "Tavily"
+                    textFormat: Text.PlainText
+                    font: Theme.type.bodyStrong
+                    color: Theme.textPrimary
+                }
+                Text {
+                    objectName: "searchUsage"
+                    Layout.fillWidth: true
+                    text: Accounts.searchUsed + " of " + Accounts.searchLimit + " searches this month"
+                    textFormat: Text.PlainText
+                    font: Theme.type.caption
+                    color: Theme.textSecondary
+                }
+            }
+            ActionButton {
+                objectName: "disconnectSearch"
+                text: "Remove key"
+                onClicked: root.disconnectSearch()
             }
         }
     }

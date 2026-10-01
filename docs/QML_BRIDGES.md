@@ -606,6 +606,25 @@ Schedule.addJob({
 - **Money never moves.** There is no `bank.write`, no tool and no request that
   could. Say so; `bankHelp` does.
 
+### Searching the whole web, on the same bridge — 2026-09-30
+
+A Tavily key makes searches cover the whole web. Without one, searches go to
+DuckDuckGo, which turns programs away, and Wikipedia. The Accounts sheet's
+fourth section, Search, takes it.
+
+| Member | Kind | Notes |
+|---|---|---|
+| `searchHelp` | Property, constant | Where a key comes from (free plan, no card), that it is sealed and sent only to Tavily, and the monthly limit. Show it beside the field |
+| `searchConnected` | Property, notifies `searchChanged` | Whether a key has been added. Never the key |
+| `searchChecking` | Property, notifies `searchChanged` | Whether a key is being checked |
+| `searchUsed`, `searchLimit` | Property, int | Whole-web searches this month, and the most Akira makes (950, inside the free 1,000) |
+| `connectSearch(key)` | Slot → string | `""` once started, or why not: not a key (`tvly-…`), or **Not permitted** without `web.search`. The key is checked with one search on a worker, and kept only if it works |
+| `searchFinished(ok, message)` | Signal | Once per key. **Show `message`** |
+| `disconnectSearch()` | Slot → string | Forget the key. Returns a note: delete it on tavily.com too |
+
+- **The key is a secret.** Take it in a password field, hand it to
+  `connectSearch`, and clear the field straight away, and when the sheet closes.
+
 ## `Voice` — push to talk, reading aloud, calls, and the chosen voice
 
 Speech in is Whisper small.en and speech out is Kokoro, both on this computer
