@@ -216,6 +216,22 @@ WEB_PROBES: list[Probe] = [
           ["Who is the current Secretary-General of the United Nations?",
            "When did he take office?"],
           must=[r"2017"]),
+    # -- the whole web (2026-09-30) ---------------------------------------------------------------
+    Probe("w_superbowl", "current", ["Who won the most recent Super Bowl, and what was the score?"],
+          note="Super Bowl LX, February 2026: from what was read."),
+    Probe("w_price", "current", ["How much does a Raspberry Pi 5 with 8GB cost?"],
+          must=[r"\$\s?\d|£\s?\d|€\s?\d|\d+\s?(?:dollars|USD)"]),
+    Probe("w_hours", "current", ["What time does the Louvre open on Saturdays?"],
+          must=[r"\b9(?::00)?\s?(?:am|a\.m\.|h)?\b|09:00"]),
+    Probe("w_fake_event", "premise",
+          ["What were the highlights of the 2026 Winter Olympics in Toronto?"],
+          must=[r"Milan|Cortina|not (?:held|in) Toronto|wasn't|weren't|no Winter Olympics"],
+          note="The 2026 Winter Olympics were in Milan and Cortina d'Ampezzo."),
+    Probe("w_stock", "current", ["What is Nvidia's stock price right now?"],
+          note="A live price: one with where and when it came from, or say it cannot be had live."),
+    Probe("w_compare", "research", ["Compare the battery life of the iPhone 17 and the Pixel 10."]),
+    Probe("w_how_to", "look-up", ["Look up how to reset a Nucleo-G474RE board to factory settings."]),
+    Probe("w_news", "current", ["What's the latest news about the James Webb Space Telescope?"]),
 ]
 
 
@@ -241,6 +257,20 @@ def score(probe: Probe, answer: str, facts: dict) -> list[str]:
         if count != 2:
             problems.append(f"{count} sentences")
     return problems
+
+
+def whole_web(folder: Path) -> None:
+    """Give \a folder the person's sealed Tavily key and this month's count of searches."""
+    from akira.core.config import config_dir
+
+    real = config_dir()
+    os.environ["AKIRA_EVAL_REAL_CONFIG"] = str(real)
+    (folder / "secrets").mkdir(exist_ok=True)
+    sealed = real / "secrets" / "search.tavily.dpapi"
+    if sealed.is_file():
+        shutil.copy2(sealed, folder / "secrets" / sealed.name)
+    if (real / "search_usage.json").is_file():
+        shutil.copy2(real / "search_usage.json", folder / "search_usage.json")
 
 
 def throwaway_config(chat_model: str, adapter: str, allow: list[str] | None = None) -> Path:
@@ -288,11 +318,17 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--allow", action="append", default=[],
                         help="a site to allow under net.http as well as the person's own")
     parser.add_argument("--timeout", type=int, default=420)
+    parser.add_argument("--whole-web", action="store_true",
+                        help="use the person's sealed Tavily key; the month's count is kept")
+    parser.add_argument("--answer-asks", choices=("no", "once"), default="no",
+                        help="what a question to read another site is answered")
     parser.add_argument("--resume", action="store_true",
                         help="keep the answers already in OUT and ask only the rest")
     args = parser.parse_args(argv)
 
     folder = throwaway_config(args.chat_model, args.adapter, args.allow)
+    if args.whole_web:
+        whole_web(folder)
     print("web grants:", [(g["capability"], g.get("scopes")) for g in json.loads(
         (folder / "permissions.json").read_text(encoding="utf-8"))["grants"]], flush=True)
     os.environ["AKIRA_CONFIG_DIR"] = str(folder)
@@ -311,7 +347,7 @@ def main(argv: list[str]) -> int:
     # Nobody is here to answer "may it read this site too?": it is told no, as a
     # person who had not allowed the site would be by default.
     if ctx.allow is not None:
-        ctx.allow.requested.connect(lambda token, request: ctx.allow.answer(token, "no"))
+        ctx.allow.requested.connect(lambda token, request: ctx.allow.answer(token, args.answer_asks))
     today = date.today()
     ten = today + timedelta(days=10)
     facts = {"weekday": today.strftime("%A"),
@@ -364,6 +400,12 @@ def main(argv: list[str]) -> int:
     passed = sum(1 for r in results if not r["problems"])
     print(f"{passed} of {len(results)} passed", flush=True)
     ctx.close()
+    if args.whole_web:
+        # The searches made count against the person's month, as their own would.
+        from akira.core.config import config_dir
+        real = Path(os.environ.get("AKIRA_EVAL_REAL_CONFIG", ""))
+        if (folder / "search_usage.json").is_file() and real.is_dir():
+            shutil.copy2(folder / "search_usage.json", real / "search_usage.json")
     shutil.rmtree(folder, ignore_errors=True)
     del app
     return 0
