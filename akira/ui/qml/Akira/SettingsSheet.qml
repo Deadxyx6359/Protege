@@ -36,6 +36,7 @@ Sheet {
     signal setupRequested()
     signal placeRequested()
     signal accountsRequested()
+    signal searchRequested()
     signal voiceRequested()
     onOpenedChanged: { if (opened) { Settings.refresh(); clearing = ""; cleared = ""; } }
 
@@ -118,6 +119,13 @@ Sheet {
                 description: root.accountCount ? root.accountCount + " connection" + (root.accountCount === 1 ? "" : "s") + " across Google, Canvas and banks."
                     : "Google, Canvas and read-only banking. Connect only what you need."
                 ActionButton { objectName: "openAccounts"; text: root.accountCount ? "Manage" : "Connect"; onClicked: root.accountsRequested() }
+            }
+            FormRow {
+                Layout.fillWidth: true
+                title: "Web search"
+                description: Accounts.searchConnected ? "The whole web, through Tavily: " + Accounts.searchUsed + " of " + Accounts.searchLimit + " searches this month."
+                    : "DuckDuckGo and Wikipedia. Add a Tavily key to search the whole web."
+                ActionButton { objectName: "openSearch"; text: Accounts.searchConnected ? "Manage" : "Add key"; onClicked: root.searchRequested() }
             }
             FormRow {
                 Layout.fillWidth: true

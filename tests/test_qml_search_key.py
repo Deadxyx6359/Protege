@@ -56,8 +56,13 @@ def run(js):
     # evaluate() gives the value and whether it was undefined.
     return result[0] if isinstance(result, tuple) else result
 
-QMetaObject.invokeMethod(sheet, 'open', Qt.DirectConnection); QTest.qWait(120)
-run('section = "search"')
+# From Settings, straight to the key: on its fourth tab, Search was not found.
+settings = win.findChild(QObject, 'settingsSheet')
+QMetaObject.invokeMethod(settings, 'open'); QTest.qWait(150)
+assert item('openSearch').property('text') == 'Add key'
+click(item('openSearch')); QTest.qWait(120)
+assert sheet.property('opened') and not settings.property('opened')
+assert run('section') == 'search'
 assert item('searchSetup') and walk(win.contentItem(), 'searchConnected') is None
 add = item('connectSearch')
 assert not add.property('enabled'), 'nothing to add yet'

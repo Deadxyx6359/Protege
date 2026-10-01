@@ -267,6 +267,13 @@ Window {
             settingsSheet.close();
             accountsSheet.open();
         }
+        // Straight to the key: the Accounts sheet opens on Google, and Search
+        // was its fourth tab, which was not found.
+        onSearchRequested: {
+            settingsSheet.close();
+            accountsSheet.section = "search";
+            accountsSheet.open();
+        }
         onVoiceRequested: { settingsSheet.close(); voiceSheet.open(); }
     }
 
