@@ -116,6 +116,7 @@ class TraceBridge(QObject):
     """A live view of one `Trace`."""
 
     activeAgentsChanged = Signal()
+    activityChanged = Signal()
 
     #: Private: carries an event from the worker thread to this one.
     _arrived = Signal(object)
@@ -127,6 +128,7 @@ class TraceBridge(QObject):
         self._model = TraceListModel(self)
         self._stop = None
         self._active: list[str] = []
+        self._activity: dict[str, dict] = {}
 
         # No connection type given: Qt picks direct within a thread and queued
         # across, which is exactly the behaviour wanted in both cases.
@@ -142,6 +144,11 @@ class TraceBridge(QObject):
         """Who has started and not yet finished — the graph's nodes."""
         return list(self._active)
 
+    @Property("QVariantMap", notify=activityChanged)
+    def activity(self) -> dict:
+        """Latest short status per agent, including scheduled work. No task text."""
+        return {name: dict(state) for name, state in self._activity.items()}
+
     @property
     def trace(self) -> Trace:
         return self._trace
@@ -152,9 +159,12 @@ class TraceBridge(QObject):
         self._trace = trace
         self._model.clear()
         self._active = []
+        self._activity = {}
         for event in trace.replay():
             self._on_event(event)
         self._stop = trace.listen(self._arrived.emit)
+        self.activityChanged.emit()
+        self.activeAgentsChanged.emit()
 
     def detach(self) -> None:
         if self._stop is not None:
@@ -164,8 +174,10 @@ class TraceBridge(QObject):
     @Slot()
     def clear(self) -> None:
         self._model.clear()
-        self._active = []
-        self.activeAgentsChanged.emit()
+        # Clearing scrollback must not hide scheduled work still in progress.
+        self._activity = {name: state for name, state in self._activity.items()
+                          if name in self._active}
+        self.activityChanged.emit()
 
     @Slot(int, result="QVariantList")
     def recent(self, limit: int = 100) -> list:
@@ -181,6 +193,23 @@ class TraceBridge(QObject):
         self._model.append(event)
 
         kind = event.kind.value
+        label = {"started": "Starting", "thinking": "Thinking", "answer": "Done",
+                 "failed": "Stopped" if event.text == "cancelled" else "Failed",
+                 "tool_call": "Using " + event.tool,
+                 "tool_result": "Reading result" if event.ok else "Tool declined"}.get(kind)
+        if label:
+            state = {"label": label, "at": event.at,
+                     "working": kind not in ("answer", "failed")}
+            previous = self._activity.get(event.agent, {})
+            # Streaming tokens repeat Thinking; repaint only when the activity changes.
+            if (previous.get("label") != label or previous.get("working") != state["working"]
+                    or kind in ("started", "answer", "failed")):
+                if event.agent not in self._activity and len(self._activity) >= MAX_ROWS:
+                    finished = next((name for name in self._activity if name not in self._active), None)
+                    if finished is not None:
+                        del self._activity[finished]
+                self._activity[event.agent] = state
+                self.activityChanged.emit()
         changed = False
         if kind == "started" and event.agent not in self._active:
             self._active.append(event.agent)

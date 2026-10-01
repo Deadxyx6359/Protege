@@ -194,6 +194,7 @@ Item {
                         SectionLabel {
                             Layout.leftMargin: Theme.space.md
                             Layout.bottomMargin: Theme.space.xs
+                            visible: root.navGroups.length > 1
                             text: group.modelData
                         }
                         Repeater {

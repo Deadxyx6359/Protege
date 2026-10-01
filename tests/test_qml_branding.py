@@ -56,7 +56,7 @@ def visual_items(item):
         yield from visual_items(child)
 research = next(obj for obj in visual_items(sidebar)
                 if obj.metaObject().className().startswith('NavRow_QMLTYPE')
-                and obj.property('label') == 'Research')
+                and obj.property('label') == 'Tools')
 QMetaObject.invokeMethod(research, 'forceActiveFocus', Qt.DirectConnection)
 QTest.keyClick(root, Qt.Key_Space)
 out['keyboardNav'] = root.property('currentNav')
@@ -179,7 +179,7 @@ def test_approved_mark_loads_in_the_real_window(rendered):
 
 
 def test_shared_controls_work_from_the_keyboard(rendered):
-    assert rendered['keyboardNav'] == 'research'
+    assert rendered['keyboardNav'] == 'agents'
     assert rendered['newChatNav'] == 'chats'
     assert rendered['sidebarOpen'] is False
     assert rendered['attachments'] is False

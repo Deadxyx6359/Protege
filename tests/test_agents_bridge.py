@@ -146,10 +146,11 @@ def test_a_second_run_while_one_is_going_is_refused_with_the_reason(app, make):
 def test_a_run_can_be_stopped(app, make):
     bridge, _, _ = make(Backend(endless=True))
     assert bridge.runAgent("gatherer", "Look around", "") == ""
-    time.sleep(0.05)
+    assert pump_until(app, lambda: bridge.currentRun["states"].get("gatherer") == "Thinking")
     bridge.stop()
     assert pump_until(app, lambda: not bridge.busy, timeout=10)
     assert bridge.stopped == "cancelled" and not bridge.ok
+    assert bridge.currentRun["states"]["gatherer"] == "Stopped"
 
 
 # -- permissions ------------------------------------------------------------------------

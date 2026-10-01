@@ -116,11 +116,8 @@ Item {
                 Layout.fillWidth: true
                 Layout.leftMargin: Theme.space.lg
                 Layout.rightMargin: Theme.space.lg
-                text: "The work in progress wants to read "
-                      + (root.current && root.current.kind === "site" ? "this page. " : "this. ")
-                      + "Always adds " + (root.current ? root.current.always : "")
-                      + " to what Akira may read, until you remove it in Settings. "
-                      + "The work waits for your answer; unanswered, it is refused after "
+                text: "Always allow grants read access to " + (root.current ? root.current.always : "")
+                      + ". Revoke in Settings → Permissions. Unanswered requests expire in "
                       + Math.round(Allow.timeoutSeconds / 60) + " minutes."
                       + (root.queue.length > 1 ? " " + (root.queue.length - 1) + " more waiting." : "")
                 textFormat: Text.PlainText

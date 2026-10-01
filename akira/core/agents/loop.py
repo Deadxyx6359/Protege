@@ -408,6 +408,8 @@ class Agent:
                     on_token(visible)
 
         with self._router.acquire(self.spec.route) as backend:
+            # Announce generation even when reasoning is hidden or tokens are batched.
+            self._trace.emit(Kind.THINKING, self.spec.name, step=step)
             result = backend.generate(
                 messages,
                 max_tokens=1024,

@@ -15,7 +15,7 @@ Sheet {
     id: root
     objectName: "setupSheet"
     title: "Set up Akira"
-    subtitle: "Choose what Akira may use. You can change any of it later in Settings, under Permissions."
+    subtitle: "Choose access. Change it anytime in Settings → Permissions."
     sheetWidth: 640
 
     /*! What is ticked, and the folder picked: id → { on, folder }. */

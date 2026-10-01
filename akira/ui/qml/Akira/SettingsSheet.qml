@@ -266,15 +266,6 @@ Sheet {
             visible: root.section === "chats"
             Layout.fillWidth: true
             spacing: 0
-            Text {
-                Layout.fillWidth: true
-                Layout.bottomMargin: 6
-                text: "To rename, pin, move or delete one chat, right-click it in the sidebar."
-                textFormat: Text.PlainText
-                font: Theme.type.caption
-                color: Theme.textSecondary
-                wrapMode: Text.Wrap
-            }
             FormRow {
                 Layout.fillWidth: true
                 title: "Keep pinned chats"

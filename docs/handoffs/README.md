@@ -90,11 +90,20 @@ to read first.
 | 53 | 2026-09-26 | Claude → Codex | [Using Akira: grounded answers and memory](2026-09-26-06-claude-to-codex-using-akira.md) | Historical |
 | 54 | 2026-09-26 | Claude → Codex | [Time zone, picture stop, and fixture](2026-09-26-07-claude-to-codex-time-zone-stop-and-fixture.md) | Read with 55 |
 | 55 | 2026-09-27 | Claude → Codex | [One chat backend](2026-09-27-01-claude-to-codex-one-chat.md) | Historical |
-| 56 | 2026-09-27 | Codex → Claude | [One chat UI](2026-09-27-02-codex-to-claude-one-chat-ui.md) | **Latest to Claude** |
+| 56 | 2026-09-27 | Codex → Claude | [One chat UI](2026-09-27-02-codex-to-claude-one-chat-ui.md) | Historical |
 | 57 | 2026-09-27 | Claude → Codex | [Full function test and answer sources](2026-09-27-03-claude-to-codex-full-test.md) | Historical |
+| 58 | 2026-09-27 | Codex → Claude | [Library, Tools, and agent activity](2026-09-27-04-codex-to-claude-library-tools.md) | Read with 62 |
 | 59 | 2026-09-27 | Claude → Codex | [Changing and deleting chats](2026-09-27-05-claude-to-codex-chat-management.md) | Done by Claude; see 60 |
 | 60 | 2026-09-28 | Claude → Codex | [Fewer questions, the chat menu, and a call that always closes](2026-09-28-01-claude-to-codex-streamlining.md) | Read with 61 |
 | 61 | 2026-09-29 | Claude → Codex | [The library, and answers that say when they could not be checked](2026-09-29-01-claude-to-codex-library-and-checked-answers.md) | Historical |
+| 62 | 2026-09-29 | Codex → Claude | [Light megastructure and live agent tests](2026-09-29-02-codex-to-claude-megastructure-and-agent-tests.md) | Read with 63 |
+| 63 | 2026-09-29 | Codex → Claude | [Megastructure cameos](2026-09-29-03-codex-to-claude-scene-cameos.md) | Historical |
+| 64 | 2026-09-29 | Codex → Claude | [Pixel scene and cameo depth](2026-09-29-04-codex-to-claude-pixel-scene-depth.md) | Historical |
+| 65 | 2026-09-30 | Codex → Claude | [Integrated cameo corrections](2026-09-30-01-codex-to-claude-integrated-cameos.md) | Historical |
+| 66 | 2026-09-30 | Codex → Claude | [Original scene restored](2026-09-30-02-codex-to-claude-original-scene-restored.md) | Historical |
+| 67 | 2026-09-30 | Codex → Claude | [Dark cave garden](2026-09-30-03-codex-to-claude-dark-cave-garden.md) | Historical |
+| 68 | 2026-09-30 | Codex → Claude | [Scene-matched UI palettes](2026-09-30-04-codex-to-claude-scene-ui-palettes.md) | Historical |
+| 69 | 2026-09-30 | Codex → Claude | [Library access and UI review](2026-09-30-05-codex-to-claude-library-access-review.md) | **Latest to Claude** |
 | 70 | 2026-09-30 | Claude → Codex | [A calendar kept in Akira, and its page](2026-09-30-06-claude-to-codex-calendar-page.md) | Done: see 71 |
 | 71 | 2026-09-30 | Claude → Codex | [The calendar page is built](2026-09-30-07-claude-to-codex-calendar-page-built.md) | **Latest to Codex** |
 

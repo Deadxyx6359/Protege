@@ -17,11 +17,13 @@ Rectangle {
     property string libraryNotice: ""
     /*! The library entry waiting for "Remove", or "". */
     property string removing: ""
+    property bool showLibrary: false
 
     function addToLibrary(urls) {
         var picked = [];
         for (var i = 0; i < urls.length; i++) picked.push(urls[i].toString());
         root.libraryNotice = Documents.addFiles(picked);
+        root.showLibrary = true;
     }
     readonly property bool wide: width >= 880
     readonly property bool hasPreview: !!Documents.selected.path || Documents.operation === "preview"
@@ -33,6 +35,7 @@ Rectangle {
 
     function activate(entry) {
         root.notice = "";
+        root.showLibrary = false;
         if (entry.folder) Documents.openFolder(entry.path);
         else Documents.previewFile(entry.path);
     }
@@ -53,7 +56,7 @@ Rectangle {
     FolderDialog {
         id: folderPicker
         title: "Choose a document folder"
-        onAccepted: Documents.openFolder(selectedFolder.toString())
+        onAccepted: { root.showLibrary = false; Documents.openFolder(selectedFolder.toString()); }
     }
     FileDialog {
         id: libraryFiles
@@ -68,6 +71,7 @@ Rectangle {
         onAccepted: {
             var why = Documents.addFolder(selectedFolder.toString());
             root.libraryNotice = why || "Added. Akira reads it where it is.";
+            root.showLibrary = true;
         }
     }
     FileDialog {
@@ -75,7 +79,7 @@ Rectangle {
         title: "Preview a document"
         fileMode: FileDialog.OpenFile
         nameFilters: ["Documents (*.docx *.xlsx *.pptx *.pdf *.md *.txt *.doc *.xls *.ppt)"]
-        onAccepted: Documents.previewFile(selectedFile.toString())
+        onAccepted: { root.showLibrary = false; Documents.previewFile(selectedFile.toString()); }
     }
 
     component Caption: Text {
@@ -90,19 +94,28 @@ Rectangle {
         anchors.margins: root.wide ? 32 : 20
         spacing: 16
 
-        RowLayout {
+        ColumnLayout {
             Layout.fillWidth: true
-            Layout.minimumHeight: 54
-            spacing: 12
-            ColumnLayout {
+            spacing: Theme.space.sm
+            RowLayout {
                 Layout.fillWidth: true
-                spacing: 4
                 Caption { Layout.fillWidth: true; text: "Documents"; font: Theme.type.title2; color: Theme.textPrimary }
+                ActionButton {
+                    objectName: "toggleDocumentLibrary"
+                    visible: root.hasWork
+                    text: root.showLibrary ? "Back to files" : "Your library"
+                    onClicked: { root.showLibrary = !root.showLibrary; root.removing = ""; }
+                }
             }
-            ActionButton { objectName: "openPictures"; text: "Create picture"; onClicked: root.picturesRequested() }
-            ActionButton { text: "Open file"; onClicked: filePicker.open() }
-            ActionButton { text: "Choose folder"; onClicked: folderPicker.open() }
-            ActionButton { objectName: "addDocuments"; text: "Add documents…"; kind: "primary"; onClicked: libraryFiles.open() }
+            Flow {
+                objectName: "documentActions"
+                Layout.fillWidth: true
+                spacing: Theme.space.sm
+                ActionButton { objectName: "addDocuments"; text: "Add documents…"; kind: "primary"; onClicked: libraryFiles.open() }
+                ActionButton { text: "Open file"; onClicked: filePicker.open() }
+                ActionButton { text: "Choose folder"; onClicked: folderPicker.open() }
+                ActionButton { objectName: "openPictures"; text: "Create picture"; onClicked: root.picturesRequested() }
+            }
         }
 
         Rectangle {
@@ -154,7 +167,7 @@ Rectangle {
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: !root.hasWork
+            visible: !root.hasWork || root.showLibrary
             C.ScrollView {
                 anchors.fill: parent
                 contentWidth: availableWidth
@@ -162,14 +175,16 @@ Rectangle {
                 ColumnLayout {
                     width: parent.width
                     spacing: 20
-                    Item { Layout.preferredHeight: Math.max(12, (root.height - 570) / 2) }
+                    Item { visible: !root.hasWork; Layout.preferredHeight: Math.max(12, (root.height - 570) / 2) }
                     Rectangle {
+                        visible: !root.hasWork
                         Layout.alignment: Qt.AlignHCenter
                         width: 68; height: 68; radius: 20
                         color: Theme.accentSubtle
                         Icon { anchors.centerIn: parent; name: "document"; size: 30; color: Theme.accent }
                     }
                     ColumnLayout {
+                        visible: !root.hasWork
                         Layout.alignment: Qt.AlignHCenter
                         Layout.maximumWidth: 460
                         spacing: 10
@@ -182,6 +197,7 @@ Rectangle {
                         }
                     }
                     ColumnLayout {
+                        visible: !root.hasWork
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: Math.min(400, root.width - 72)
                         Layout.maximumWidth: 400
@@ -222,11 +238,7 @@ Rectangle {
                             Caption { text: "Your library"; font: Theme.type.headline; color: Theme.textPrimary }
                             Caption {
                                 Layout.fillWidth: true
-                                text: "Akira reads these when you ask about them: datasheets, manuals, "
-                                      + "and library folders such as ST's STM32Cube files, which it also "
-                                      + "checks code names against. "
-                                      + (Projects.currentName ? "Added here, they belong to " + Projects.currentName + "."
-                                                              : "Added here, they are your own, outside any project.")
+                                text: Projects.currentName || "Personal library"
                                 wrapMode: Text.Wrap
                                 elide: Text.ElideNone
                                 font: Theme.type.caption
@@ -311,7 +323,7 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: root.hasWork
+            visible: root.hasWork && !root.showLibrary
             spacing: 20
 
             ColumnLayout {

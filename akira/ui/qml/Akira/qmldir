@@ -64,3 +64,7 @@ AbyssScene 1.0 scenes/AbyssScene.qml
 squircle.js 1.0 squircle.js
 icons.js 1.0 icons.js
 messageblocks.js 1.0 messageblocks.js
+
+AgentRoster 1.0 AgentRoster.qml
+MegastructureScene 1.0 MegastructureScene.qml
+CaveGardenScene 1.0 CaveGardenScene.qml

@@ -110,23 +110,25 @@ Window {
     property bool restoringConversation: false
     property bool pendingProjectReset: false
     Component.onCompleted: observedProject = Projects.currentId
+    property string libraryPage: "documents"
+    property string toolsPage: "agents"
+    readonly property string currentSection: ["documents", "memory", "calendar"].indexOf(currentNav) >= 0 ? "library"
+                                            : currentNav === "chats" ? "chats" : "tools"
+    onCurrentNavChanged: {
+        if (["documents", "memory", "calendar"].indexOf(currentNav) >= 0) libraryPage = currentNav;
+        else if (currentNav !== "chats") toolsPage = currentNav;
+    }
     readonly property var destinations: [
-        { id: "chats", icon: "chat", label: "Chat", group: "Chat" },
-        { id: "documents", icon: "document", label: "Documents", group: "Library" },
-        { id: "memory", icon: "clock", label: "Memory", group: "Library", countLabel: "pending note" },
-        { id: "calendar", icon: "calendar", label: "Calendar", group: "Library" },
-        { id: "code", icon: "code", label: "Code", group: "Tools" },
-        { id: "research", icon: "search", label: "Research", group: "Tools" },
-        { id: "agents", icon: "team", label: "Agents", group: "Tools" },
-        { id: "watching", icon: "eye", label: "Watching", group: "Tools", countLabel: "saved notice" },
-        { id: "schedule", icon: "calendar", label: "Schedule", group: "Tools", countLabel: "critical finding" }
+        { id: "chats", icon: "chat", label: "Chat", group: "" },
+        { id: "library", icon: "document", label: "Library", group: "", countLabel: "pending note" },
+        { id: "tools", icon: "team", label: "Tools", group: "", countLabel: "update" }
     ]
-    readonly property var navCounts: ({memory: Memory.pendingCount, watching: Monitor.notices.length, schedule: Schedule.criticalCount})
-    // Views that fill the page themselves: no transcript, no composer.
+    readonly property var navCounts: ({library: Memory.pendingCount, tools: Monitor.notices.length + Schedule.criticalCount})
     readonly property bool fullPage: currentNav !== "chats"
 
     function selectWorkspace(id) {
-        const views = { "chat-1": "chats", "code-1": "code", "research-1": "research" };
+        const views = { "chat-1": "chats", "code-1": "code", "research-1": "research",
+                        library: libraryPage, tools: toolsPage };
         currentNav = views[id] || id;
     }
 
@@ -382,7 +384,7 @@ Window {
                 }
             }
 
-            currentNav: win.currentNav
+            currentNav: win.currentSection
             currentProject: Projects.currentId
             currentRecent: Chat.conversationId
             newChatEnabled: !Chat.busy && !Voice.inCall
@@ -433,6 +435,7 @@ Window {
                 counts: win.navCounts
                 projects: Projects.projects
                 currentView: win.currentNav
+                navigationView: win.currentSection
                 currentProject: Projects.currentId
                 sidebarOpen: win.sidebarOpen
                 projectSwitchingEnabled: !Chat.busy && !Agents.busy && !Voice.inCall
@@ -453,17 +456,67 @@ Window {
                 Layout.fillHeight: true
                 clip: true
 
+                MegastructureScene {
+                    id: megastructure
+                    objectName: "chatMegastructure"
+                    anchors.fill: parent
+                    visible: win.currentNav === "chats" && !Theme.isDark
+                    active: win.visible && win.visibility !== Window.Minimized
+                }
+
+                CaveGardenScene {
+                    id: caveGarden
+                    objectName: "chatCaveGarden"
+                    anchors.fill: parent
+                    visible: win.currentNav === "chats" && Theme.isDark
+                    active: win.visible && win.visibility !== Window.Minimized
+                }
+
+                // A single reading surface keeps long replies legible while
+                // the architecture remains visible in the surrounding margins.
+                Rectangle {
+                    objectName: "chatReadingSurface"
+                    visible: (megastructure.visible || caveGarden.visible) && Chat.messages.count > 0
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: Math.min(784, parent.width)
+                    color: Theme.canvas
+                    opacity: 0.97
+                }
+
+                Segmented {
+                    id: sectionTabs
+                    objectName: "sectionTabs"
+                    visible: win.fullPage
+                    anchors.top: parent.top
+                    anchors.topMargin: 12
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: Math.min(win.currentSection === "library" ? 420 : 600, parent.width - 40)
+                    height: 32
+                    current: win.currentNav
+                    options: win.currentSection === "library"
+                        ? [{id: "documents", label: "Documents"}, {id: "memory", label: "Memory"},
+                           {id: "calendar", label: "Calendar"}]
+                        : [{id: "agents", label: "Agents"}, {id: "code", label: "Code"},
+                           {id: "research", label: "Research"}, {id: "watching", label: "Watching"},
+                           {id: "schedule", label: "Schedule"}]
+                    onSelected: function (id) { win.selectWorkspace(id); }
+                }
+
                 AgentsView {
                     onHistoryRequested: runHistory.present("")
                     id: agentsPage
                     objectName: "agentsView"
                     anchors.fill: parent
+                    anchors.topMargin: 56
                     visible: win.currentNav === "agents"
                 }
 
                 WatchView {
                     objectName: "watchView"
                     anchors.fill: parent
+                    anchors.topMargin: 56
                     visible: win.currentNav === "watching"
                 }
 
@@ -471,6 +524,7 @@ Window {
                     objectName: "scheduleView"
                     onDraftsRequested: draftsSheet.open()
                     anchors.fill: parent
+                    anchors.topMargin: 56
                     visible: win.currentNav === "schedule"
                     onPermissionsRequested: permissionsSheet.open()
                 }
@@ -478,6 +532,7 @@ Window {
                 MemoryView {
                     objectName: "memoryView"
                     anchors.fill: parent
+                    anchors.topMargin: 56
                     visible: win.currentNav === "memory"
                 }
 
@@ -485,6 +540,7 @@ Window {
                     objectName: "documentsView"
                     onPicturesRequested: picturesSheet.open()
                     anchors.fill: parent
+                    anchors.topMargin: 56
                     visible: win.currentNav === "documents"
                     onPermissionsRequested: permissionsSheet.open()
                 }
@@ -492,6 +548,7 @@ Window {
                 CalendarView {
                     objectName: "calendarView"
                     anchors.fill: parent
+                    anchors.topMargin: 56
                     visible: win.currentNav === "calendar"
                     onPermissionsRequested: permissionsSheet.open()
                     onSetupRequested: win.openSetup()
@@ -500,6 +557,7 @@ Window {
                 ChatView {
                     objectName: "mainChatView"
                     visible: win.currentNav === "chats"
+                    onScene: megastructure.visible || caveGarden.visible
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.top: parent.top
@@ -515,6 +573,7 @@ Window {
                     objectName: "codeView"
                     visible: win.currentNav === "code"
                     anchors.fill: parent
+                    anchors.topMargin: 56
                     busy: Chat.busy
                     onTeamRequested: win.prepareTeam("software")
                     onReviewRequested: codeReview.present()
@@ -529,10 +588,20 @@ Window {
                     id: researchPage
                     objectName: "researchView"
                     anchors.fill: parent
+                    anchors.topMargin: 56
                     visible: win.currentNav === "research"
                     onSourceRequested: function (error) { researchSource.present(error); }
                     onArtifactRequested: function (artifact) { artifactSheet.present(artifact); }
                     onPermissionsRequested: permissionsSheet.open()
+                }
+
+                Rectangle {
+                    visible: megastructure.visible || caveGarden.visible
+                    anchors.fill: composer
+                    anchors.margins: -12
+                    radius: 24
+                    color: Theme.canvas
+                    opacity: 0.97
                 }
 
                 Composer {

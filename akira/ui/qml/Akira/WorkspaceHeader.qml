@@ -9,10 +9,11 @@ Rectangle {
     property var counts: ({})
     property var projects: []
     property string currentView: "chats"
+    property string navigationView: currentView
     property string currentProject: ""
     property bool sidebarOpen: true
     property bool projectSwitchingEnabled: true
-    readonly property var destination: destinations.find(function (d) { return d.id === root.currentView; }) || ({})
+    readonly property var destination: destinations.find(function (d) { return d.id === root.navigationView; }) || ({})
     readonly property bool globalContext: ["watching", "schedule", "memory"].indexOf(currentView) >= 0
     signal viewSelected(string id)
     signal projectSelected(string id)
@@ -58,7 +59,7 @@ Rectangle {
                 visible: !root.sidebarOpen
                 label: "Workspace"
                 minimumPopupWidth: 290
-                current: root.currentView
+                current: root.navigationView
                 options: root.destinations.map(function (d) {
                     const count = root.counts[d.id] || 0;
                     return {value: d.id, label: d.label, detail: count ? count + " " + (d.countLabel || "item") + (count === 1 ? "" : "s") : ""};

@@ -33,7 +33,7 @@ QtObject {
 
     // -- palettes ----------------------------------------------------------
 
-    /*  Neutral surfaces let the pixel worlds and the approved portrait lead.
+    /*  Green charcoal and limestone surfaces extend the two scene palettes.
         Emerald comes from the logo; its interactive shades vary by appearance
         so labels, focus rings and selected rows remain legible. Vermilion is
         reserved for danger, never an ornamental second accent.
@@ -41,21 +41,20 @@ QtObject {
         Alpha is leading — #AARRGGBB, Qt's convention, not CSS's. Writing it
         the other way round yields a colour rather than an error.  */
     readonly property var _dark: ({
-        // Near-black with a cool cast, never pure #000: on pure black every
-        // shadow is invisible and every edge is a hard cut.
-        canvas: "#0B0B0D",
-        surface: "#141416",
-        surfaceHover: "#1B1B1E",
-        surfaceActive: "#232326",
-        overlay: "#1E1E21",
-        inset: "#08080A",
+        // Cave-shadow greens, with distinct layers for controls and sheets.
+        canvas: "#0D1814",
+        surface: "#15231D",
+        surfaceHover: "#1D2D25",
+        surfaceActive: "#26382E",
+        overlay: "#1B2B23",
+        inset: "#0A130F",
 
         separator: "#14FFFFFF",
         separatorStrong: "#26FFFFFF",
 
-        textPrimary: "#F5F5F7",
-        textSecondary: "#B0B4B2",
-        textTertiary: "#959A97",
+        textPrimary: "#EDF1E9",
+        textSecondary: "#BAC7BC",
+        textTertiary: "#A2B2A6",
         textOnAccent: "#08150E",
         textOnDanger: "#08150E",
 
@@ -74,19 +73,19 @@ QtObject {
     })
 
     readonly property var _light: ({
-        canvas: "#FFFFFF",
-        surface: "#F7F7F8",
-        surfaceHover: "#F0F0F2",
-        surfaceActive: "#E7E7EA",
-        overlay: "#FFFFFF",
-        inset: "#F2F2F4",
+        canvas: "#F1F1E6",
+        surface: "#E8EADF",
+        surfaceHover: "#DFE3D6",
+        surfaceActive: "#D4DCCC",
+        overlay: "#F5F4EB",
+        inset: "#E2E6D9",
 
         separator: "#12000000",
         separatorStrong: "#24000000",
 
-        textPrimary: "#1D1D1F",
-        textSecondary: "#545C58",
-        textTertiary: "#626865",
+        textPrimary: "#202D25",
+        textSecondary: "#495A4E",
+        textTertiary: "#526256",
         textOnAccent: "#FFFFFF",
         textOnDanger: "#FFFFFF",
 

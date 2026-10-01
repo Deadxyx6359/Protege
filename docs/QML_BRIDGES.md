@@ -147,8 +147,9 @@ agent *may try*; the confirmation is a separate promise the user asked for.
 |---|---|---|
 | `events` | Property, list model | Roles: `at`, `kind`, `agent`, `text`, `tool`, `ok`, `recipient`, `step` |
 | `activeAgents` | Property, notifies `activeAgentsChanged` | Who has started and not finished: the graph's nodes |
-| `recent(limit)` | Slot → list | The newest `limit` events as plain maps, same fields as the roles, oldest first: for a view that draws a run rather than lists it. `AgentsView.qml` redraws from it whenever `events.count` changes |
-| `clear()` | Slot | |
+| `recent(limit)` | Slot → list | The newest `limit` events as plain maps, same fields as the roles, oldest first |
+| `activity` | Property, map, notifies `activityChanged` | Latest short state per agent, including scheduled work: `{name: {label, at, working}}`. Contains no task text, arguments, or results. The roster combines this with `Agents.currentRun.states` for waiting and terminal interactive states |
+| `clear()` | Slot | Clears trace scrollback and completed activity; preserves agents still working, including scheduled work |
 
 `kind` is one of `started`, `thinking`, `tool_call`, `tool_result`, `message`,
 `answer`, `failed`, `note`. **`message` with a `recipient` is an agent-to-agent

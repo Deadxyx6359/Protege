@@ -99,6 +99,21 @@ def build_agent(replies, context, *, registry=None, **spec_kwargs):
     return agent, router
 
 
+def test_generation_announces_thinking_before_any_tokens(context):
+    from types import SimpleNamespace
+
+    agent, router = build_agent([], context(), tools=())
+
+    def generate(messages, **kwargs):
+        event = agent.trace.events()[-1]
+        assert event.kind is Kind.THINKING and event.agent == "tester"
+        assert event.text == "", "progress must not expose hidden reasoning"
+        return SimpleNamespace(text="A batched answer.")
+
+    router.backend.generate = generate
+    assert agent.run("Write one sentence").answer == "A batched answer."
+
+
 # -- the protocol: shapes a model actually emits -----------------------------
 
 

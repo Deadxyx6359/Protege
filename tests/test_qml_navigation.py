@@ -139,18 +139,18 @@ def walk(item):
 def named(name):
     return next(i for i in walk(win.contentItem()) if i.objectName() == name)
 win.setProperty('sidebarOpen', True)
-memory_row = named('nav_memory')
+memory_row = named('nav_library')
 QMetaObject.invokeMethod(memory_row, 'forceActiveFocus', Qt.DirectConnection)
 ctx.memory._pending.save(Proposal('abcdef1234567890', 'Lanterns', 'lanterns.md', 'Fixture note', False))
 ctx.memory.pendingChanged.emit(); QTest.qWait(30)
 assert memory_row.property('detail') == '1'
 assert win.activeFocusItem() == memory_row
 ctx.monitor.notify('Fixture notice', 'A local test notice.'); QTest.qWait(30)
-assert named('nav_watching').property('detail') == '1'
-assert named('nav_watching').property('detailDescription') == '1 saved notice'
+assert named('nav_tools').property('detail') == '1'
+assert named('nav_tools').property('detailDescription') == '1 update'
 ctx.schedule.on_review(Review(1, 30, [Finding('critical', 'fixture', 'Fixture finding')]))
 QTest.qWait(30)
-assert named('nav_schedule').property('detail') == '1'
+assert named('nav_tools').property('detail') == '2'
 banner = win.findChild(QObject, 'noticeBanner')
 while banner.property('count'):
     QMetaObject.invokeMethod(banner, 'dismiss', Qt.DirectConnection, Q_ARG('QVariant', 0))
@@ -162,8 +162,8 @@ assert not any(i.objectName() == 'noticeDestination' and i.property('visible') f
 ctx.monitor.clearNotices()
 ctx.memory._pending.remove('abcdef1234567890'); ctx.memory.pendingChanged.emit()
 ctx.schedule.on_review(Review(2, 30, [])); QTest.qWait(30)
-assert not memory_row.property('detail') and not named('nav_watching').property('detail')
-assert not named('nav_schedule').property('detail')
+assert not memory_row.property('detail') and not named('nav_tools').property('detail')
+assert not named('nav_tools').property('detail')
 assert not warnings, '\n'.join(warnings)
 ctx.close(); win.close()
 print('NAVIGATION_OK')

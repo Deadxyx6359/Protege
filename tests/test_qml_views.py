@@ -101,9 +101,17 @@ trace.emit(Kind.TOOL_CALL, "gatherer", tool="read_file")
 trace.emit(Kind.ANSWER, "gatherer", text="found three notes")
 trace.emit(Kind.MESSAGE, "gatherer", to="analyst", text="found three notes")
 trace.emit(Kind.STARTED, "analyst", text="What changed?")
-pump(1, lambda: (plain(view.property("status")) or {}).get("analyst") == "working")
-out["status"] = plain(view.property("status"))
-out["passed"] = plain(view.property("passed"))
+# The roster uses the current run, rather than reconstructing stale trace rows.
+from akira.ui.run_archive import clean_record
+ctx.agents._current_id = 'a' * 32
+ctx.agents._on_progress(clean_record({'id': 'a' * 32, 'kind': 'team', 'name': 'research',
+    'status': 'running', 'members': ['gatherer', 'analyst'],
+    'states': {'gatherer': 'Done', 'analyst': 'Thinking'}}))
+pump(.2)
+roster = root.findChild(QObject, 'agentPipeline')
+expression = __import__('PySide6.QtQml', fromlist=['QQmlExpression']).QQmlExpression
+out['status'] = {name: expression(engine.rootContext(), roster, 'activity("' + name + '")').evaluate()[0]
+                 for name in ['gatherer', 'analyst']}
 
 # -- where you are ------------------------------------------------------------
 place = root.findChild(QObject, "placeSheet")
@@ -322,8 +330,7 @@ def test_the_views_work_in_the_window(run):
     assert out["after_remove"] == ["docs.example.org"] and out["net_gone"]
 
     assert out["agents_visible"] and out["pipeline"]
-    assert out["status"]["gatherer"] == "done" and out["status"]["analyst"] == "working"
-    assert out["passed"] == {"gatherer>analyst": True}
+    assert out["status"]["gatherer"] == "Done" and out["status"]["analyst"] == "Thinking"
 
     assert out["place_sheet"]
     assert out["weather_site"] == ["example.com", "open-meteo.com"], \

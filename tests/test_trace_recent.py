@@ -25,3 +25,32 @@ def test_the_newest_events_come_as_maps_oldest_first():
 
     bridge.clear()
     assert bridge.recent(10) == []
+
+
+def test_activity_tracks_background_work_without_retaining_private_text():
+    trace = Trace()
+    bridge = TraceBridge(trace)
+    trace.emit(Kind.STARTED, "secretary", text="private scheduled task")
+    trace.emit(Kind.TOOL_CALL, "secretary", tool="read_file", arguments={"path": "private"})
+    assert bridge.activity["secretary"]["label"] == "Using read_file"
+    assert bridge.activity["secretary"]["working"]
+    assert "private" not in str(bridge.activity)
+    # Capped scrollback and clearing it must not lose the live agent state.
+    for _ in range(510):
+        trace.emit(Kind.NOTE, "scheduler", text="heartbeat")
+    for i in range(510):
+        trace.emit(Kind.ANSWER, "finished-job-" + str(i))
+    assert len(bridge.activity) == 500
+    bridge.clear()
+    assert bridge.events.count == 0
+    assert bridge.activity["secretary"]["working"]
+    trace.emit(Kind.TOOL_RESULT, "secretary", ok=False, tool="read_file")
+    assert bridge.activity["secretary"]["label"] == "Tool declined"
+    trace.emit(Kind.FAILED, "secretary", text="cancelled")
+    assert bridge.activity["secretary"]["label"] == "Stopped"
+    assert not bridge.activity["secretary"]["working"]
+    copy = bridge.activity
+    copy["secretary"]["label"] = "Changed"
+    assert bridge.activity["secretary"]["label"] == "Stopped"
+    bridge.attach(Trace())
+    assert bridge.activity == {}

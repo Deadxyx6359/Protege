@@ -366,7 +366,8 @@ class AgentsBridge(QObject):
             self._trace.emit(e.kind, e.agent, **fields)
             kind = e.kind.value
             if e.agent in record["states"]:
-                state = {"started": "Starting", "thinking": "Thinking", "answer": "Done", "failed": "Failed",
+                state = {"started": "Starting", "thinking": "Thinking", "answer": "Done",
+                         "failed": "Stopped" if e.text == "cancelled" else "Failed",
                          "tool_call": "Using " + e.tool, "tool_result": "Reading result" if e.ok else "Tool declined"}.get(kind)
                 if state: record["states"][e.agent] = state
             if kind in ("message", "tool_call", "tool_result", "failed"):
