@@ -120,7 +120,15 @@ measured benchmarks, not from optimism.
 
 Apple-like minimalism, uncluttered, Claude/Gemini in content density. Everyday
 surface is **8-bit botanica**, time- and weather-dependent; the coding surface
-is **8-bit space**. Work organised by type. Owned by Codex; see REBUILD.md.
+is **8-bit space**. Work organised by type. See REBUILD.md.
+
+**Running by the clock (2026-10-01).** Closing the window leaves Akira running
+from its icon in the notification area, for reminders, watches and scheduled
+jobs; a setting turns that off. Hidden, it keeps out of a game's way: the model
+leaves the graphics card, the process runs in Windows' background mode, and a
+job needing a model waits while something full screen or another program has
+the card. Quitting ends Akira and every program it started (a Windows job
+object). One Akira runs at a time. See `Background` in QML_BRIDGES.md.
 
 ---
 
@@ -183,10 +191,11 @@ privileged action directly; it goes through a tool so it is gated and audited.
 
 ### 4.1 Ownership
 
-- **Claude** — `akira/core/**`, `akira/security/**`, and matching tests.
-- **Codex** — `akira/ui/qml/**`, `akira/design/**`, scene `.js`,
-  `tools/preview_scenes.py`.
-- **Shared, coordinate first** — `akira/ui/bridge/**`.
+- **Claude** — everything, from 2026-09-30: `akira/core/**`,
+  `akira/security/**`, `akira/ui/**` (QML and bridges), `akira/design/**`, and
+  matching tests. Codex's last work was committed in 900665d.
+- Before that, Codex held `akira/ui/qml/**`, `akira/design/**`, scene `.js` and
+  `tools/preview_scenes.py`, and the bridges were shared.
 
 Before committing, check file mtimes. Work from the other agent arrives
 mid-session and must not be swept into a commit unreviewed.
@@ -951,9 +960,9 @@ so stopping discards it rather than keeping a half-trained adapter.
 | E | E3 Content pipeline | ✅ drafted, reviewed and revised on a schedule; published only by the person |
 | E | E1 Image generation | ✅ SDXL-Turbo on the RTX card, about nine seconds a picture |
 | E | E4 Training | ✅ LoRA on Qwen3-4B from chosen conversations, in its own environment |
+| — | Running by the clock | ✅ window closed to the notification area; out of a game's way; nothing left running after Quit |
 
-**Tests at last commit:** 2445 passed, 2 skipped, and the two known
-dialog-geometry failures (a window 7 px taller than the test allows);
+**Tests at last commit:** 3032 passed, 7 skipped, none failing (2026-10-01);
 `verify_offline.py` passes. Update this line when it changes.
 
 ---

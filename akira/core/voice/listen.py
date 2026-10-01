@@ -127,6 +127,10 @@ class Transcriber:
         """Why Whisper cannot run, or ""."""
         return missing(self._model)
 
+    @property
+    def loaded(self) -> bool:
+        return self._context is not None
+
     def load(self) -> None:
         """Load the model now rather than on the first transcription."""
         with self._lock:

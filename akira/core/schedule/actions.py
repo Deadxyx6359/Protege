@@ -171,8 +171,8 @@ def register_agent_actions(actions: ActionRegistry, *, router: ModelRouter,
                        ).run(task, is_cancelled=context.cancelled)
         return _result(outcome.ok, outcome.stopped, outcome.answer)
 
-    actions.register("agent", run_agent, "Give one agent a task")
-    actions.register("team", run_team, "Give a team a task")
+    actions.register("agent", run_agent, "Give one agent a task", uses_card=True)
+    actions.register("team", run_team, "Give a team a task", uses_card=True)
 
 
 def register_pipeline_action(actions: ActionRegistry, *, router: ModelRouter,
@@ -220,4 +220,5 @@ def register_pipeline_action(actions: ActionRegistry, *, router: ModelRouter,
         return ActionResult(True, f"“{draft.title}” is waiting for you to read and publish, "
                                   f"as {target.describe()}.")
 
-    actions.register("pipeline", run, "Draft, review and revise a piece for you to publish")
+    actions.register("pipeline", run, "Draft, review and revise a piece for you to publish",
+                     uses_card=True)

@@ -105,3 +105,15 @@ def test_a_reply_too_short_to_time_is_not_judged():
     assert quick.writing_rate is None
     assert GenerationResult(text="x", completion_tokens=60, first_token_s=1.0,
                             duration_s=3.0).writing_rate == 30.0
+
+
+def test_a_reply_finished_with_akira_in_the_background_says_nothing_of_the_card(
+        qt_app, tmp_path, monkeypatch):
+    # Its window closed mid-reply, Akira runs behind every other program: slow then
+    # says nothing about the card.
+    from akira.core import quiet
+
+    monkeypatch.setattr(quiet, "in_background", lambda: True)
+    bridge, told = bridge_with(tmp_path, tokens_a_second=1.0)
+    say(bridge, "What should I cook tonight?")
+    assert told == []

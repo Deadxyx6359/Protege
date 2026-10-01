@@ -253,6 +253,15 @@ class Synthesizer:
             self._kokoro = loaded.Kokoro.from_session(session, str(self._voices))
         return self._kokoro
 
+    @property
+    def loaded(self) -> bool:
+        return self._kokoro is not None
+
+    def close(self) -> None:
+        """Let the voice go; it is loaded again when next needed."""
+        with self._lock:
+            self._kokoro = None
+
     def synthesize(self, text: str, voice: str = DEFAULT_VOICE,
                    speed: float = 1.0) -> tuple[np.ndarray, int]:
         """\a text spoken in \a voice: the samples, and how many there are a second."""

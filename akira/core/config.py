@@ -181,6 +181,13 @@ class AppConfig:
     #: if you want the GPU free for something else.
     preload: bool = True
 
+    #: Closing the window leaves Akira running by the clock, for reminders,
+    #: watches and scheduled jobs. Off, closing the window quits.
+    keep_running: bool = True
+
+    #: Whether the person has been told, once, that closing the window does not quit.
+    told_keeps_running: bool = False
+
     # -- persistence --------------------------------------------------------
 
     @staticmethod
@@ -220,6 +227,8 @@ class AppConfig:
             models=models,
             default_route=str(raw.get("default_route", "chat")),
             preload=bool(raw.get("preload", True)),
+            keep_running=bool(raw.get("keep_running", True)),
+            told_keeps_running=bool(raw.get("told_keeps_running", False)),
         )
 
     def save(self) -> None:

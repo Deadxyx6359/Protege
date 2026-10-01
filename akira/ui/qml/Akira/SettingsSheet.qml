@@ -133,6 +133,21 @@ Sheet {
                 description: "Choose a voice, hear a sample, or start a hands-free call."
                 ActionButton { objectName: "openVoiceSettings"; text: "Open"; onClicked: root.voiceRequested() }
             }
+            FormRow {
+                Layout.fillWidth: true
+                divider: false
+                title: "Keep running when closed"
+                description: Background.keepRunning
+                    ? "Reminders, watches and jobs go on from the icon by the clock. The model leaves the graphics card, and jobs that need it wait while a game is running."
+                    : "Closing the window quits Akira. Reminders, watches and jobs run only while it is open."
+                Toggle {
+                    objectName: "keepRunningToggle"
+                    label: "Keep running when closed"
+                    checked: Background.keepRunning
+                    onToggled: function (value) { Background.keepRunning = value; }
+                }
+                ActionButton { objectName: "quitAkira"; text: "Quit"; onClicked: Background.quit() }
+            }
         }
         ColumnLayout {
             objectName: "settingsAppearance"

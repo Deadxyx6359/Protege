@@ -753,7 +753,11 @@ def _find_vscode() -> tuple[Path, Path] | None:
 
 
 def _launch(argv: list[str], env: dict[str, str]) -> None:
-    """Start the editor and do not wait for it."""
+    """Start the editor and do not wait for it.
+
+    Detached, which is also what marks it as the person's: it is not ended with
+    Akira, as the programs Akira runs for itself are (`akira.core.processes`).
+    """
     flags = 0
     if os.name == "nt":
         flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP

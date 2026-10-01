@@ -236,3 +236,28 @@ def test_while_the_card_is_lent_for_long_work_a_caller_is_told_at_once(tmp_path,
         assert router.lent
     assert router.lent == ""
     work(router, Route.CHAT)
+
+
+def test_asking_whether_a_model_is_held_never_waits_out_a_load(tmp_path, llama, monkeypatch):
+    """The window's thread asks, on closing, and must not freeze for a load."""
+    router = ModelRouter(config_for(tmp_path, chat="chat.gguf"))
+    loading, finish = threading.Event(), threading.Event()
+    real = llama.LlamaBackend
+
+    def slow_load(spec):
+        loading.set()
+        finish.wait(5)
+        return real(spec)
+
+    monkeypatch.setattr(llama, "LlamaBackend", slow_load)
+    worker = in_thread(router.warm, Route.CHAT)
+    assert loading.wait(5)
+
+    started = time.monotonic()
+    assert router.loaded and router.generating, "a load in progress counts as held"
+    assert time.monotonic() - started < 0.5
+    finish.set()
+    worker.join(5)
+    assert router.loaded and not router.generating
+    assert router.unload_all(timeout=1)
+    assert not router.loaded

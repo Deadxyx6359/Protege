@@ -456,6 +456,19 @@ class VoiceBridge(QObject):
         call.end(wait=False)
         self.stopSpeaking()
 
+    @Slot()
+    def release(self) -> None:
+        """Akira's windows are closed: stop reading aloud, and let the speech
+        models go. Not during a call or while the microphone is open, each of
+        which keeps a window up. They load again when next needed."""
+        if self._closed or self._call is not None or self._listening or self._transcribing:
+            return
+        self.stopSpeaking()
+        if self._listener.transcriber.loaded:
+            self._work(self._listener.transcriber.close)
+        if self._speaker.synthesizer.loaded:
+            self._work(self._speaker.synthesizer.close)
+
     @Slot(bool)
     def setMuted(self, on: bool) -> None:
         """Mute closes the microphone; capture stops, it is not ignored."""

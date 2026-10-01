@@ -30,6 +30,13 @@ its `confirm` refuses — nothing irreversible happens because a clock said so.
 When the interface is open it can hand in a real prompt, and then a person is
 asked; if nobody answers, the prompt times out to no.
 
+**Out of the way of a game.** An action that loads a model is registered as
+using the graphics card. While the card is wanted elsewhere (Akira's window
+is closed and a game has the screen, say) such a job waits, and runs once the
+card is free or the window opens. Every other job runs on time, a reminder
+included. A job still waiting when Akira closes is put back as it was, due,
+and its missed-run rule decides at the next start.
+
 The scheduler is driven by `tick(now)`, so tests move time by hand.
 `SchedulerService` is only the thread that calls it.
 """
@@ -247,18 +254,40 @@ class JobContext:
 Action = Callable[[JobContext], ActionResult]
 
 
+@dataclass(slots=True)
+class _Waiting:
+    """A claimed run held back until the graphics card is free."""
+
+    job: Job
+    run: dict
+    """What `_execute` is given when it goes ahead."""
+    due: float | None
+    """When it was due, to put back if Akira closes first; None for an event."""
+    since: float
+    why: str
+
+
 class ActionRegistry:
     """The things a job may name."""
 
     def __init__(self) -> None:
         self._actions: dict[str, tuple[Action, str]] = {}
+        self._on_card: set[str] = set()
 
-    def register(self, name: str, handler: Action, description: str = "") -> None:
+    def register(self, name: str, handler: Action, description: str = "", *,
+                 uses_card: bool = False) -> None:
+        """Add an action. \a uses_card for one that loads a model: it waits while
+        the graphics card is wanted elsewhere."""
         if not _ACTION_NAME.match(name):
             raise ValueError(f"{name!r} is not a valid action name")
         if name in self._actions:
             raise ValueError(f"an action named {name!r} is already registered")
         self._actions[name] = (handler, description)
+        if uses_card:
+            self._on_card.add(name)
+
+    def uses_card(self, name: str) -> bool:
+        return name in self._on_card
 
     def get(self, name: str) -> Action | None:
         entry = self._actions.get(name)
@@ -406,6 +435,7 @@ class Scheduler:
         confirm: Callable[[str], bool] | None = None,
         clock: Callable[[], float] = time.time,
         on_change: Callable[[], None] | None = None,
+        card: Callable[[], str] | None = None,
     ) -> None:
         self._actions = actions
         self._policy = policy or Policy.load
@@ -423,6 +453,10 @@ class Scheduler:
         self.dropped_events = 0
         self.wake = threading.Event()
         self._interrupted = threading.Event()
+        # Why the graphics card is wanted elsewhere, or "": asked before a job
+        # that loads a model starts, and for those waiting, every tick.
+        self._card = card or (lambda: "")
+        self._waiting: list[_Waiting] = []
 
         jobs, self.warnings = self._store.load()
         self._jobs: dict[str, Job] = {job.id: job for job in jobs}
@@ -444,9 +478,35 @@ class Scheduler:
     def set_on_change(self, callback: Callable[[], None] | None) -> None:
         self._on_change = callback
 
+    def set_card(self, card: Callable[[], str] | None) -> None:
+        """Hand in what says whether the graphics card is wanted elsewhere."""
+        self._card = card or (lambda: "")
+
     def interrupt(self) -> None:
-        """Ask running jobs to stop, and start no new ones. For shutdown."""
+        """Ask running jobs to stop, and start no new ones. For shutdown.
+
+        A job waiting for the graphics card is put back as it was before it was
+        claimed: due at its time, so that its missed-run rule decides at the
+        next start. One answering an event has no time to go back to, and is
+        recorded as not run.
+        """
         self._interrupted.set()
+        with self._lock:
+            waiting, self._waiting = self._waiting, []
+            for held in waiting:
+                if held.due is not None:
+                    job = held.job
+                    job.next_run = (held.due if job.next_run is None
+                                    else min(job.next_run, held.due))
+                    job.done = False
+        for held in waiting:
+            if held.due is None:
+                self._record(held.job, RunRecord(
+                    held.job.id, held.since, self._clock(), "skipped",
+                    f"Waited for the graphics card ({held.why}), and Akira closed before "
+                    "it was free.", False, "event"))
+        if waiting:
+            self._persist()
 
     def clear_interrupt(self) -> None:
         self._interrupted.clear()
@@ -561,20 +621,73 @@ class Scheduler:
             # the next time Akira starts.
             return records
 
-        for job, name, payload in self._claim_events(now):
-            records.append(self._execute(job, now, trigger="event",
-                                         event_name=name, event=payload))
+        records.extend(self._release_waiting(now))
 
-        for job, mode, note in self._claim_due(now):
+        for job, name, payload in self._claim_events(now):
+            run = {"trigger": "event", "event_name": name, "event": payload}
+            if not self._wait_for_card(job, run, None, now):
+                records.append(self._execute(job, now, **run))
+
+        for job, mode, note, due in self._claim_due(now):
             if mode == "skip":
                 records.append(self._record(
                     job, RunRecord(job.id, now, now, "skipped", note, True, "time")))
-            else:
+            elif not self._wait_for_card(job, {"late": mode == "late", "note": note}, due, now):
                 records.append(self._execute(job, now, late=mode == "late", note=note))
 
         if records:
             self._persist()
         return records
+
+    # -- the graphics card --------------------------------------------------
+
+    def _wait_for_card(self, job: Job, run: dict, due: float | None, now: float) -> bool:
+        """Hold \a job back if it loads a model and the card is wanted elsewhere."""
+        if not self._actions.uses_card(job.action):
+            return False
+        why = self._card()
+        if not why:
+            return False
+        with self._lock:
+            # Already waiting: one run, once the card is free, covers both.
+            if not any(held.job.id == job.id for held in self._waiting):
+                self._waiting.append(_Waiting(job, run, due, now, why))
+        self._persist()
+        return True
+
+    def _release_waiting(self, now: float) -> list[RunRecord]:
+        """Run what was waiting for the card, if it is free now."""
+        with self._lock:
+            if not self._waiting:
+                return []
+        why = self._card()
+        if why:
+            with self._lock:
+                for held in self._waiting:
+                    held.why = why
+            return []
+        with self._lock:
+            waiting, self._waiting = self._waiting, []
+        records = []
+        for held in waiting:
+            minutes = max(1, round((now - held.since) / 60))
+            waited = (f"Waited {_plural(minutes, 'minute')} for the graphics card, "
+                      f"while {held.why}")
+            run = dict(held.run)
+            run["note"] = f"{run['note']}. {waited}" if run.get("note") else waited
+            records.append(self._execute(held.job, now, **run))
+        return records
+
+    @property
+    def busy(self) -> bool:
+        """Whether a job is running now."""
+        with self._lock:
+            return bool(self._running)
+
+    def waiting(self) -> dict[str, str]:
+        """Each job waiting for the graphics card, and why it is waiting."""
+        with self._lock:
+            return {held.job.id: held.why for held in self._waiting}
 
     def run_now(self, job_id: str, now: float | None = None) -> RunRecord | None:
         """Run a job immediately, by hand. Its schedule is not moved."""
@@ -605,13 +718,13 @@ class Scheduler:
                     claimed.append((job, name, payload))
         return claimed
 
-    def _claim_due(self, now: float) -> list[tuple[Job, str, str]]:
+    def _claim_due(self, now: float) -> list[tuple[Job, str, str, float]]:
         """Decide what runs this tick, moving each job's clock on first.
 
         The next occurrence is fixed *before* anything runs, so a second tick
         arriving while a long job is still going cannot start it twice.
         """
-        claimed: list[tuple[Job, str, str]] = []
+        claimed: list[tuple[Job, str, str, float]] = []
         with self._lock:
             for job in sorted(self._jobs.values(), key=lambda j: j.next_run or 0.0):
                 if (not job.enabled or job.done or job.next_run is None
@@ -627,16 +740,16 @@ class Scheduler:
                     job.done = True
 
                 if not late:
-                    claimed.append((job, "run", ""))
+                    claimed.append((job, "run", "", due))
                 elif job.missed is Missed.SKIP:
                     claimed.append((job, "skip",
                                     f"Missed {_plural(missed, 'scheduled run')} while "
                                     "Akira was not running; skipped, as this job "
-                                    "is set to do"))
+                                    "is set to do", due))
                 else:
                     claimed.append((job, "late",
                                     f"Missed {_plural(missed, 'scheduled run')} while "
-                                    "Akira was not running; ran once on return"))
+                                    "Akira was not running; ran once on return", due))
         return claimed
 
     @staticmethod
@@ -756,6 +869,7 @@ class Scheduler:
     def snapshot(self) -> list[dict]:
         """Plain data for the interface, safe to hand across threads."""
         with self._lock:
+            waiting = {held.job.id: held.why for held in self._waiting}
             return [{
                 "id": job.id, "name": job.name, "action": job.action,
                 "when": job.trigger.describe(), "nextRun": job.next_run or 0.0,
@@ -763,6 +877,8 @@ class Scheduler:
                 "enabled": job.enabled, "done": job.done,
                 "pausedReason": job.paused_reason, "missed": job.missed.value,
                 "running": job.id in self._running,
+                # Why it is waiting for the graphics card, or "".
+                "waiting": waiting.get(job.id, ""),
                 # The watch an event job waits on, so a view can keep the two together.
                 "watch": str(job.trigger.match.get("watch", "")) if job.trigger.is_event else "",
             } for job in self.jobs()]

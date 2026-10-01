@@ -620,4 +620,4 @@ def register_distil_action(actions: ActionRegistry, *, router: ModelRouter,
             return ActionResult(False, "Stopped because Akira was closing.", cancelled=True)
         return ActionResult(not report.errors, report.summary())
 
-    actions.register(DISTIL_ACTION, run, "Propose notes from recent conversations")
+    actions.register(DISTIL_ACTION, run, "Propose notes from recent conversations", uses_card=True)

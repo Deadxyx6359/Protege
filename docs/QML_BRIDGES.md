@@ -74,6 +74,7 @@ before changing it.
 | `Images` | `ImagesBridge` | Making a picture from a description, and saving it |
 | `Training` | `TrainingBridge` | Teaching a model from chosen conversations, and the adapters trained |
 | `Planner` | `PlannerBridge` | The calendar kept in Akira, on this computer: month, week and day, and changing it |
+| `Background` | `BackgroundBridge` | Whether closing the window leaves Akira running by the clock, and quitting it |
 
 Registered in `akira/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
@@ -223,7 +224,7 @@ these changes from source when Akira is reopened.
 
 | Member | Kind | Notes |
 |---|---|---|
-| `jobs` | Property, notifies `jobsChanged` | Maps: `id`, `name`, `action`, `when` (plain English, e.g. "Weekdays at 09:00"), `nextRun`, `lastRun` (epoch seconds, 0 if never), `lastStatus`, `enabled`, `done`, `pausedReason`, `missed` (`run_late`/`skip`), `running`, `watch` (the `Monitor` watch an event job waits on, from its trigger's `match`, or `""`) |
+| `jobs` | Property, notifies `jobsChanged` | Maps: `id`, `name`, `action`, `when` (plain English, e.g. "Weekdays at 09:00"), `nextRun`, `lastRun` (epoch seconds, 0 if never), `lastStatus`, `enabled`, `done`, `pausedReason`, `missed` (`run_late`/`skip`), `running`, `waiting` (why a job that needs a model is waiting for the graphics card, such as "a game is running full screen", or `""`; see `Background`), `watch` (the `Monitor` watch an event job waits on, from its trigger's `match`, or `""`) |
 | `warnings` | Property | Plain-language problems loading or saving the schedule. Show them |
 | `history(id)` | Slot → list | Runs, newest first: `status` (`ok`/`failed`/`skipped`/`overlap`/`cancelled`), `summary`, `late`, `trigger` (`time`/`event`/`manual`), `started`, `finished` |
 | `pause(id)`, `resume(id)`, `remove(id)` | Slots | Resuming counts forward from now. The runs inside a pause are not "missed" |
@@ -1227,6 +1228,52 @@ takes no click while the editor is open: a press on the editor's Save was also
 taken, passively, by the day under it, which the release chose once the sheet
 had closed. Any page with its own pointer handlers under a `Sheet` can meet the
 same.
+
+## `Background` — Akira by the clock, and quitting — 2026-10-01
+
+Closing the window hides it, and Akira goes on from its icon in the
+notification area, by the clock, so that reminders, watches and scheduled jobs
+keep working (`akira/ui/background.py`). While no Akira window is open (the main
+one, or a call's), it keeps out of the way:
+
+- the language model leaves the graphics card as soon as nothing is answering
+  (a reply still being written, an agent or a job between steps keep it), and
+  the speech models go too, reading aloud stopping; the model loads again when
+  the window opens, if `preload` is on;
+- the process runs in Windows' background mode: processor, disk and memory
+  after every other program's, and on efficiency cores where there are some;
+- a scheduled job whose action loads a model (`agent`, `team`, `pipeline`,
+  `distil_memory`: registered with `uses_card=True`) waits while a full-screen
+  program has the screen or another program holds a gigabyte or more of the
+  card, and runs once it is free or the window opens. Every other job, a
+  reminder included, runs on time. One still waiting when Akira quits is put
+  back due, for its missed-run rule at the next start (`akira/core/quiet.py`,
+  `Scheduler(card=...)`);
+- notices, a job waiting for a yes or no, an `Allow` question and a critical
+  review finding become Windows notifications, clicked to open the window. A
+  question's notification says that one is waiting, never what it is about.
+
+Quitting (the icon's menu, Settings, or Ctrl+Q) ends Akira, and every program it
+started ends with it: each one Akira starts through `subprocess` is put in a
+Windows job object that ends with Akira's process, however that ends
+(`akira/core/processes.py`). VS Code opened on a file and pages opened in the
+person's own browser are theirs, and stay. Launching Akira again while it runs
+brings the running one forward (`akira/ui/instance.py`).
+
+| Member | Kind | Meaning |
+|---|---|---|
+| `keepRunning` | bool, read/write, notify `keepRunningChanged` | The setting: closing the window leaves Akira running. On by default; saved in `config.json` as `keep_running` |
+| `hidesOnClose` | bool, notify `keepRunningChanged` | Whether closing hides the window now: the setting is on, there is an icon by the clock to come back from, and Akira is not quitting. `Main.qml`'s `onClosing` reads this |
+| `quitting` | bool, notify `quittingChanged` | Quit has begun: a window closing now closes |
+| `hidden` | bool, notify `hiddenChanged` | No Akira window is open, and Akira is keeping out of the way |
+| `windowClosed()` | slot | The window was closed into the background. The first time ever, a notification says Akira is still running and how to quit |
+| `showWindow()` | slot | Bring the window back as it was, in front |
+| `newChat()` | slot | Show the window and start a new chat, through `Main.qml`'s `newChat()` |
+| `quit()` | slot | End Akira |
+
+The page: Settings, General, "Keep running when closed", with the toggle and
+Quit. The schedule's `next(j)` says "Waiting for the graphics card: …" for a
+job with `waiting`.
 
 ## Not reachable yet
 

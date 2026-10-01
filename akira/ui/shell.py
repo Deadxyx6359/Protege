@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Callable
 
 from PySide6.QtCore import QMetaObject
-from PySide6.QtGui import QGuiApplication, QIcon, QWindow
+from PySide6.QtGui import QIcon, QWindow
+from PySide6.QtWidgets import QApplication
 
 from akira.core.agents import Trace
 from akira.core.agents.monitor import Monitor, MonitorService, WatchStore, register_notify_action
@@ -37,7 +38,7 @@ from akira.core.making.training import Trainer
 from akira.core.models import ModelRouter, Route
 from akira.core.net import browser
 from akira.core.permissions import AuditLog, Policy, SecretStore
-from akira.core import planner
+from akira.core import planner, processes
 from akira.core.projects import ProjectStore
 from akira.core.review import ensure_review_job, register_review_action
 from akira.core.schedule import ActionRegistry, Scheduler, SchedulerService
@@ -69,11 +70,18 @@ from akira.ui.bridge import (
     VoiceBridge,
 )
 
+from .background import BackgroundBridge
 from .engine import QML_ROOT, QmlError, build_engine, configure_application, load
+from .instance import Instance
 from .run_archive import RunArchive
 
 MAIN_QML = QML_ROOT / "Main.qml"
 ICON = Path(__file__).parent / "assets" / "akira.ico"
+
+#: From quitting to the process gone, at the most. Closing waits on threads (a
+#: reply stopping, the speech models, the scheduler); past this, whatever is
+#: still waiting is abandoned rather than left holding Akira open unseen.
+QUIT_DEADLINE_S = 45.0
 
 
 @dataclass
@@ -116,6 +124,7 @@ class AppContext:
     weather_service: WeatherService | None = None
     reminders: planner.Reminders | None = None
     reminder_service: planner.ReminderService | None = None
+    background: BackgroundBridge | None = None
 
     housekeeping: Callable[[], None] | None = None
     """Tidying that runs once at start: dropping what expired grants no longer
@@ -134,7 +143,7 @@ class AppContext:
                           ("Coding", self.coding), ("Voice", self.voice),
                           ("Drawing", self.drawing), ("Drafts", self.drafts),
                           ("Images", self.images), ("Training", self.training),
-                          ("Planner", self.planner)):
+                          ("Planner", self.planner), ("Background", self.background)):
             if obj is not None:
                 exposed[name] = obj
         return exposed
@@ -423,6 +432,12 @@ def build_context(*, persist: bool = True) -> AppContext:
     # Replies are read aloud as they stream in, and a call talks to this chat.
     voice.follow(chat)
 
+    # Closing the window can leave Akira running by the clock. Meanwhile a job
+    # needing a model waits while a game or anything full screen has the card.
+    background = BackgroundBridge(config, router, voice=voice, chat=chat, agents=agents,
+                                  scheduler=scheduler, persist=persist)
+    scheduler.set_card(background.card_busy)
+
     return AppContext(
         config=config,
         router=router,
@@ -453,6 +468,7 @@ def build_context(*, persist: bool = True) -> AppContext:
             in_use=lambda: [m.adapter for m in config.models.values() if m.adapter]),
         planner=planner_bridge,
         reminders=calendar_reminders,
+        background=background,
         housekeeping=sweep_indexes,
     )
 
@@ -486,18 +502,34 @@ def _claim_taskbar() -> None:
 
 
 def run_shell(argv: list[str] | None = None) -> int:
-    """Start the interface and run until the last window closes."""
+    """Start the interface and run until Akira is quit.
+
+    Returns only when it does not start. Once it has, quitting ends the process
+    itself, with every program it started (`akira.core.processes`).
+    """
     # Before anything reads a setting: the folder may still have its old name.
     moved = migrate_config()
     if moved:
         print(moved, file=sys.stderr)
     _claim_taskbar()
+
+    # A widgets application, for the icon by the clock and its menu. The
+    # interface itself is QML either way.
+    app = QApplication(argv if argv is not None else sys.argv)
+    configure_application(app)
+
+    # One Akira at a time: launched again, it brings the running one forward.
+    instance = Instance()
+    if not instance.first:
+        instance.call_first()
+        return 0
+
+    # Every program Akira starts from here on ends when Akira does.
+    processes.tie_children()
+
     # Search ranks by meaning as well as words when an embedding model is in
     # models/embed/. Loaded on first use, on the processor.
     embed.use(embed.local())
-
-    app = QGuiApplication(argv if argv is not None else sys.argv)
-    configure_application(app)
 
     if ICON.is_file():
         app.setWindowIcon(QIcon(str(ICON)))
@@ -519,9 +551,16 @@ def run_shell(argv: list[str] | None = None) -> int:
             if isinstance(root, QWindow):
                 root.setIcon(QIcon(str(ICON)))
 
-    # Without this the process lingers after the window closes, because the
-    # engine still holds the root object and Qt has nothing left to quit on.
-    engine.quit.connect(app.quit)
+    # Quitting from QML is quitting Akira, past a window that would otherwise
+    # hide itself rather than close.
+    engine.quit.connect(ctx.background.quit)
+
+    window = next((root for root in engine.rootObjects() if isinstance(root, QWindow)), None)
+    if window is not None:
+        ctx.background.attach(app, window,
+                              call_window=window.findChild(QWindow, "voiceCallWindow"),
+                              instance=instance, monitor=ctx.monitor, confirm=ctx.confirm,
+                              allow=ctx.allow, schedule=ctx.schedule)
 
     # The first time, with nothing allowed yet, the common permissions are
     # offered on one screen. Only the application does this; previews do not.
@@ -544,10 +583,18 @@ def run_shell(argv: list[str] | None = None) -> int:
             daemon=True,
         ).start()
 
+    code = 1
     try:
-        return app.exec()
+        code = app.exec()
     finally:
+        # Nothing waited on while closing may keep Akira running unseen.
+        processes.exit_within(QUIT_DEADLINE_S, code)
+        instance.release()
         ctx.close()
+        # Whatever Akira started and did not stop when asked ends here.
+        processes.end_children()
+    processes.leave(code)
+    return code
 
 
 def _persist_appearance(config: AppConfig, mode: str, reduce_motion: bool) -> None:

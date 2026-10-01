@@ -66,6 +66,8 @@ Item {
             return j.pausedReason !== "" ? j.pausedReason : "Paused.";
         if (j.running)
             return "Running now.";
+        if (j.waiting)
+            return "Waiting for the graphics card: " + j.waiting + ".";
         return j.nextRun ? "Next " + root.when(j.nextRun) + "." : "";
     }
 

@@ -315,6 +315,20 @@ class ModelRouter:
         """Why no model may load for now, or ""."""
         return self._lent
 
+    @property
+    def loaded(self) -> bool:
+        """Whether any model is in memory, or being loaded.
+
+        Read without the lock, which a load holds for seconds: the window's
+        thread asks this, and must never wait out a load to hear the answer.
+        """
+        return bool(self._backends) or self._inference.locked()
+
+    @property
+    def generating(self) -> bool:
+        """Whether a model is answering, or being loaded to, now."""
+        return self._inference.locked()
+
     def close(self) -> None:
         self.unload_all()
 

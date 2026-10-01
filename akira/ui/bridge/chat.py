@@ -39,7 +39,7 @@ from PySide6.QtCore import (
 from akira.core.config import AppConfig
 from akira.core.conversation import Cancelled, Conversation, Responder
 from akira.core.conversations import ConversationError, ConversationStore, relative_time
-from akira.core import agenda, planner, reminders
+from akira.core import agenda, planner, quiet, reminders
 from akira.core.brain.grounding import TEACHING, Grounding, subject_of, teaching
 from akira.core.intent import LABELS, MODES, ROUTES, Intent, choose
 from akira.core.plain_maths import plain_maths
@@ -655,6 +655,8 @@ class ChatBridge(QObject):
         rate = getattr(result, "writing_rate", None)
         if self._told_slow or rate is None or rate >= SLOW_TOKENS_PER_S:
             return
+        if quiet.in_background():
+            return  # finished with the window closed, behind every other program
         model = self._config.models.get(self._router.resolve(self._route).value)
         if model is None or model.n_gpu_layers == 0:
             return  # on the processor alone, slow is how it is

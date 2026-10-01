@@ -601,3 +601,37 @@ def test_closing_akira_ends_the_call(app, tmp_path):
     voice, _, _, _, call = in_a_call(tmp_path)
     voice.close()
     assert call.ended and call.end_waited is True
+
+
+# -- the windows closed ----------------------------------------------------------------------------
+
+
+def loaded_models(listener, speaker):
+    """Give the fakes speech models that are in memory, and count their letting go."""
+    gone = []
+    listener.transcriber = types.SimpleNamespace(load=lambda: None, ready="", loaded=True,
+                                                 close=lambda: gone.append("whisper"))
+    speaker.synthesizer = types.SimpleNamespace(load=lambda: None, ready="", loaded=True,
+                                                close=lambda: gone.append("kokoro"))
+    return gone
+
+
+def test_with_the_windows_closed_reading_stops_and_the_speech_models_go(app, tmp_path):
+    voice, _, listener, speaker = bridge(tmp_path, "audio.record", "audio.play")
+    gone = loaded_models(listener, speaker)
+    assert voice.speak("A long answer being read.")
+
+    voice.release()
+
+    assert pump_until(app, lambda: sorted(gone) == ["kokoro", "whisper"])
+    assert speaker.stops == 1 and not voice.speaking
+
+
+def test_a_call_keeps_its_speech_models(app, tmp_path):
+    voice, _, speaker, _, _ = in_a_call(tmp_path)
+    gone = loaded_models(voice._listener, speaker)
+
+    voice.release()
+
+    time.sleep(0.1)
+    assert gone == [] and voice.inCall

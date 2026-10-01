@@ -20,6 +20,19 @@ Window {
     color: Theme.canvas
     title: "Akira"
     onClosing: function (close) {
+        // Closed, Akira goes on by the clock for reminders, watches and jobs,
+        // and lets the model go meanwhile. A call goes on in its own window.
+        if (Background.hidesOnClose) {
+            close.accepted = false;
+            win.hide();
+            if (Voice.inCall) win.showCall();
+            Background.windowClosed();
+            return;
+        }
+        if (Background.quitting) {
+            if (Voice.inCall) Voice.endCall();
+            return;
+        }
         // A call keeps going in its own window when this one closes, but only
         // if that window is on screen: a call nobody can see is ended, and
         // Akira closes, rather than refusing to close with the microphone open.
@@ -179,6 +192,23 @@ Window {
         // switches anyway, wait for the old stream to unwind before resetting.
         if (Chat.busy) { pendingProjectReset = true; Chat.stop(); }
         else finishProjectSwitch();
+    }
+
+    /*! A fresh conversation, from the sidebar or the menu of Akira's icon by the clock. */
+    function newChat() {
+        if (Chat.busy || Voice.inCall) return;
+        if (win.fullPage || win.currentNav === "documents")
+            win.selectWorkspace("chats");
+        Chat.newChat();
+        composer.text = "";
+        composer.focusInput();
+    }
+
+    // Closing the window leaves Akira running by the clock; this ends it.
+    Shortcut {
+        sequence: "Ctrl+Q"
+        context: Qt.ApplicationShortcut
+        onActivated: Background.quit()
     }
 
     function openRecent(id) {
@@ -446,14 +476,7 @@ Window {
             onProjectSelected: function (id) { win.selectProject(id) }
             onNewProjectRequested: projectSheet.openNew()
             onCollapseRequested: win.sidebarOpen = false
-            onNewChatRequested: {
-                if (Chat.busy || Voice.inCall) return;
-                if (win.fullPage || win.currentNav === "documents")
-                    win.selectWorkspace("chats");
-                Chat.newChat();
-                composer.text = "";
-                composer.focusInput();
-            }
+            onNewChatRequested: win.newChat()
             onSettingsRequested: settingsSheet.open()
         }
 
