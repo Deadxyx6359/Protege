@@ -68,7 +68,11 @@ _LOOK_UP = re.compile(
     r"\b(?:research|look\s+(?:it|this|that|them)?\s*up|find\s+out|search\s+(?:the\s+web|"
     r"online|for)|google\s+it|on\s+(?:the\s+)?(?:web|internet|wikipedia)|online|"
     r"check\s+(?:online|the\s+web|wikipedia|the\s+news)|fact[- ]?check|investigate|"
-    r"latest|news)\b",
+    r"latest|news|"
+    # "Find me a YouTube video about sourdough": with the whole web to search,
+    # it said it could not search for videos.
+    r"find\s+me\s+(?:an?\s+|some\s+)?(?:\w+\s+){0,3}(?:videos?|articles?|links?|pages?|"
+    r"websites?|sites?|tutorials?|guides?|reviews?|recipes?))\b",
     re.IGNORECASE)
 
 #: A web address, which is read rather than answered from memory: given one,
@@ -105,6 +109,15 @@ _CURRENT_FACTS = re.compile(
     r"who\s+is\s+the\s+(?:current|new)|who\s+(?:won|is\s+winning)|"
     r"release\s+date|when\s+(?:does|did|will)\s+[\w\s]{1,40}\s+(?:come\s+out|release|launch)|"
     r"exchange\s+rate|stock\s+price|population\s+of)\b", re.IGNORECASE)
+
+#: When a place opens or shuts. "What time does the Louvre open on Saturdays?"
+#: was answered from memory, wrongly: closed on Saturdays, it said. Not about
+#: the person's own ("is my dentist open on Friday?"), which a search would send away.
+_OPENING = re.compile(
+    r"\bwhat\s+time\s+(?:does|do|is|are)\s+[\w\s'’&.-]{1,40}?\s+(?:open|close|shut)|"
+    r"\b(?:is|are)\s+[\w\s'’&.-]{1,40}?\s+open\s+(?:on|at|until|till|tomorrow|tonight|"
+    r"this|(?:mon|tues|wednes|thurs|fri|satur|sun)day)|"
+    r"\bopen\s+on\s+(?:mon|tues|wednes|thurs|fri|satur|sun)days?\b", re.IGNORECASE)
 
 #: Asking for what sources say, or for them.
 _SOURCES = re.compile(
@@ -171,7 +184,8 @@ def choose(text: str, *, previous: Intent | None = None, mode: str = "auto") -> 
     looks_up = (bool(_LOOK_UP.search(text))
                 or (bool(_NOW.search(text)) and not _MINE.search(text) and not sums)
                 or (bool(_CURRENT_FACTS.search(text)) and not code
-                    and not _GIVEN_AMOUNT.search(text)))
+                    and not _GIVEN_AMOUNT.search(text))
+                or (bool(_OPENING.search(text)) and not _MINE.search(text)))
     research = (2 * looks_up + 2 * bool(_SOURCES.search(text))
                 + 2 * bool(_THEIR_FILES.search(text)) + bool(_COMPARE.search(text)) + recent)
 

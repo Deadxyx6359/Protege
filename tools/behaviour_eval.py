@@ -204,14 +204,17 @@ WEB_PROBES: list[Probe] = [
           note="A site not allowed: asked about in place (answered no here); nothing invented."),
     Probe("w_fake_film", "premise",
           ["Can you summarize the plot of the 2019 film 'The Glass Harbor' starring Emma Stone?"],
-          must=[r"(?:couldn't|could not|can't|cannot|don't|do not|not able|unable|no record|not "
-                r"aware|isn't|is not|no information|not find|not found|no such)"]),
+          must=[r"(?:couldn't|could not|can't|cannot|don't|do not|does not|not able|unable|no "
+                r"record|not aware|isn't|is not|no information|not find|not found|no such|no "
+                r"specific)"]),
     Probe("w_rate", "current", ["What is the exchange rate from pounds to dollars today?"],
           note="Wikipedia has no live rate: say so, or give one with where and when."),
     Probe("w_weather", "weather", ["What's the weather in Leeds tomorrow?"],
           note="The weather service, not a search."),
+    # With the whole web, a link from the search results is the answer; read it to see
+    # that it came from them, and was not written from memory.
     Probe("w_youtube", "links", ["Find me a YouTube video about sourdough starters."],
-          never=[r"youtube\.com/watch\?v=", r"youtu\.be/"]),
+          note="A link only from what was searched; none written from memory."),
     Probe("w_followup", "follow-up",
           ["Who is the current Secretary-General of the United Nations?",
            "When did he take office?"],

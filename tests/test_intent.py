@@ -30,6 +30,15 @@ from akira.core.models import Route
     # The forecast is read from Open-Meteo into the context: searched for, it was not found.
     ("What is the weather in Paris?", Intent.EVERYDAY),
     ("What's the weather in Leeds tomorrow?", Intent.EVERYDAY),
+    # When a place opens: answered from memory, the Louvre was "closed on Saturdays".
+    ("What time does the Louvre open on Saturdays?", Intent.RESEARCH),
+    ("Is the post office open on Sunday?", Intent.RESEARCH),
+    # But not the person's own, which a search would send away.
+    ("Is my dentist open on Friday?", Intent.EVERYDAY),
+    ("What time is it?", Intent.EVERYDAY),
+    # With the whole web to search, it said it could not search for videos.
+    ("Find me a YouTube video about sourdough starters.", Intent.RESEARCH),
+    ("Find me the bug in this code", Intent.CODE),
     # A page given is read: chat said it "cannot access external links".
     ("Read https://en.wikipedia.org/wiki/Alan_Turing and tell me where he was born.",
      Intent.RESEARCH),
