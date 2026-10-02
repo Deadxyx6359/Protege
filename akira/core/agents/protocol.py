@@ -81,13 +81,20 @@ def _loads(span: str):
     neither helps.
     """
     try:
-        return json.loads(span)
+        return _windows_paths(json.loads(span))
     except json.JSONDecodeError as first:
         error = first
     try:
-        return json.loads(span, strict=False)
+        return _windows_paths(json.loads(span, strict=False))
     except json.JSONDecodeError:
         pass
+    # A Windows path written with single backslashes: "C:\Users\..." has \U,
+    # which JSON has no escape for, and an architect's call was lost to it.
+    if _BAD_ESCAPE.search(span):
+        try:
+            return _windows_paths(json.loads(_BAD_ESCAPE.sub(r"\\\\", span), strict=False))
+        except json.JSONDecodeError:
+            pass
     if '"""' in span:
         for as_written in (True, False):
             repaired = _TRIPLE_QUOTED.sub(
@@ -98,6 +105,26 @@ def _loads(span: str):
             except json.JSONDecodeError:
                 continue
     raise error
+
+
+#: A backslash that does not start one of JSON's escapes.
+_BAD_ESCAPE = re.compile(r'(?<!\\)\\(?![\\"/bfnrtu])')
+#: A Windows path, and the characters a single backslash in one was read as.
+_WINDOWS_PATH = re.compile(r"\A[A-Za-z]:[\\/\r\t\x08\x0c\n]")
+_READ_AS = {"\r": "\\r", "\t": "\\t", "\x08": "\\b", "\x0c": "\\f", "\n": "\\n"}
+
+
+def _windows_paths(value):
+    """\a value with the backslashes of Windows paths put back: in "C:\\Users\\rose4"
+    written with single backslashes, "\\r" is read as a carriage return. A path
+    never holds a control character, so one in a path is a backslash lost."""
+    if isinstance(value, dict):
+        return {key: _windows_paths(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_windows_paths(item) for item in value]
+    if isinstance(value, str) and _WINDOWS_PATH.match(value) and len(value) <= 400:
+        return "".join(_READ_AS.get(char, char) for char in value)
+    return value
 
 
 def _meant(raw: dict, call: Call, known: frozenset[str]) -> bool:

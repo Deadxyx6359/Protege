@@ -34,6 +34,7 @@ from akira.models.base import ChatMessage
 from akira.models.think_filter import ThinkFilter
 
 from .protocol import Call, format_result, parse_calls, render_tools
+from .workspaces import notes as workspace_notes
 from .trace import Kind, Trace
 
 #: Enough for a real piece of work, few enough that a confused agent stops
@@ -43,6 +44,55 @@ DEFAULT_MAX_STEPS = 8
 #: A tool result longer than this is trimmed before going back to the model.
 #: The tools cap their own output too; this is the backstop for the total.
 MAX_RESULT_CHARS = 6000
+
+#: Kept free of a step's writing, for the chat template's own tokens.
+TEMPLATE_MARGIN = 96
+#: The least a step is given, however full the context is: a short answer.
+MIN_TO_WRITE = 256
+
+
+#: An earlier result or reply, once room runs short, is cut to this.
+SHORTENED_CHARS = 500
+SHORTENED = "\n[… cut short to make room. Read it again if you still need it.]"
+
+
+def fit(backend, messages: list, room: int) -> None:
+    """Cut the oldest results and replies in \a messages, in place, until the prompt
+    leaves \a room to write. The instructions, the task and the latest exchange
+    stay whole.
+
+    An implementer that had read three files and a driver, and had the build's
+    errors back, asked for more than the model's window holds and the run ended
+    there, with the errors it was about to fix in front of it.
+    """
+    try:
+        limit = int(backend.n_ctx) - room - TEMPLATE_MARGIN
+        sizes = [backend.count_tokens(m.content) + 4 for m in messages]
+    except Exception:  # noqa: BLE001 - a backend that cannot count is left to cope
+        return
+    total = sum(sizes)
+    for index in range(2, len(messages) - 2):
+        if total <= limit:
+            return
+        message = messages[index]
+        if len(message.content) <= SHORTENED_CHARS + len(SHORTENED):
+            continue
+        cut = message.content[:SHORTENED_CHARS] + SHORTENED
+        size = backend.count_tokens(cut) + 4
+        total -= sizes[index] - size
+        sizes[index] = size
+        messages[index] = ChatMessage(role=message.role, content=cut)
+
+
+def room_to_write(backend, messages, wanted: int) -> int:
+    """How much one step may write: \a wanted, or what the context window has left
+    after the prompt. Asked for more than fits, llama.cpp refuses the whole step."""
+    try:
+        used = sum(backend.count_tokens(m.content) + 4 for m in messages)
+        left = int(backend.n_ctx) - used - TEMPLATE_MARGIN
+    except Exception:  # noqa: BLE001 - a backend that cannot count is given what was wanted
+        return wanted
+    return max(MIN_TO_WRITE, min(wanted, left))
 
 #: Tools whose result is a web page, cut to what bears on the task when long.
 WEB_PAGES = frozenset({"fetch_page", "browse_page"})
@@ -83,7 +133,12 @@ INVENTED = ("You wrote a tool's result yourself, so it was thrown away: only a r
 #: On the reply's last line, and not "Let me know if you need anything".
 _ANNOUNCES = re.compile(
     r"\b(?:let me(?! know)|let's|i will|i'll|i am going to|i'm going to|next,? i|"
-    r"i need to (?:search|read|look|check|find|list|open))\b.{0,160}$", re.IGNORECASE)
+    r"i need to (?:search|read|look|check|find|list|open)|"
+    # "I have finished my plan and will now provide the answer." was an
+    # architect's whole plan, and the implementer was given nothing.
+    r"(?:will|shall) now|now (?:provide|give|present|write|share) (?:the|my|it)|"
+    r"(?:here is|here's) (?:the|my) (?:plan|answer|summary)(?=[:.]?\s*$))\b.{0,160}$",
+    re.IGNORECASE)
 
 #: Folder permissions an agent is told the folders of, and how it is told.
 _FOLDERS = (("files.read", "Folders you can read (start by searching these)"),
@@ -101,6 +156,18 @@ READ_FIRST = ("You answered without reading anything. Search and read what bears
 
 #: Tools that read nothing, so using them is not reading.
 PURE_HELPERS = frozenset({"calculate"})
+
+#: Tools that change files, and tools that only check them.
+CHANGES = frozenset({"write_file", "edit_file"})
+CHECKS = frozenset({"build_project", "run_tests", "check_syntax"})
+
+#: Said once to an agent that could change files, only checked them, and answered.
+#: Asked to add a driver, an implementer built the project as it was, wrote nothing,
+#: and said the build passed and the display would show "Hello World!".
+UNCHANGED = ("You checked the project but changed nothing in it, so what you checked is "
+             "the project as it was. If the task asks for a change, make it now with "
+             "write_file or edit_file, then check again. If nothing needed changing, say "
+             "so plainly, and do not say the task is done.")
 
 #: Said once to an agent that answered without using any of its tools.
 NUDGE = ("You answered without using any of your tools. If the task asks you to "
@@ -139,6 +206,11 @@ class AgentSpec:
     temperature: float = 0.4
     """Lower than chat. An agent choosing a tool is making a decision, not
     writing prose, and creativity there shows up as invented arguments."""
+
+    max_tokens: int = 1024
+    """The most one step may write, before what is left of the model's context
+    window caps it. An implementer writing a whole file needs more: a display
+    driver with its font is two thousand, and a call cut off is a call lost."""
 
 
 @dataclass(slots=True)
@@ -184,6 +256,12 @@ class Agent:
                  render_tools(tools)]
         if self._context.workspace:
             parts += ["", f"You are working in: {self._context.workspace}"]
+            # What the folder's own files say about working in it: where main.c is
+            # in an STM32CubeMX project, and where code survives its next generation.
+            known = workspace_notes(self._context.workspace, lambda path: bool(
+                self._context.policy.allows("files.read", str(path))))
+            if known:
+                parts += ["", known]
         parts += self._folders(tools)
         # A model has no clock. The place and time zone only with location.read.
         parts += ["", now_line(self._context.policy)]
@@ -273,6 +351,10 @@ class Agent:
             unacted = bool(tools) and "unacted" not in reminded and (
                 (not outcome.calls and ("```" in reply or can_act))
                 or (can_act and not acted and "```" in reply))
+            unchanged = (bool(tools) and "unchanged" not in reminded
+                         and any(tool.name in CHANGES for tool in tools)
+                         and any(call.name in CHECKS for call in outcome.calls)
+                         and not any(call.name in CHANGES for call in outcome.calls))
             # Working out a sum is not reading: a gatherer asked what had been
             # spent called calculate with nothing to add, then asked the person
             # for the figures that were in their spreadsheet.
@@ -297,6 +379,7 @@ class Agent:
                                       ("invented", made_up, INVENTED),
                                       ("unopened", bool(unopened), OPEN_IT.format(unopened)),
                                       ("announced", announced, GO_ON),
+                                      ("unchanged", unchanged, UNCHANGED),
                                       ("unread", unread, READ_FIRST),
                                       ("unacted", unacted, NUDGE)):
                 if due:
@@ -410,9 +493,10 @@ class Agent:
         with self._router.acquire(self.spec.route) as backend:
             # Announce generation even when reasoning is hidden or tokens are batched.
             self._trace.emit(Kind.THINKING, self.spec.name, step=step)
+            fit(backend, messages, self.spec.max_tokens)
             result = backend.generate(
                 messages,
-                max_tokens=1024,
+                max_tokens=room_to_write(backend, messages, self.spec.max_tokens),
                 temperature=self.spec.temperature,
                 on_token=emit,
             )

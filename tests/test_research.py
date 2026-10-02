@@ -266,6 +266,34 @@ def test_what_is_looked_up_says_when(tmp_path, pages):
     assert re.fullmatch(r"\w+day \d{1,2} \w+ \d{4}, \d\d:\d\d", found.read_at)
 
 
+
+def test_a_file_on_github_is_read_as_the_file():
+    from akira.core.brain.research import as_file
+
+    assert as_file("https://github.com/adafruit/Adafruit_SHARP_Memory_Display/blob/master/"
+                   "Adafruit_SharpMem.cpp") == ("https://raw.githubusercontent.com/adafruit/"
+                                                "Adafruit_SHARP_Memory_Display/master/"
+                                                "Adafruit_SharpMem.cpp")
+    assert as_file("https://github.com/a/b/blob/v1.2/src/x.h#L10") == \
+        "https://raw.githubusercontent.com/a/b/v1.2/src/x.h"
+    # A repository's page, or anything else, is read as it is.
+    assert as_file("https://github.com/adafruit/Adafruit_SHARP_Memory_Display") == \
+        "https://github.com/adafruit/Adafruit_SHARP_Memory_Display"
+    assert as_file("https://example.org/blob/x") == "https://example.org/blob/x"
+
+
+def test_source_code_read_from_the_web_is_kept_whole():
+    from akira.core.brain.research import material
+
+    code = ("https://raw.githubusercontent.com/a/b/main/driver.cpp\n\n"
+            + "\n".join(f"void step_{n}(void) {{ send(0x{n:02x}); }}" for n in range(150)))
+    page = "https://example.org/essay\n\n" + "\n\n".join(
+        f"Paragraph {n} about gardens and sheds." for n in range(400))
+    assert 4_500 < len(code) < 9_500
+    kept = material([("fetch_page", code), ("fetch_page", page)], "", "how does it send a line?")
+    assert "step_0(" in kept and "step_149(" in kept
+    assert len(kept) < len(code) + 4_500 + 500, "an ordinary page is still cut"
+
 def test_the_best_result_is_the_first_worth_reading_as_a_page():
     from akira.core.brain.research import best_result
 
@@ -275,6 +303,22 @@ def test_the_best_result_is_the_first_worth_reading_as_a_page():
     assert best_result([("web_search", results)]) == "https://www.kingarthurbaking.com/sourdough"
     assert best_result([("read_file", "https://example.org/a")]) == ""
     assert best_result([]) == ""
+
+
+def test_the_result_read_is_the_one_about_what_was_asked():
+    from akira.core.brain.research import best_result
+
+    results = ("Results for 'nucleo g474re sharp memory display'.\n\n"
+               "1. Enable MPU on NUCLEO-G474RE project | Community\n"
+               "   https://community.st.com/t5/enable-mpu-on-nucleo-g474re-project\n"
+               "   The data sheet for the G474RE says it has a Memory Protection Unit.\n\n"
+               "2. Overview | Adafruit Sharp Memory Display Breakout\n"
+               "   https://learn.adafruit.com/adafruit-sharp-memory-display-breakout\n"
+               "   The Sharp Memory Display is part of the growing family of displays.")
+    asked = ("I am trying to use my nucleo g474re to program an adafruit 2.7inch sharp memory "
+             "display for a basic hello world.")
+    assert best_result([("web_search", results)], asked) == \
+        "https://learn.adafruit.com/adafruit-sharp-memory-display-breakout"
 
 
 def test_with_only_search_results_read_the_best_page_is_read_too(tmp_path, pages, monkeypatch):

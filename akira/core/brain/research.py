@@ -30,6 +30,7 @@ from akira.core.conversation import Cancelled
 from akira.core.excerpt import excerpt
 from akira.core.models import ModelRouter
 from akira.core.net import host_of
+from akira.core.net.page import as_file
 from akira.core.permissions import AuditLog, Policy, SecretStore
 from akira.core.permissions.asking import note_seen
 from akira.core.tools import ToolContext, ToolRegistry
@@ -43,6 +44,16 @@ MAX_MATERIAL = 12_000
 
 #: Any one thing read, before it joins the rest.
 MAX_EACH = 4_500
+
+#: A file of source code read from the web, kept whole up to this. Cut to the
+#: lines that shared the question's words, a display driver lost its commands
+#: and its refresh: "how it sends a line" names neither.
+MAX_CODE = 9_500
+
+#: The address of a file of source code, as a page read begins with it.
+_SOURCE_FILE = re.compile(
+    r"\Ahttps://\S+\.(?:c|h|cc|cpp|hpp|hh|ino|py|js|ts|rs|go|java|cs|s|asm|v|vhd)\b",
+    re.IGNORECASE)
 
 #: Tools whose results are what something says, best first: a whole page or
 #: file over a search's snippets.
@@ -235,6 +246,10 @@ class Researcher:
             note_seen(context, question)
             unread: list[str] = []
             for url in pages:
+                # A file on GitHub is read as the file, from GitHub's own address for
+                # its text. Its page was menus, with the code cut into scraps.
+                url = as_file(url)
+                note_seen(context, url)
                 if is_cancelled is not None and is_cancelled():
                     raise Cancelled()
                 if on_step is not None:
@@ -271,7 +286,7 @@ class Researcher:
         # searches were read, the best result is read too, asked about in place
         # like any page a search came across.
         if not any(tool in ("fetch_page", "browse_page") for tool, _ in read):
-            best = best_result(read)
+            best = best_result(read, question)
             if best:
                 if is_cancelled is not None and is_cancelled():
                     raise Cancelled()
@@ -397,18 +412,44 @@ class OpeningHeld:
 _NOT_READ_AS_PAGES = ("youtube.com", "youtu.be", "vimeo.com", "tiktok.com")
 
 
-def best_result(read: list[tuple[str, str]]) -> str:
-    """The first result of the first web search in \a read worth reading as a page, or ""."""
+def best_result(read: list[tuple[str, str]], question: str = "") -> str:
+    """The result of the web searches in \a read most worth reading as a page, or "".
+
+    The one sharing most of \a question's own words, the first of those on a
+    tie. Asked to program a Sharp display on a Nucleo board, the first result
+    was a forum thread about that board and nothing else, and it was read.
+    """
+    wanted = _distinctive(question)
+    best, best_score = "", -1
     for tool, text in read:
         if tool != "web_search":
             continue
-        for url in _PAGE.findall(text):
-            url = url.rstrip(".,;:!?)")
-            site = _site(url)
-            if url.startswith("https://") and not any(
-                    site == host or site.endswith("." + host) for host in _NOT_READ_AS_PAGES):
-                return url
-    return ""
+        for block in re.split(r"\n\s*\n", text):
+            for url in _PAGE.findall(block):
+                url = url.rstrip(".,;:!?)")
+                site = _site(url)
+                if not url.startswith("https://") or any(
+                        site == host or site.endswith("." + host) for host in _NOT_READ_AS_PAGES):
+                    continue
+                score = len(wanted & set(re.findall(r"[a-z0-9]+", block.lower())))
+                if score > best_score:
+                    best, best_score = url, score
+                break
+    return best
+
+
+#: Words that say nothing about what a page should be about.
+_COMMON = frozenset("""about after again also another being both could does doing done each
+from have here into just like make more most much need only other over same should some such
+than that their them then there these they this those through very want what when where which
+while will with would your yours basic guide help please trying using used connected program
+programming write code tell show give know""".split())
+
+
+def _distinctive(question: str) -> set[str]:
+    """\a question's words worth matching a page against: not short, not common."""
+    return {word for word in re.findall(r"[a-z0-9]+", question.lower())
+            if (len(word) >= 4 or any(c.isdigit() for c in word)) and word not in _COMMON}
 
 
 def _now_said() -> str:
@@ -506,7 +547,7 @@ def material(read: list[tuple[str, str]], summary: str, question: str = "") -> s
     """What was read, best first and each cut to `MAX_EACH` by what bears on
     \a question, then the summary."""
     order = {name: rank for rank, name in enumerate(READING)}
-    kept = list(dict.fromkeys(excerpt(text.strip(), question, MAX_EACH) for _, text in
+    kept = list(dict.fromkeys(_kept(text.strip(), question) for _, text in
                               sorted(read, key=lambda item: order.get(item[0], len(order)))
                               if text.strip()))
     if not kept and not summary:
@@ -514,6 +555,13 @@ def material(read: list[tuple[str, str]], summary: str, question: str = "") -> s
     parts = (["What was read:", *kept] if kept else []) + (
         ["What the gatherer made of it:", summary] if summary else [])
     return "\n\n".join(parts)[:MAX_MATERIAL]
+
+
+def _kept(text: str, question: str) -> str:
+    """What is kept of one thing read: source code whole while it fits."""
+    if _SOURCE_FILE.match(text) and len(text) <= MAX_CODE:
+        return text
+    return excerpt(text, question, MAX_CODE if _SOURCE_FILE.match(text) else MAX_EACH)
 
 
 def noted(read: list[tuple[str, str]], failed: list[str]) -> str:

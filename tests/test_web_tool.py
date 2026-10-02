@@ -66,3 +66,46 @@ def test_the_grant_is_checked_against_the_site_not_the_address(tmp_path, site):
 def test_an_error_page_is_reported_not_read(tmp_path, site):
     result = call(tmp_path, "https://example.com/gone", allowed("example.com"))
     assert not result.ok and "404 Not Found" in result.content
+
+
+CODE = b"#define SHARPMEM_BIT_WRITECMD (0x01)\nvoid refresh(void) {}\n"
+
+
+@pytest.fixture
+def github(monkeypatch):
+    fake = Site({("github.com", "/a/b/blob/main/x.cpp"): Reply(
+                     200, b"<html><body><nav>Sign in</nav>menus</body></html>",
+                     {"Content-Type": "text/html"}),
+                 ("raw.githubusercontent.com", "/a/b/main/x.cpp"): Reply(
+                     200, CODE, {"Content-Type": "text/plain"})})
+    monkeypatch.setattr(net, "_resolve", lambda host, port: [PUBLIC])
+    monkeypatch.setattr(net, "_open", fake.open)
+    return fake
+
+
+def with_asking(tmp_path, policy, answer):
+    asked = []
+
+    def ask(request):
+        asked.append(request)
+        return answer
+
+    context = ctx(tmp_path, policy)
+    context.ask_scope = ask
+    return context, asked
+
+
+def test_a_file_on_github_is_read_as_the_file_once_its_site_is_allowed(tmp_path, github):
+    context, asked = with_asking(tmp_path, allowed("github.com"), "once")
+    result = default_registry().invoke(
+        "fetch_page", {"url": "https://github.com/a/b/blob/main/x.cpp"}, context)
+    assert result.ok and "SHARPMEM_BIT_WRITECMD" in result.content
+    assert "menus" not in result.content
+    assert [r.scope for r in asked] == ["raw.githubusercontent.com"]
+
+
+def test_without_githubs_file_site_the_page_is_read_as_it_is(tmp_path, github):
+    context, asked = with_asking(tmp_path, allowed("github.com"), "no")
+    result = default_registry().invoke(
+        "fetch_page", {"url": "https://github.com/a/b/blob/main/x.cpp"}, context)
+    assert result.ok and "menus" in result.content and len(asked) == 1

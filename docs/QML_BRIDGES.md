@@ -322,6 +322,24 @@ Schedule.addJob({
 - `answer` is Markdown with its pictures served as links, like `Chat` text.
   Show it with `Text.MarkdownText` or as plain text, never as rich text.
 
+**The software team on firmware (2026-10-01).** Given a folder, an agent is
+told what that folder's own files say about working in it: for an STM32CubeMX
+project (a `.ioc` at its top), where `main.c` is, which `USER CODE` blocks
+survive the next generation, the handles CubeMX already defines (`hspi1`, never
+to be defined again) and how each peripheral was set up, the pins' names from
+their labels, and where a new file is added to `CMakeLists.txt`
+(`akira/core/agents/workspaces.py`). The architect may read a page the task
+gives (a part's driver or datasheet) with `fetch_page`, asked site by site.
+The implementer has `edit_file` (one piece of a file, found once and replaced,
+shown to the person as "these lines become" and asked each time) and
+`build_project` (the project's CMake preset, under `shell.run` for its folder,
+asked once per piece of work like `run_tests`; CMake from the PATH or from
+ST's VS Code extension), 16 steps, and room to write a whole file in one.
+A run that outgrows the model's window has its oldest tool results cut short.
+An agent that could change files but only built or tested and then answered is
+told it changed nothing, so a build of the untouched project is not reported
+as the work done.
+
 ## `Memory` — notes distilled from conversations
 
 | Member | Kind | Notes |
@@ -1092,6 +1110,26 @@ RP2040, ATmega and others):
   note says so.
 - A message asking to be taught ("don't write it for me", "teach me", "walk
   me through") is answered with steps, pitfalls and checks, not a program.
+
+**Pins, and the person's wiring (2026-10-01)** (`akira/core/brain/pins.py`).
+A board's connector (D0 to D15, A0 to A5) is mapped to the chip's pins for the
+boards whose map was checked against a published one (NUCLEO-G474RE so far).
+When STM32CubeMX's folder (or its `db` folder) is in the library, its database
+says what every pin can carry and what the board itself puts on a pin (the
+LED on PA5, the debugger's SWO on PB3). Before the answer, the pins the
+message names go to the model with those facts, and wiring written as "CLK to
+D13, DI to D11, CS to D10" is checked wire by wire with a verdict ("The wiring
+works, on SPI1"). After it, a connector misread ("D13 (PA13)") or a signal on
+a pin that cannot carry it ("PA13 as SPI2_SCK") is named under the reply in a
+"Check the pins:" line. STM32CubeMX's own names (`MX_SPI1_Init`, `hspi1`,
+`SPI1_SCK`, `GPIO_Output`) count as real names, not made-up ones.
+
+**Code from the web (2026-10-01).** A file on GitHub given in a message, or
+read by an agent, is read from GitHub's file site (asked about like any site):
+its github.com page was menus with the code cut to scraps. Source code read
+from the web is kept whole up to 9,500 characters rather than cut to the lines
+sharing the question's words, and research reads the search result most about
+what was asked, not the first.
 
 ## Coding
 

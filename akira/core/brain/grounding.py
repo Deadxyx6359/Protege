@@ -18,9 +18,9 @@ question that names a chip or board:
     names and pin numbers in it are from memory and may be wrong.
 
 This does not make the model right. It makes it say where it could not be
-checked, which is what a person needs to know before they trust it. Pin and
-channel numbers are in datasheets, not headers: those come from the documents
-the person added, found by the chat's ordinary search.
+checked, which is what a person needs to know before they trust it. Pins are
+not in headers: a board's connector, and what each pin can be, come from
+`akira.core.brain.pins` (STM32CubeMX's database, when its folder was given).
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from akira.core import files
+from akira.core.brain import pins as pin_facts
 from akira.core.config import config_dir
 
 #: What a question may be about: a part number, or a board that names one.
@@ -56,8 +57,10 @@ _TOPICS = (
     (r"\bgpio\b|\bpin\b|\bled\b|button", ("gpio",)),
     (r"\buart\b|\busart\b|serial|printf|\bcom port", ("uart", "usart")),
     (r"timer|\bpwm\b|\btim\d*\b", ("tim",)),
-    (r"\bi2c\b|\biic\b", ("i2c",)),
-    (r"\bspi\b", ("spi",)),
+    (r"\bi2c\b|\biic\b|\bsda\b|\bscl\b", ("i2c",)),
+    # A display or a sensor's wires say which bus it is on, when the bus is not named.
+    (r"\bspi\b|\bmosi\b|\bmiso\b|\bsck\b|\bclk\b|\bdi\b|\bsdi\b|chip select|\bcs\b",
+     ("spi",)),
     (r"\bdma\b", ("dma",)),
     (r"clock|\brcc\b|\bpll\b", ("rcc",)),
     (r"interrupt|\bnvic\b|\bexti\b", ("cortex", "exti")),
@@ -263,6 +266,9 @@ class Grounding:
     documented: bool = False
     """Whether anything documents the subject: its headers, or a document passage naming it."""
     teaching: bool = False
+    board: "pin_facts.Board | None" = None
+    chip: "pin_facts.ChipPins | None" = None
+    """Its pins, from STM32CubeMX's database, when that was given."""
 
     @property
     def banner(self) -> str:
@@ -275,13 +281,18 @@ class Grounding:
                 "Documents, then ask again.\n\n")
 
     def check(self, reply: str) -> str:
-        """A note on the library names in \a reply that its headers do not have, or ""."""
-        if self.subject is None or not self.headers:
+        """A note on the library names and pins in \a reply that its files contradict, or ""."""
+        if self.subject is None:
             return ""
+        wrong_pins = pin_facts.check(reply, self.board, self.chip)
+        pins_note = ("\n\nCheck the pins: " + "; ".join(wrong_pins[:6]) + "."
+                     if wrong_pins else "")
+        if not self.headers:
+            return pins_note
         names = _names_in(reply)
         if not names:
-            return ""
-        known: set[str] = set().union(*(h.symbols for h in self.headers))
+            return pins_note
+        known: set[str] = set().union(*(h.symbols for h in self.headers)) | self._generated()
         firsts = {_first(n) for n in known}
         checked, missing = [], []
         registers: dict[str, set[str]] = {}
@@ -302,14 +313,17 @@ class Grounding:
                 if name not in known:
                     missing.append(name)
         if not checked:
-            return ""
+            return pins_note
         where = self.subject.name
         if not missing:
+            pins_said = ("Its pins were checked against STM32CubeMX's database too."
+                         if self.chip is not None and not wrong_pins else
+                         "Pin and channel numbers are not checked this way: compare them with "
+                         "the datasheet." if self.chip is None else "")
             return (f"\n\nChecked: the {len(checked)} {where} library "
                     f"name{'' if len(checked) == 1 else 's'} in this answer "
                     f"{'is' if len(checked) == 1 else 'are all'} in the library's own files on "
-                    "this computer. Pin and channel numbers are not checked this way: compare "
-                    "them with the datasheet.")
+                    f"this computer. {pins_said}".rstrip() + pins_note)
         lines = []
         for name in missing[:8]:
             if "->" in name:
@@ -327,7 +341,27 @@ class Grounding:
         return (f"\n\nCheck before using: {len(missing)} of the {len(checked)} {where} library "
                 f"names in this answer are not in the library's files on this computer, so "
                 "they are probably wrong:\n" + "\n".join(lines)
-                + (f"\n- and {more} more" if more > 0 else "") + verdict)
+                + (f"\n- and {more} more" if more > 0 else "") + verdict + pins_note)
+
+    def _generated(self) -> set[str]:
+        """Names that are real without being in a header: what STM32CubeMX writes into
+        a project (MX_SPI1_Init for each peripheral, hspi1), the pin signals of its
+        database (SPI1_SCK) and the pin modes of its window (GPIO_Output)."""
+        names = {"MX_GPIO_Init", "MX_DMA_Init", "GPIO_Output", "GPIO_Input", "GPIO_Analog",
+                 "Reset_State", "SystemClock_Config", "Error_Handler"}
+        names |= {f"GPIO_EXTI{n}" for n in range(16)}
+        instances = set(self.chip.instances) if self.chip is not None else {
+            name[:-5] for h in self.headers for name in h.symbols
+            if name.endswith("_BASE") and name[:-5].isalnum()}
+        for instance in instances:
+            names.add(f"MX_{instance}_Init")
+            stem = instance.rstrip("0123456789").lower()
+            number = instance[len(stem):]
+            if stem in ("spi", "i2c", "uart", "usart", "lpuart", "adc", "dac", "tim", "fdcan"):
+                names.add(f"h{stem}{number}")
+        if self.chip is not None:
+            names |= self.chip.all_signals
+        return names
 
 
 class Grounder:
@@ -354,9 +388,20 @@ class Grounder:
         # "STM32G4" for any of the series, or the part itself.
         named = any(mark and mark.lower() in found.lower()
                     for mark in (subject.family, subject.name[:9]))
-        grounding.documented = bool(headers) or named
-        grounding.reference = _reference(subject, headers, topics_of(message),
+        grounding.board = pin_facts.board_of(message)
+        part = grounding.board.part if grounding.board is not None else subject.name
+        grounding.chip = pin_facts.chip_pins(self._folders(), self._may_read, part,
+                                             grounding.board)
+        grounding.documented = bool(headers) or named or grounding.chip is not None
+        topics = topics_of(message)
+        grounding.reference = _reference(subject, headers, topics,
                                          documented=grounding.documented)
+        pins = pin_facts.facts(grounding.board, grounding.chip,
+                               pin_facts.pins_named(message, grounding.board), topics)
+        wired = pin_facts.wiring(message, grounding.board, grounding.chip)
+        for part in (pins, wired):
+            if part:
+                grounding.reference += "\n\n" + part
         return grounding
 
 

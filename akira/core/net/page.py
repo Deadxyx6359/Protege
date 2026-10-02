@@ -31,6 +31,20 @@ CELLS = frozenset({"td", "th"})
 TEXT_TYPES = ("text/", "application/json", "application/xml")
 
 
+_GITHUB_FILE = re.compile(
+    r"^https://github\.com/([\w.-]+)/([\w.-]+)/blob/([^\s?#]+?)/([^\s?#]+)(?:[?#].*)?$")
+
+
+def as_file(url: str) -> str:
+    """\a url, or for a file on GitHub the address of its text alone:
+    github.com/owner/repo/blob/main/x.c to raw.githubusercontent.com/owner/repo/main/x.c."""
+    found = _GITHUB_FILE.match(url)
+    if found is None:
+        return url
+    owner, repo, ref, path = found.groups()
+    return f"https://raw.githubusercontent.com/{owner}/{repo}/{ref}/{path}"
+
+
 class PageError(ValueError):
     """A page that cannot be read as text, with a reason for the person."""
 

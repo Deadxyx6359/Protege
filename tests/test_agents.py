@@ -828,3 +828,22 @@ def test_code_shown_after_reading_is_asked_to_be_saved(workspace, context):
                                 tools=("read_file", "write_file"))
     agent.run("Put the answer in answer.py")
     assert router.backend.prompts[2][-1].content == NUDGE
+
+
+def test_building_without_changing_anything_is_not_the_work_done(workspace, context):
+    from akira.core.agents.loop import UNCHANGED
+
+    (workspace / "CMakeLists.txt").write_text("project(x C)\n")
+    policy = Policy()
+    for capability in ("files.read", "files.write", "shell.run"):
+        policy.grant(capability, (str(workspace),))
+    build = ('<tool_call>{"name": "build_project", "arguments": {"path": "%s"}}</tool_call>'
+             % workspace.as_posix())
+    agent, router = build_agent(
+        [build, "The build succeeded, so the display will show Hello World!",
+         "Nothing was changed: the driver still has to be written."],
+        context(policy, confirm=lambda summary: False),
+        tools=("read_file", "write_file", "edit_file", "build_project"))
+    outcome = agent.run("Add a display driver and build it.")
+    assert router.backend.prompts[2][-1].content == UNCHANGED
+    assert outcome.answer.startswith("Nothing was changed")

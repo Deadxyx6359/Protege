@@ -804,5 +804,91 @@ open_in_editor = Tool(
 )
 
 
+# -- build_project -----------------------------------------------------------
+#
+# A C project is checked by building it. An STM32CubeMX project made for CMake
+# says how in its CMakePresets.json, which also puts its compiler on the PATH;
+# CMake itself may be on the PATH, or where ST's extension for VS Code keeps it.
+
+BUILD_TIMEOUT_S = 300.0
+#: Compiler messages handed back before the rest of the output.
+MAX_BUILD_MESSAGES = 40
+_MESSAGE = re.compile(r"^.*?(?:\berror\b|\bwarning\b|undefined reference|No such file).*$",
+                      re.IGNORECASE | re.MULTILINE)
+
+
+def _cmake() -> str | None:
+    found = shutil.which("cmake")
+    if found:
+        return found
+    bundles = Path(os.environ.get("LOCALAPPDATA", "")) / "stm32cube" / "bundles" / "cmake"
+    installed = sorted(bundles.glob("*/bin/cmake.exe"), key=lambda p: p.stat().st_mtime)
+    return str(installed[-1]) if installed else None
+
+
+def _preset(root: Path) -> str:
+    """The configure preset to build with: Debug when there is one, else the first."""
+    try:
+        presets = json.loads((root / "CMakePresets.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    names = [p.get("name", "") for p in presets.get("configurePresets", [])
+             if isinstance(p, dict) and not p.get("hidden")]
+    return "Debug" if "Debug" in names else (names[0] if names else "")
+
+
+def _run_build(arguments: dict, context: ToolContext) -> ToolResult:
+    root = real(arguments["path"])
+    if not (root / "CMakeLists.txt").is_file():
+        raise ToolError(f"{root} has no CMakeLists.txt: only CMake projects are built here")
+    cmake = _cmake()
+    if cmake is None:
+        raise ToolError("CMake was not found: install it, or ST's STM32 extension for VS Code")
+    preset = _preset(root)
+    if preset:
+        steps = [[cmake, "--preset", preset], [cmake, "--build", "--preset", preset]]
+    else:
+        build = root / "build"
+        steps = [[cmake, "-S", str(root), "-B", str(build)], [cmake, "--build", str(build)]]
+    outputs: list[str] = []
+    code: int | None = 0
+    for argv in steps:
+        code, out, err, timed_out = _run(argv, cwd=root, timeout=BUILD_TIMEOUT_S, env=_env())
+        outputs.append(out + err)
+        if timed_out:
+            return ToolResult.success(f"The build was stopped after {BUILD_TIMEOUT_S:.0f} "
+                                      "seconds.\n\n" + _clip("\n".join(outputs)[-6000:]))
+        if code != 0:
+            break
+    whole = "\n".join(outputs)
+    messages = list(dict.fromkeys(m.strip() for m in _MESSAGE.findall(whole)))
+    if code == 0:
+        head = "The build succeeded" + (f", with {len(messages)} warning(s)" if messages else
+                                        ", with no warnings") + "."
+    else:
+        head = f"The build failed (exit code {code})."
+    parts = [head]
+    if messages:
+        parts.append("Messages:\n" + "\n".join(messages[:MAX_BUILD_MESSAGES]))
+    parts.append("The end of the output:\n" + whole.strip()[-2500:])
+    # A failed build is information for whoever is fixing the code, not a tool failure.
+    return ToolResult.success(_clip("\n\n".join(parts)),
+                              data={"exit_code": code, "messages": len(messages)})
+
+
+build_project = Tool(
+    name="build_project",
+    summary=("Build a C or C++ project with CMake, as its CMakePresets.json says (an "
+             "STM32CubeMX project's Debug preset), and report its errors and warnings."),
+    parameters=(Parameter("path", "string",
+                          "Absolute path to the project's top folder, where CMakeLists.txt is."),),
+    # Building runs what the project's CMake files say, as running its tests does.
+    requires=(Requirement("shell.run", scope_from="path"),),
+    reversible=False,
+    repeatable=True,
+    run=_run_build,
+)
+
+
 ALL = (check_syntax, run_python, run_tests, git_status, git_diff, git_log,
-       git_commit, git_push, open_in_editor)
+       git_commit, git_push, open_in_editor, build_project)

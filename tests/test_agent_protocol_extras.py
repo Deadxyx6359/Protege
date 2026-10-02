@@ -80,3 +80,100 @@ def test_the_example_call_uses_a_real_tool_and_its_real_argument_names():
     rendered = render_tools(tools)
     assert '{"name": "list_directory", "arguments": {"path": "..."}}' in rendered
     assert '"argument"' not in rendered
+
+
+
+def test_a_windows_path_with_single_backslashes_is_still_a_call():
+    from akira.core.agents.protocol import parse_calls
+
+    written = ('<tool_call>{"name": "list_directory", "arguments": {"path": '
+               '"C:\\Users\\rose4\\STM32Cube\\Repository\\STM32Cube_FW_G4_V1.6.3"}}</tool_call>')
+    assert "\\U" in written and "\\\\" not in written
+    calls, _ = parse_calls(written, frozenset({"list_directory"}))
+    assert [c.arguments["path"] for c in calls] == [
+        "C:\\Users\\rose4\\STM32Cube\\Repository\\STM32Cube_FW_G4_V1.6.3"]
+
+
+def test_a_path_whose_backslashes_read_as_escapes_gets_them_back():
+    from akira.core.agents.protocol import parse_calls
+
+    # Valid JSON, but \r and \n are read as a carriage return and a line break.
+    written = '{"name": "read_file", "arguments": {"path": "C:\\rose\\new\\main.c"}}'
+    calls, _ = parse_calls(written, frozenset({"read_file"}))
+    assert calls[0].arguments["path"] == "C:\\rose\\new\\main.c"
+
+
+def test_file_contents_keep_their_line_breaks():
+    from akira.core.agents.protocol import parse_calls
+
+    written = ('{"name": "write_file", "arguments": {"path": "C:\\\\p\\\\a.c", '
+               '"content": "int a;\\nint b;\\n"}}')
+    calls, _ = parse_calls(written, frozenset({"write_file"}))
+    assert calls[0].arguments == {"path": "C:\\p\\a.c", "content": "int a;\nint b;\n"}
+
+
+def test_a_step_writes_what_it_was_given_or_what_the_context_has_left():
+    from akira.core.agents.loop import MIN_TO_WRITE, room_to_write
+    from akira.models.base import ChatMessage
+
+    class Backend:
+        n_ctx = 8192
+
+        def count_tokens(self, text):
+            return len(text) // 4
+
+    small = [ChatMessage(role="system", content="x" * 4000)]
+    assert room_to_write(Backend(), small, 3072) == 3072
+    full = [ChatMessage(role="system", content="x" * 26000)]
+    assert room_to_write(Backend(), full, 3072) == 8192 - (6500 + 4) - 96
+    overfull = [ChatMessage(role="system", content="x" * 40000)]
+    assert room_to_write(Backend(), overfull, 3072) == MIN_TO_WRITE
+
+    class Uncounted:
+        n_ctx = 8192
+
+    assert room_to_write(Uncounted(), small, 1024) == 1024
+
+
+def test_the_implementer_may_write_a_whole_file_in_one_step():
+    from akira.core.agents.roles import IMPLEMENTER
+
+    assert IMPLEMENTER.max_tokens >= 3000 and IMPLEMENTER.max_steps >= 16
+    assert {"edit_file", "build_project"} <= set(IMPLEMENTER.tools)
+
+
+def test_a_long_run_cuts_its_oldest_results_to_keep_room_to_write():
+    from akira.core.agents.loop import SHORTENED, fit, room_to_write
+    from akira.models.base import ChatMessage
+
+    class Backend:
+        n_ctx = 8192
+
+        def count_tokens(self, text):
+            return len(text) // 4
+
+    messages = [ChatMessage(role="system", content="s" * 4000),
+                ChatMessage(role="user", content="the task " * 100),
+                *[ChatMessage(role="user" if n % 2 else "assistant", content=str(n) * 6000)
+                  for n in range(6)],
+                ChatMessage(role="assistant", content="call build_project"),
+                ChatMessage(role="user", content="error: unterminated #ifndef " * 50)]
+    fit(Backend(), messages, 3072)
+    assert room_to_write(Backend(), messages, 3072) == 3072
+    assert messages[0].content == "s" * 4000 and messages[1].content.startswith("the task")
+    assert messages[-1].content.startswith("error: unterminated") and SHORTENED not in \
+        messages[-1].content, "the latest exchange is whole"
+    assert messages[2].content.endswith(SHORTENED), "the oldest result is cut first"
+    assert not messages[7].content.endswith(SHORTENED), "only as many as needed"
+
+
+def test_an_answer_that_only_says_it_is_coming_is_not_the_answer():
+    from akira.core.agents.loop import _ANNOUNCES
+
+    for said in ("I have finished my plan and will now provide the answer.",
+                 "Here is the plan:", "I will now write the file."):
+        assert _ANNOUNCES.search(said), said
+    for said in ("Here is the plan: write the header, then the driver.",
+                 "The driver sends 0x01, then the line address.",
+                 "Let me know if you want more."):
+        assert not _ANNOUNCES.search(said), said

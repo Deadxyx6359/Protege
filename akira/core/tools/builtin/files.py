@@ -364,4 +364,133 @@ write_file = Tool(
 )
 
 
-ALL = (read_file, list_directory, search_files, write_file)
+# -- edit_file ----------------------------------------------------------------
+#
+# Writing a whole file back to change one part of it meant a model reproducing
+# three hundred lines of generated code from memory to add four. One piece
+# of text, found once and replaced, is what a person would type.
+
+MAX_EDIT_FILE_BYTES = 2_000_000
+
+
+#: How far below a folder a file of the same name is looked for, when one is not there.
+_LOOK_DEPTH = 4
+_LOOK_FILES = 3000
+
+
+def _same_name(path: Path, context: ToolContext) -> list[Path]:
+    """Files called like \a path under its folder, in folders the person allowed reading.
+
+    Told only "no such file, use write_file", an agent that gave main.c at the top
+    of a project wrote a second main.c there, the real one being in Core/Src.
+    """
+    folder = path.parent
+    if not (context.policy.allows("files.read", str(folder))
+            or context.policy.allows("files.write", str(folder))):
+        return []
+    found: list[Path] = []
+    seen = 0
+    for root, dirs, names in os.walk(folder):
+        depth = len(Path(root).relative_to(folder).parts)
+        dirs[:] = [] if depth >= _LOOK_DEPTH else [d for d in dirs if not d.startswith(".")
+                                                   and d.lower() not in ("build", "node_modules")]
+        seen += len(names)
+        if path.name in names:
+            found.append(Path(root) / path.name)
+        if seen > _LOOK_FILES or len(found) >= 3:
+            break
+    return found
+
+
+def _edit_target(arguments: dict, context: ToolContext) -> tuple[Path, str, str, str, int, int]:
+    """The file, its text, the text to find and its replacement (in the file's own
+    line endings), and where the found text starts and ends. Raises `ToolError`."""
+    path = real(arguments["path"])
+    find = without_line_numbers(str(arguments["find"]))
+    replace = without_line_numbers(str(arguments["replace"]))
+    if not find.strip():
+        raise ToolError("give the text to find: a few whole lines copied from the file")
+    if not path.is_file():
+        elsewhere = _same_name(path, context)
+        if elsewhere:
+            raise ToolError(f"no such file: {path}. There is "
+                            + " and ".join(str(p) for p in elsewhere)
+                            + ": give the full path of the one you mean")
+        raise ToolError(f"no such file: {path}. To make a new file, use write_file")
+    if path.stat().st_size > MAX_EDIT_FILE_BYTES:
+        raise ToolError(f"{path} is too large to edit here")
+    try:
+        with path.open(encoding="utf-8", newline="") as stream:
+            text = stream.read()
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ToolError(f"could not read {path}: {exc}") from None
+    if "\r\n" in text:
+        find = find.replace("\r\n", "\n").replace("\n", "\r\n")
+        replace = replace.replace("\r\n", "\n").replace("\n", "\r\n")
+    count = text.count(find)
+    if count == 1:
+        start = text.index(find)
+        return path, text, find, replace, start, start + len(find)
+    if count > 1:
+        raise ToolError(f"that text is in {path.name} {count} times: include a line or two "
+                        "around it, so it is found once")
+    # The same lines with other indentation, or spaces at their ends: found once,
+    # the lines as the file has them are what is replaced.
+    newline = "\r\n" if "\r\n" in text else "\n"
+    lines = text.split(newline)
+    wanted = [line.strip() for line in find.strip("\r\n").split(newline)]
+    starts = [i for i in range(len(lines) - len(wanted) + 1)
+              if [line.strip() for line in lines[i:i + len(wanted)]] == wanted]
+    if len(starts) == 1:
+        first = starts[0]
+        start = len(newline.join(lines[:first])) + (len(newline) if first else 0)
+        end = start + len(newline.join(lines[first:first + len(wanted)]))
+        return path, text, text[start:end], replace.strip("\r\n"), start, end
+    if len(starts) > 1:
+        raise ToolError(f"those lines are in {path.name} {len(starts)} times: include a line "
+                        "or two around them, so they are found once")
+    raise ToolError(f"that text is not in {path.name}. Read the file again and copy the lines "
+                    "to change exactly as they are")
+
+
+def _describe_edit(arguments: dict, context: ToolContext) -> str:
+    path, _text, found, replace, _start, _end = _edit_target(arguments, context)
+    shown = (replace if len(replace) <= 3000 else replace[:3000] + "\n… (and more)")
+    return (f"Change the file\n{path}\n\nThese lines:\n\n{found.strip() or '(nothing)'}\n\n"
+            f"become:\n\n{shown.strip() or '(nothing: they are taken out)'}")
+
+
+def _run_edit(arguments: dict, context: ToolContext) -> ToolResult:
+    path, text, found, replace, start, end = _edit_target(arguments, context)
+    if text[start:end] != found:
+        raise ToolError(f"{path} changed meanwhile. Read it again before editing it.")
+    updated = text[:start] + replace + text[end:]
+    try:
+        with path.open("w", encoding="utf-8", newline="") as stream:
+            stream.write(updated)
+    except OSError as exc:
+        raise ToolError(f"could not write {path}: {exc}") from None
+    line = text.count("\n", 0, start) + 1
+    return ToolResult.success(f"Changed {path} at line {line}: {found.count(chr(10)) + 1} "
+                              f"line(s) became {replace.count(chr(10)) + 1}.",
+                              data={"path": str(path), "line": line})
+
+
+edit_file = Tool(
+    name="edit_file",
+    summary=("Change part of a file that exists: a piece of its text, found once, is "
+             "replaced. Asks the person first. For a new file, use write_file."),
+    parameters=(
+        Parameter("path", "string", "Absolute path to the file."),
+        Parameter("find", "string", "Lines copied exactly from the file, enough of them to "
+                                    "be found only once."),
+        Parameter("replace", "string", "What those lines become."),
+    ),
+    requires=(Requirement("files.write", scope_from="path"),),
+    reversible=False,
+    run=_run_edit,
+    describe=_describe_edit,
+)
+
+
+ALL = (read_file, list_directory, search_files, write_file, edit_file)

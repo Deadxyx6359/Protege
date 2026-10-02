@@ -961,8 +961,9 @@ so stopping discards it rather than keeping a half-trained adapter.
 | E | E1 Image generation | ✅ SDXL-Turbo on the RTX card, about nine seconds a picture |
 | E | E4 Training | ✅ LoRA on Qwen3-4B from chosen conversations, in its own environment |
 | — | Running by the clock | ✅ window closed to the notification area; out of a game's way; nothing left running after Quit |
+| — | Firmware help | ▶ board pin maps, STM32CubeMX's pin database and a wiring check in chat; the software team edits and builds STM32CubeMX projects (`edit_file`, `build_project`); writing a whole driver from a part's datasheet is still beyond the local model |
 
-**Tests at last commit:** 3032 passed, 7 skipped, none failing (2026-10-01);
+**Tests at last commit:** 3072 passed, 8 skipped, none failing (2026-10-01);
 `verify_offline.py` passes. Update this line when it changes.
 
 ---

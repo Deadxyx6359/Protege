@@ -106,11 +106,16 @@ ARCHITECT = AgentSpec(
     role=(
         "You decide how a change should be made before anyone makes it. Read "
         "the code that already exists, say which files need to change and why, "
-        "and name the approach you rejected along with the reason. Do not "
-        "write the implementation."
+        "and name the approach you rejected along with the reason. When the task "
+        "gives a page, such as a part's driver or datasheet, read it with fetch_page "
+        "first, and put in your plan the facts the code will need from it: commands, "
+        "bit order, timing, how data is laid out. Do not write the implementation."
     ),
     route=SOFTWARE_ROUTE,
-    tools=("read_file", "list_directory", "search_files", "git_status", "git_log"),
+    # A page the person names, such as a part's driver or datasheet, read as the
+    # plan is made: asked for site by site, like any page.
+    tools=("read_file", "list_directory", "search_files", "git_status", "git_log",
+           "fetch_page"),
     grounded=True,
     max_steps=6,
     temperature=0.3,
@@ -121,17 +126,24 @@ IMPLEMENTER = AgentSpec(
     role=(
         "You make the change the architect described. Match the surrounding "
         "code — its naming, its idiom, how much it comments. Change what was "
-        "asked for and not more. If the plan turns out to be wrong once you "
-        "are in the code, stop and say so rather than improvising a different "
-        "change."
+        "asked for and not more. Change part of a file with edit_file, copying the "
+        "lines to find from the file as read_file showed them; write a whole file "
+        "only when it is new. When the project can be built, build it with "
+        "build_project after your changes and fix what the build reports. If the "
+        "plan turns out to be wrong once you are in the code, stop and say so "
+        "rather than improvising a different change."
     ),
     route=SOFTWARE_ROUTE,
     # It may propose a commit and a push, as a person working in the repository
     # would; whether either happens is still the person's call, asked each time.
-    tools=("read_file", "list_directory", "search_files", "write_file",
-           "check_syntax", "run_tests", "git_commit", "git_push"),
-    max_steps=10,
+    tools=("read_file", "list_directory", "search_files", "write_file", "edit_file",
+           "check_syntax", "run_tests", "build_project", "git_commit", "git_push"),
+    # Reading what is there, writing a file or two, editing main.c and the build,
+    # building, and fixing what the build found: ten steps ran out halfway.
+    max_steps=16,
     temperature=0.2,
+    # A whole file in one call: a display driver with its font was cut off at 1024.
+    max_tokens=3072,
 )
 
 REVIEWER = AgentSpec(
