@@ -128,7 +128,16 @@ jobs; a setting turns that off. Hidden, it keeps out of a game's way: the model
 leaves the graphics card, the process runs in Windows' background mode, and a
 job needing a model waits while something full screen or another program has
 the card. Quitting ends Akira and every program it started (a Windows job
-object). One Akira runs at a time. See `Background` in QML_BRIDGES.md.
+object). One Akira runs at a time. Its notifications say "Akira" with its logo:
+Windows had them under the bare id, Akira.Desktop.1, until the id was named
+(`shell.name_for_notifications`, in the person's own part of the registry).
+See `Background` in QML_BRIDGES.md.
+
+**Settings (2026-10-02).** A list of pages beside the page shown, as Claude's
+own settings are: General, Appearance, Models, Voice, Firmware, Permissions,
+Accounts, Web search, Location and Chats. Every setting has its name, one short
+line on what it does, and its control. Permissions shows one group at a time.
+See "Settings" in QML_BRIDGES.md.
 
 ---
 
@@ -605,7 +614,7 @@ show a model the sign-in, and frame what they return as material. The
 anything. Google's page will call the app unverified: it is the person's own
 client, and they can publish it to stop the lasting sign-in expiring after a
 week, which Google does for apps left in testing.
-*Done since, from the window:* Settings, Accounts (`AccountsSheet.qml`, bridge
+*Done since, from the window:* Settings, Accounts (`AccountsPane.qml`, bridge
 `Accounts`): the client file, the address, the permissions it needs offered
 beside it, the sign-in in the person's browser, and disconnecting.
 *Done since, sending:* an address can be connected for sending too; Google is
@@ -955,15 +964,16 @@ so stopping discards it rather than keeping a half-trained adapter.
 | C | C8 Purchasing | ▶ a cart handed to the person in a window of their own, to pay for themselves |
 | D | D1 Speech in | ✅ push to talk; no wake word, by the person's choice |
 | D | D2 Speech out | ✅ |
-| D | D3 Live call | ▶ backend done; its window next (Codex) |
+| D | D3 Live call | ✅ hands-free, in a window of its own that stays when the main one closes |
 | E | E2 2D / vector | ✅ drawings in the chat and saved by the illustrator, cleaned first |
 | E | E3 Content pipeline | ✅ drafted, reviewed and revised on a schedule; published only by the person |
 | E | E1 Image generation | ✅ SDXL-Turbo on the RTX card, about nine seconds a picture |
 | E | E4 Training | ✅ LoRA on Qwen3-4B from chosen conversations, in its own environment |
 | — | Running by the clock | ✅ window closed to the notification area; out of a game's way; nothing left running after Quit |
-| — | Firmware help | ▶ board pin maps, STM32CubeMX's pin database and a wiring check in chat; the software team edits and builds STM32CubeMX projects (`edit_file`, `build_project`); writing a whole driver from a part's datasheet is still beyond the local model |
+| — | Claude, chosen in the chat window | ✅ Claude Opus 5.5 through Anthropic's API with the person's own key, under `model.cloud`, through the one door; "Do it" from such a chat runs the team on it too |
+| — | Firmware help | ▶ board pin maps, STM32CubeMX's pin database and a wiring check in chat; the person's .ioc judged in chat; agents edit, build and regenerate STM32CubeMX projects, flash the board (asked each time), read its serial output and its registers by name; writing a whole driver from a datasheet still needs Claude chosen; Settings' Firmware page shows ST's tools and the boards plugged in |
 
-**Tests at last commit:** 3072 passed, 8 skipped, none failing (2026-10-01);
+**Tests at last commit:** 3133 passed, 8 skipped, none failing (2026-10-02);
 `verify_offline.py` passes. Update this line when it changes.
 
 ---

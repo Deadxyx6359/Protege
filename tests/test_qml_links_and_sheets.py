@@ -113,8 +113,12 @@ def click(item, x, y):
 sheet = win.findChild(QObject, 'settingsSheet')
 QMetaObject.invokeMethod(sheet, 'open', Qt.DirectConnection); QTest.qWait(80)
 assert sheet.property('opened')
-tabs = win.findChild(QObject, 'settingsSections')
-click(tabs, tabs.width() * 0.375, tabs.height() / 2)
+def walk(item):
+    yield item
+    for child in item.childItems(): yield from walk(child)
+# The second page in Settings' list; a Repeater's row is found by walking the items.
+row = next(i for i in walk(win.contentItem()) if i.objectName() == 'settingsTab_appearance')
+click(row, row.width() / 2, row.height() / 2)
 assert sheet.property('section') == 'appearance', sheet.property('section')
 assert sheet.property('opened'), 'a tap on a control in the sheet dismissed it'
 modes = win.findChild(QObject, 'appearanceModes')

@@ -102,4 +102,9 @@ def _cubemx(root: Path, ioc: Path, may_read: Callable[[Path], bool]) -> str:
                      + ", as a path from the project folder, such as Core/Src/name.c.")
         lines.append("build_project builds it with its own preset and says what the compiler "
                      "found.")
+    lines.append("Where those tools are offered: stm32_pins and find_vendor_names give the "
+                 "board's pins and the chip library's exact names; after a change to the .ioc, "
+                 "generate_cubemx_code brings the code in line; flash_firmware puts the build "
+                 "on the board (the person is asked each time), and read_serial or "
+                 "read_register shows what it does there.")
     return "\n".join(lines)

@@ -15,12 +15,14 @@ import QtQuick.Layouts
     The bridge refuses what it will not grant, with a reason. The reason is
     shown as it comes, because it says what to do instead.
 */
-Sheet {
+ColumnLayout {
     id: root
+    spacing: Theme.space.xl
+    /*! Whether it is on screen: what was typed is cleared when it goes. */
+    property bool active: true
+    /*! For the host: show the pane from its top. */
+    signal scrollRequested()
 
-    title: "Permissions"
-    subtitle: "Nothing is allowed until you allow it here."
-    sheetWidth: 780
 
     /*! Bumped whenever grants change, so everything that reads them reads again. */
     property int revision: 0
@@ -28,13 +30,19 @@ Sheet {
     property string notice: ""
 
     readonly property var groups: [
-        { name: "Files and programs", domains: ["files", "docs", "shell", "vcs"] },
-        { name: "Your notes and memory", domains: ["vault", "memory"] },
-        { name: "This computer", domains: ["screen", "clipboard", "location", "audio", "notify"] },
-        { name: "The internet", domains: ["net", "web"] },
-        { name: "Your accounts", domains: ["mail", "messages", "calendar", "lms", "bank"] },
-        { name: "Cloud models", domains: ["model"] }
+        { id: "files", short: "Files", name: "Files and programs", domains: ["files", "docs", "shell", "vcs"] },
+        { id: "boards", short: "Boards", name: "Connected boards", domains: ["device"] },
+        { id: "notes", short: "Notes", name: "Your notes, memory and calendar", domains: ["vault", "memory", "planner"] },
+        { id: "computer", short: "Computer", name: "This computer", domains: ["screen", "clipboard", "location", "audio", "notify"] },
+        { id: "internet", short: "Internet", name: "The internet", domains: ["net", "web"] },
+        { id: "accounts", short: "Accounts", name: "Your accounts", domains: ["mail", "messages", "calendar", "cloud", "lms", "bank"] },
+        { id: "models", short: "Models", name: "Cloud models", domains: ["model"] }
     ]
+    /*! The group shown, or "activity" for the record of what was done. */
+    property string group: "files"
+    onGroupChanged: root.scrollRequested()
+    // Every capability is in one of them: a domain left out could not be allowed
+    // anywhere (the boards', Akira's own calendar and cloud drives were).
 
     readonly property var placeholders: ({
         host: "A site, such as example.com",
@@ -114,7 +122,7 @@ Sheet {
 
     readonly property var activity: {
         void root.revision;
-        return root.opened ? Permissions.recentActivity(40) : [];
+        return root.active ? Permissions.recentActivity(40) : [];
     }
 
     FolderDialog {
@@ -328,7 +336,7 @@ Sheet {
     // -- what leaves this computer ---------------------------------------------------
 
     Squircle {
-        width: parent.width
+        Layout.fillWidth: true
         height: leavingText.implicitHeight + Theme.space.lg * 2
         radius: Theme.radius.sm
         fillColor: Theme.inset
@@ -363,7 +371,7 @@ Sheet {
 
     Text {
         objectName: "permissionsNotice"
-        width: parent.width
+        Layout.fillWidth: true
         visible: root.notice !== ""
         text: root.notice
         textFormat: Text.PlainText
@@ -372,7 +380,17 @@ Sheet {
         wrapMode: Text.Wrap
     }
 
-    // -- the capabilities ------------------------------------------------------------
+    // -- the capabilities, a group at a time --------------------------------------------
+
+    Segmented {
+        objectName: "permissionGroups"
+        Layout.fillWidth: true
+        Layout.preferredHeight: 34
+        current: root.group
+        options: root.groups.map(function (g) { return {id: g.id, label: g.short}; })
+                     .concat([{id: "activity", label: "Activity"}])
+        onSelected: function (id) { root.group = id; }
+    }
 
     Repeater {
         model: root.groups
@@ -380,7 +398,9 @@ Sheet {
         ColumnLayout {
             id: group
             required property var modelData
-            width: parent ? parent.width : 0
+            objectName: "permissionGroup_" + modelData.id
+            visible: root.group === modelData.id
+            Layout.fillWidth: true
             spacing: Theme.space.md
 
             SectionLabel { text: group.modelData.name }
@@ -395,7 +415,9 @@ Sheet {
     // -- the record --------------------------------------------------------------------
 
     ColumnLayout {
-        width: parent.width
+        objectName: "permissionActivity"
+        visible: root.group === "activity"
+        Layout.fillWidth: true
         spacing: Theme.space.xs
 
         SectionLabel { text: "Recent activity" }
@@ -441,7 +463,7 @@ Sheet {
     }
 
     RowLayout {
-        width: parent.width
+        Layout.fillWidth: true
 
         Item { Layout.fillWidth: true }
 

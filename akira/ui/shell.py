@@ -39,6 +39,7 @@ from akira.core.models import ModelRouter, Route
 from akira.core.net import browser
 from akira.core.permissions import AuditLog, Policy, SecretStore
 from akira.core import planner, processes
+from akira.core.cloud import Claude
 from akira.core.projects import ProjectStore
 from akira.core.review import ensure_review_job, register_review_action
 from akira.core.schedule import ActionRegistry, Scheduler, SchedulerService
@@ -55,6 +56,7 @@ from akira.ui.bridge import (
     DocumentsBridge,
     DraftsBridge,
     DrawingBridge,
+    FirmwareBridge,
     GraphBridge,
     ImagesBridge,
     MemoryBridge,
@@ -125,6 +127,7 @@ class AppContext:
     reminders: planner.Reminders | None = None
     reminder_service: planner.ReminderService | None = None
     background: BackgroundBridge | None = None
+    firmware: FirmwareBridge | None = None
 
     housekeeping: Callable[[], None] | None = None
     """Tidying that runs once at start: dropping what expired grants no longer
@@ -143,7 +146,8 @@ class AppContext:
                           ("Coding", self.coding), ("Voice", self.voice),
                           ("Drawing", self.drawing), ("Drafts", self.drafts),
                           ("Images", self.images), ("Training", self.training),
-                          ("Planner", self.planner), ("Background", self.background)):
+                          ("Planner", self.planner), ("Background", self.background),
+                          ("Firmware", self.firmware)):
             if obj is not None:
                 exposed[name] = obj
         return exposed
@@ -347,12 +351,17 @@ def build_context(*, persist: bool = True) -> AppContext:
         resolved = router.resolve(Route.parse(route))
         return {"route": resolved.value, "label": router.status(resolved).label}
 
+    # Claude, for a chat the person sets to it in the chat window, and the work that
+    # chat hands over. Sent under model.cloud, given on connecting (akira.core.cloud).
+    claude = Claude(policy=live_policy, secrets=secret_store, audit=audit)
+
     agents = AgentsBridge(router, default_registry(), policy=working_policy,
                           audit=audit, secret_store=secret_store, trace=trace,
                           confirm=confirm.ask, ask_scope=allow.ask,
                           project=lambda: {"id": projects.currentId, "name": projects.currentName},
                           model_for=model_for,
-                          archive=RunArchive(config_dir() / "investigations.json" if persist else None))
+                          archive=RunArchive(config_dir() / "investigations.json" if persist else None),
+                          cloud=lambda: claude.router(effort="high", actor="agents"))
     permissions.grantsChanged.connect(agents.invalidateSources)
     projects.grantsChanged.connect(agents.invalidateSources)
     projects.currentChanged.connect(agents.invalidateSources)
@@ -389,7 +398,11 @@ def build_context(*, persist: bool = True) -> AppContext:
         return bool(policy.allows("files.read", str(path))) or bool(
             policy.allows("docs.read", str(path)))
 
-    grounder = Grounder(library_folders, may_read_header)
+    def project_folders() -> list[Path]:
+        project = projects.store.current()
+        return [Path(project.folder)] if project is not None and project.folder else []
+
+    grounder = Grounder(library_folders, may_read_header, projects=project_folders)
 
     # The person's own voice, not a project's: listening and speaking answer to
     # the global grants, audio.record and audio.play.
@@ -425,10 +438,19 @@ def build_context(*, persist: bool = True) -> AppContext:
         record=lambda title: audit.tool_call("calendar", "notify", {"title": title},
                                              allowed=True, capability="notify.send"))
 
+    # "Do it" under an answer gives the work to the software team, in the open
+    # project's folder or one the person chooses, and what it did comes back.
     chat = ChatBridge(router, config, context=assembler, project=projects.store.current_id,
                       researcher=researcher, remind=remind,
                       notices=lambda: bool(permissions.policy.allows("notify.send")),
-                      ground=grounder, calendar=calendar)
+                      ground=grounder, calendar=calendar,
+                      hand_off=lambda task, folder: agents.run_team(
+                          "software", task, folder, cloud=chat.model == "claude"),
+                      folder=open_folder, stop_hand_off=agents.stop,
+                      claude=claude,
+                      allow_cloud=lambda: permissions.allow("model.cloud", "anthropic"))
+    agents.finished.connect(lambda ok, answer: chat.hand_off_finished(ok, answer,
+                                                                       agents.stopped))
     # Replies are read aloud as they stream in, and a call talks to this chat.
     voice.follow(chat)
 
@@ -454,6 +476,7 @@ def build_context(*, persist: bool = True) -> AppContext:
         memory=memory,
         projects=projects,
         graph=GraphBridge(policy=working_policy, audit=audit),
+        firmware=FirmwareBridge(policy=working_policy, audit=audit),
         monitor=monitor,
         place=place,
         accounts=accounts,
@@ -499,6 +522,48 @@ def _claim_taskbar() -> None:
     except (AttributeError, OSError):
         # Cosmetic: the app works the same with Python's icon.
         pass
+    name_for_notifications()
+
+
+#: What Windows calls Akira on its notifications, and in Settings → Notifications.
+APP_NAME = "Akira"
+#: Where an unpackaged program names its id: the person's own part of the registry.
+APP_NAMES_KEY = r"Software\Classes\AppUserModelId"
+LOGO = Path(__file__).parent / "assets" / "akira-logo.png"
+
+
+def name_for_notifications(registry=None) -> bool:
+    """Have Windows label Akira's notifications "Akira", with its logo.
+
+    Windows names a notification by the process's AppUserModelID, and shows an id
+    it has no name for as the id itself: Akira's said "Akira.Desktop.1". A
+    program not installed from the Store names its id under HKEY_CURRENT_USER,
+    in a key of its own; nothing system-wide is touched, and nothing is written
+    when the name is already there. True when it was written.
+    """
+    if registry is None:
+        if sys.platform != "win32":
+            return False
+        import winreg as registry
+    wanted = {"DisplayName": APP_NAME}
+    if LOGO.is_file():
+        wanted["IconUri"] = str(LOGO)
+    try:
+        with registry.CreateKeyEx(registry.HKEY_CURRENT_USER, APP_NAMES_KEY + "\\" + APP_ID,
+                                  0, registry.KEY_READ | registry.KEY_WRITE) as key:
+            written = False
+            for name, value in wanted.items():
+                try:
+                    if registry.QueryValueEx(key, name)[0] == value:
+                        continue
+                except OSError:
+                    pass
+                registry.SetValueEx(key, name, 0, registry.REG_SZ, value)
+                written = True
+            return written
+    except OSError:
+        # Cosmetic: notifications still show, under the bare id.
+        return False
 
 
 def run_shell(argv: list[str] | None = None) -> int:

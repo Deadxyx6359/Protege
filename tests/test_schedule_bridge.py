@@ -193,7 +193,7 @@ def test_the_application_puts_every_bridge_in_front_of_qml(app):
                 "AgentTrace", "Schedule", "Agents", "Memory", "Projects",
                 "Graph", "Monitor", "Place", "Accounts", "Documents", "Coding",
                 "Voice", "Drawing", "Drafts", "Images", "Training", "Planner",
-                "Background"} <= set(exposed)
+                "Background", "Firmware"} <= set(exposed)
         assert ctx.service is None, "building the context must not start threads"
         assert ctx.monitor_service is None, "building the context must not start threads"
         assert ctx.reminder_service is None, "building the context must not start threads"

@@ -15,12 +15,14 @@ import QtQuick.Layouts
     The grants are always read fresh when changed, never from a cached copy, so
     allowing the weather's site never drops a site allowed since.
 */
-Sheet {
+ColumnLayout {
     id: root
+    spacing: Theme.space.xl
+    /*! Whether it is on screen: what was typed is cleared when it goes. */
+    property bool active: true
+    /*! For the host: show the pane from its top. */
+    signal scrollRequested()
 
-    title: "Where you are"
-    subtitle: "For the seasons, the time zone and the weather"
-    sheetWidth: 640
 
     property int revision: 0
     property string notice: ""
@@ -106,7 +108,7 @@ Sheet {
     // -- the place ---------------------------------------------------------------
 
     ColumnLayout {
-        width: parent.width
+        Layout.fillWidth: true
         spacing: Theme.space.md
 
         SectionLabel { text: "Place" }
@@ -208,7 +210,7 @@ Sheet {
     // -- the weather ---------------------------------------------------------------
 
     ColumnLayout {
-        width: parent.width
+        Layout.fillWidth: true
         spacing: Theme.space.md
 
         SectionLabel { text: "Weather" }

@@ -34,14 +34,12 @@ ActionButton 1.0 ActionButton.qml
 ConfirmDialog 1.0 ConfirmDialog.qml
 AllowPrompt 1.0 AllowPrompt.qml
 LinkPrompt 1.0 LinkPrompt.qml
-PermissionsSheet 1.0 PermissionsSheet.qml
 AgentsView 1.0 AgentsView.qml
 InvestigationsView 1.0 InvestigationsView.qml
 ResearchSourceSheet 1.0 ResearchSourceSheet.qml
 RunHistorySheet 1.0 RunHistorySheet.qml
 RunArtifacts 1.0 RunArtifacts.qml
 ArtifactSheet 1.0 ArtifactSheet.qml
-PlaceSheet 1.0 PlaceSheet.qml
 WatchView 1.0 WatchView.qml
 NoticeBanner 1.0 NoticeBanner.qml
 ScheduleView 1.0 ScheduleView.qml
@@ -50,7 +48,6 @@ DocumentsView 1.0 DocumentsView.qml
 CalendarView 1.0 CalendarView.qml
 CalendarEventSheet 1.0 CalendarEventSheet.qml
 ProjectSheet 1.0 ProjectSheet.qml
-AccountsSheet 1.0 AccountsSheet.qml
 VoiceSheet 1.0 VoiceSheet.qml
 DraftsSheet 1.0 DraftsSheet.qml
 PicturesSheet 1.0 PicturesSheet.qml
@@ -68,3 +65,9 @@ messageblocks.js 1.0 messageblocks.js
 AgentRoster 1.0 AgentRoster.qml
 MegastructureScene 1.0 MegastructureScene.qml
 CaveGardenScene 1.0 CaveGardenScene.qml
+TextBox 1.0 TextBox.qml
+ClaudeSheet 1.0 ClaudeSheet.qml
+VoicePane 1.0 VoicePane.qml
+PlacePane 1.0 PlacePane.qml
+PermissionsPane 1.0 PermissionsPane.qml
+AccountsPane 1.0 AccountsPane.qml

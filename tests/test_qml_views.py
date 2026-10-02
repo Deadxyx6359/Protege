@@ -49,6 +49,12 @@ def call(obj, name, *args):
 def plain(value):
     return value.toVariant() if hasattr(value, "toVariant") else value
 
+def settings_page(page, name):
+    # Settings, opened on that page, and the pane shown there.
+    call(root.findChild(QObject, "settingsSheet"), "show", page)
+    pump(0.2)
+    return root.findChild(QObject, name)
+
 # -- the confirmation ---------------------------------------------------------
 dialog = root.findChild(QObject, "confirmDialog")
 answers = []
@@ -71,7 +77,7 @@ second.join(5)
 out["answers"] = answers
 
 # -- the permissions ----------------------------------------------------------
-sheet = root.findChild(QObject, "permissionsSheet")
+sheet = settings_page("permissions", "permissionsPane")
 policy = ctx.permissions.policy
 call(sheet, "setGranted", "notify.send", True)
 out["notify"] = policy.granted("notify.send") is not None
@@ -114,7 +120,7 @@ out['status'] = {name: expression(engine.rootContext(), roster, 'activity("' + n
                  for name in ['gatherer', 'analyst']}
 
 # -- where you are ------------------------------------------------------------
-place = root.findChild(QObject, "placeSheet")
+place = settings_page("location", "placePane")
 out["place_sheet"] = place is not None
 # Granted outside the sheet, as another screen would, so the sheet's own copy
 # of the grants is stale: allowing the weather's site must not drop this one.
@@ -273,7 +279,7 @@ call(projects_sheet, "forget")
 out["forgotten"] = ctx.projects.projects == []
 
 # -- google accounts ------------------------------------------------------------
-accounts_sheet = root.findChild(QObject, "accountsSheet")
+accounts_sheet = settings_page("accounts", "accountsPane")
 client = os.path.join(os.getcwd(), "client_secret.json")
 with open(client, "w", encoding="utf-8") as stream:
     json.dump({"installed": {"client_id": "1-a.apps.googleusercontent.com",

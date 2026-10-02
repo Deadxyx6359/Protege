@@ -37,7 +37,7 @@ win.setWidth(1100); win.setHeight(760); QTest.qWait(100)
 page = win.findChild(QQuickItem, 'workspaceLayout')
 assert page.isEnabled() and not win.property('overlayUp')
 
-for name in ('settingsSheet', 'accountsSheet', 'permissionsSheet'):
+for name in ('settingsSheet', 'voiceSheet', 'claudeSheet'):
     sheet = win.findChild(QObject, name)
     QMetaObject.invokeMethod(sheet, 'open'); QTest.qWait(60)
     assert win.property('overlayUp') and not page.isEnabled(), name

@@ -1,4 +1,4 @@
-"""Adding the whole-web search's key, in the real Accounts sheet, by mouse and keys."""
+"""Adding the whole-web search's key, on Settings' real Web search page, by mouse and keys."""
 
 from __future__ import annotations
 
@@ -31,7 +31,6 @@ engine, _ = build_engine(theme=ctx.theme, context=ctx.as_context())
 warnings = []; engine.warnings.connect(lambda items: warnings.extend(str(i) for i in items))
 win = load(engine, Path(sys.argv[1]) / 'akira/ui/qml/Main.qml')
 win.setWidth(1100); win.setHeight(760); win.requestActivate(); QTest.qWait(80)
-sheet = win.findChild(QObject, 'accountsSheet')
 
 def walk(it, name):
     for child in it.childItems():
@@ -56,13 +55,15 @@ def run(js):
     # evaluate() gives the value and whether it was undefined.
     return result[0] if isinstance(result, tuple) else result
 
-# From Settings, straight to the key: on its fourth tab, Search was not found.
+# From Settings, its own page in the list: as the Accounts sheet's fourth tab, Search
+# was not found.
 settings = win.findChild(QObject, 'settingsSheet')
 QMetaObject.invokeMethod(settings, 'open'); QTest.qWait(150)
-assert item('openSearch').property('text') == 'Add key'
-click(item('openSearch')); QTest.qWait(120)
-assert sheet.property('opened') and not settings.property('opened')
+click(item('settingsTab_search')); QTest.qWait(120)
+assert settings.property('opened') and settings.property('section') == 'search'
+sheet = item('searchPane')
 assert run('section') == 'search'
+assert walk(win.contentItem(), 'accountSections') is None, 'Google, Canvas and Banks are not this page'
 assert item('searchSetup') and walk(win.contentItem(), 'searchConnected') is None
 add = item('connectSearch')
 assert not add.property('enabled'), 'nothing to add yet'
@@ -92,7 +93,7 @@ assert item('searchKey')
 click(item('searchKey'))
 for ch in 'tvly-half':
     QTest.keyClick(win, ch)
-QMetaObject.invokeMethod(sheet, 'close', Qt.DirectConnection); QTest.qWait(80)
+QMetaObject.invokeMethod(settings, 'close', Qt.DirectConnection); QTest.qWait(80)
 assert run('searchKey') == ''
 assert not warnings, '\n'.join(warnings)
 ctx.close(); win.close(); print('SEARCH_KEY_OK')

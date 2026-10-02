@@ -39,7 +39,8 @@ from PySide6.QtCore import (
 from akira.core.config import AppConfig
 from akira.core.conversation import Cancelled, Conversation, Responder
 from akira.core.conversations import ConversationError, ConversationStore, relative_time
-from akira.core import agenda, planner, quiet, reminders
+from akira.core import agenda, handoff, planner, quiet, reminders
+from akira.core.cloud import Claude
 from akira.core.brain.grounding import TEACHING, Grounding, subject_of, teaching
 from akira.core.intent import LABELS, MODES, ROUTES, Intent, choose
 from akira.core.plain_maths import plain_maths
@@ -102,6 +103,17 @@ def cited(sources: list, reply: str) -> list:
                 cite and (cite in text or cite.split(" › ")[0] in text)):
             kept.append(source)
     return kept
+
+
+_nvidia: quiet.Nvidia | None = None
+
+
+def _card() -> quiet.Nvidia:
+    """The NVIDIA card, opened the first time it is asked about."""
+    global _nvidia
+    if _nvidia is None:
+        _nvidia = quiet.Nvidia()
+    return _nvidia
 
 
 class MessageListModel(QAbstractListModel):
@@ -199,6 +211,14 @@ class ChatBridge(QObject):
     recentsChanged = Signal()
     sourcesChanged = Signal()
     modeChanged = Signal()
+    #: Whether "Do it" is offered, where, and whether the team is at it.
+    handOffChanged = Signal()
+    #: Which model answers, and whether Claude is connected.
+    modelChanged = Signal()
+    #: ok, message — once a Claude key has been checked, however it went.
+    claudeFinished = Signal(bool, str)
+    #: Private: the key's check, from its worker to this thread.
+    _claudeDone = Signal(bool, str)
 
     #: The reply so far, each time it grows: for reading it aloud as it comes.
     replyGrew = Signal(str)
@@ -210,6 +230,9 @@ class ChatBridge(QObject):
     #: The model wrote far slower than it should, and why, for the person: once a
     #: session. A research answer came at half a word a second, with no word why.
     slowNoticed = Signal(str)
+    #: message — the graphics card is held by another program as a model is about
+    #: to load, so the answer will be slow. Once a session.
+    cardBusy = Signal(str)
 
     _tokenArrived = Signal(str)
     _turnEnded = Signal(str)
@@ -230,6 +253,11 @@ class ChatBridge(QObject):
         notices: Callable[[], bool] | None = None,
         ground: Callable[[str, str], Grounding] | None = None,
         calendar: PlannerStore | None = None,
+        hand_off: Callable[[str, str], str] | None = None,
+        folder: Callable[[], str] | None = None,
+        stop_hand_off: Callable[[], None] | None = None,
+        claude: "Claude | None" = None,
+        allow_cloud: Callable[[], str] | None = None,
     ) -> None:
         super().__init__(parent)
         self._router = router
@@ -269,9 +297,26 @@ class ChatBridge(QObject):
         self._event: agenda.Asked | None = None
         # Whether the person was told this session that the model writes slowly.
         self._told_slow = False
+        # Whether they were told this session that another program held the card.
+        self._told_card = False
         # For a message about a chip or board: the vendor's own names before the
         # answer, and a check of the answer's after (`akira.core.brain.grounding`).
         self._ground = ground
+        # "Do it": the answer handed to the software team, in a folder: "" or why
+        # not. The open project's folder is offered first.
+        self._hand_off = hand_off
+        self._folder = folder or (lambda: "")
+        self._stop_hand_off = stop_hand_off
+        # The conversation the team's work is for, while it works; "" otherwise.
+        self._handed_from = ""
+        # Claude, when the person chooses it in the chat window (`akira.core.cloud`),
+        # and how the permission to send chats to it is given on connecting.
+        self._claude = claude
+        self._allow_cloud = allow_cloud or (lambda: "")
+        self._claude_checking = False
+        self._chosen = "claude" if claude is not None and config.chat_model == "claude" \
+            else "local"
+        self._claudeDone.connect(self._on_claude_done)
 
         self._conversation = Conversation()
         self._model = MessageListModel(self)
@@ -291,6 +336,11 @@ class ChatBridge(QObject):
         self._turnEnded.connect(self._on_ended)
         self._stageRequested.connect(self._on_stage)
         self._contextReady.connect(self._on_context)
+
+        # Whether "Do it" is offered follows what is on screen.
+        for changed in (self._model.modelReset, self._model.rowsInserted,
+                        self._model.dataChanged, self.busyChanged):
+            changed.connect(self.handOffChanged)
 
         self._recents: list = []
         self._search_candidates: list = []
@@ -321,12 +371,15 @@ class ChatBridge(QObject):
 
     @Property(bool, notify=readyChanged)
     def ready(self) -> bool:
-        """Whether any model is present. False makes the composer explain why."""
-        return self._router.any_usable
+        """Whether any model is present, or Claude chosen. False makes the composer
+        explain why."""
+        return self._router.any_usable or self._cloud()
 
     @Property(str, notify=routeChanged)
     def routeLabel(self) -> str:
         """What the footnote under the composer shows."""
+        if self._cloud():
+            return "Claude Opus 5.5 · sent to Anthropic"
         status = self._router.status(self._router.resolve(self._route))
         if not status.usable:
             return "No model configured"
@@ -556,7 +609,7 @@ class ChatBridge(QObject):
             self._say(said)
             return
 
-        if not self._router.any_usable:
+        if not self._router.any_usable and not self._cloud():
             self._conversation.add(
                 "assistant",
                 "No model is configured yet, so there is nothing to answer with.\n\n"
@@ -645,6 +698,27 @@ class ChatBridge(QObject):
 
     # -- speed -----------------------------------------------------------------
 
+    def _check_card(self) -> None:
+        """Worker thread. Before a model loads onto the graphics card: say so, once a
+        session, when another program already holds a gigabyte or more of it.
+
+        Akira's own behaviour test held the card while the person opened Akira; the
+        model went to ordinary memory and the window was unusable, with no word why.
+        """
+        if self._told_card or self._router.loaded:
+            return
+        model = self._config.models.get(self._router.resolve(self._route).value)
+        if model is None or model.n_gpu_layers == 0:
+            return
+        used = _card().used_bytes()
+        if used is None or used < quiet.OTHERS_BYTES:
+            return
+        self._told_card = True
+        self.cardBusy.emit(
+            f"Another program is using {used / 1024**3:.1f} GB of the graphics card, so the "
+            "model will not fit beside it and answers will be very slow. Close games or other "
+            "programs that use the card, then ask again.")
+
     def _check_speed(self, result) -> None:
         """Tell the person, once, when a model on the graphics card wrote far too slowly.
 
@@ -723,6 +797,200 @@ class ChatBridge(QObject):
         self.replyGrew.emit(text)
         self.replyEnded.emit(text)
 
+    # -- which model answers --------------------------------------------------
+
+    def _cloud(self) -> bool:
+        return self._chosen == "claude" and self._claude is not None
+
+    @Property("QVariantList", constant=True)
+    def models(self) -> list:
+        """The models the chat window offers: `id`, `label`."""
+        offered = [{"id": "local", "label": "Local"}]
+        if self._claude is not None:
+            offered.append({"id": "claude", "label": "Claude Opus 5.5"})
+        return offered
+
+    @Property(str, notify=modelChanged)
+    def model(self) -> str:
+        """`local` or `claude`: which answers the next message."""
+        return self._chosen
+
+    @Property(bool, notify=modelChanged)
+    def claudeConnected(self) -> bool:
+        return self._claude is not None and self._claude.has_key()
+
+    @Property(bool, notify=modelChanged)
+    def claudeChecking(self) -> bool:
+        return self._claude_checking
+
+    @Property(str, notify=modelChanged)
+    def claudeSpend(self) -> str:
+        """What Claude has cost this month at its list prices, in words."""
+        if self._claude is None:
+            return ""
+        month = self._claude.spend.month()
+        if not month["read"] and not month["written"]:
+            return "Nothing used this month."
+        return (f"About ${month['dollars']:.2f} this month ({month['read']:,} tokens read, "
+                f"{month['written']:,} written).")
+
+    @Slot(str, result=str)
+    def setModel(self, chosen: str) -> str:
+        """Answer from now on with \a chosen. "" once set; "key" when Claude needs
+        its key first; or why not."""
+        if chosen not in ("local", "claude") or (chosen == "claude" and self._claude is None):
+            return "There is no such model here."
+        if chosen == "claude":
+            why = self._claude.ready()
+            if why == "Add your Claude API key first.":
+                return "key"
+            if why:
+                # Connected before, and the permission taken back since: given again
+                # only by choosing Claude again here, which is the person's own act.
+                given = self._allow_cloud()
+                if given or self._claude.ready():
+                    return given or self._claude.ready()
+        self._chosen = chosen
+        self._config.chat_model = chosen
+        self._save_config()
+        self.modelChanged.emit()
+        self.routeChanged.emit()
+        self.readyChanged.emit()
+        self.handOffChanged.emit()
+        return ""
+
+    @Slot(str, result=str)
+    def connectClaude(self, key: str) -> str:
+        """Keep \a key sealed, allow sending chats to Anthropic, and check the key with
+        Anthropic. "" once the check has started (`claudeFinished` follows), or why not."""
+        if self._claude is None:
+            return "Claude is not available here."
+        if self._claude_checking:
+            return "Already checking a key."
+        why = self._claude.seal(key)
+        if why:
+            return why
+        why = self._allow_cloud()
+        if why:
+            self._claude.forget()
+            return why
+        self._claude_checking = True
+        self.modelChanged.emit()
+        threading.Thread(target=self._check_claude, name="claude-key", daemon=True).start()
+        return ""
+
+    def _check_claude(self) -> None:
+        """Worker thread. Emits a signal only."""
+        try:
+            why = self._claude.check()
+        except Exception as exc:  # noqa: BLE001 - a crashed check must still report back
+            why = f"{type(exc).__name__}: {exc}"
+        self._claudeDone.emit(not why, why)
+
+    def _on_claude_done(self, ok: bool, why: str) -> None:
+        self._claude_checking = False
+        if ok:
+            self._chosen = "claude"
+            self._config.chat_model = "claude"
+            self._save_config()
+            message = "Connected. Chats now go to Claude Opus 5.5 until you choose Local."
+        else:
+            self._claude.forget()
+            message = f"The key was not kept: {why}"
+        self.modelChanged.emit()
+        self.routeChanged.emit()
+        self.readyChanged.emit()
+        self.claudeFinished.emit(ok, message)
+
+    @Slot(result=str)
+    def forgetClaude(self) -> str:
+        """Forget the key and answer locally again. What the person may also do at Anthropic."""
+        if self._claude is None:
+            return ""
+        self._claude.forget()
+        self._chosen = "local"
+        self._config.chat_model = "local"
+        self._save_config()
+        self.modelChanged.emit()
+        self.routeChanged.emit()
+        self.readyChanged.emit()
+        return ("The key is gone from this computer. To stop it working anywhere, delete it "
+                "in the Anthropic Console too.")
+
+    def _save_config(self) -> None:
+        try:
+            self._config.save()
+        except OSError:
+            pass  # chosen for this session; asked again next time
+
+    # -- handing the work over ------------------------------------------------
+
+    @Property(bool, notify=handOffChanged)
+    def canHandOff(self) -> bool:
+        """Whether "Do it" is offered under the last answer: there is a team to
+        hand to, nothing is running, and the answer reads as work to carry out."""
+        if self._hand_off is None or self._busy or self._handed_from:
+            return False
+        messages = self._conversation.messages
+        last = messages[-1] if messages else None
+        return (last is not None and last.role == "assistant" and not last.error
+                and (self._previous is Intent.CODE or handoff.worth_doing(last.text)))
+
+    @Property(str, notify=handOffChanged)
+    def handOffFolder(self) -> str:
+        """Where the team would work: the open project's folder, or "" to ask."""
+        try:
+            return self._folder() or ""
+        except Exception:  # noqa: BLE001 - no folder is a question, not a failure
+            return ""
+
+    @Property(bool, notify=handOffChanged)
+    def handingOff(self) -> bool:
+        """Whether the team is working on something handed from this chat."""
+        return bool(self._handed_from)
+
+    @Slot(str, result=str)
+    def handOff(self, folder: str = "") -> str:
+        """Give the last answer to the software team to carry out in \a folder (the
+        open project's when ""). "" once it has started, or why it has not."""
+        if not self.canHandOff:
+            return "There is no answer here to carry out."
+        where = (folder or self.handOffFolder).strip()
+        if not where:
+            return "Choose the folder the work is for first."
+        task = handoff.task_from(self._conversation.messages, where)
+        if not task:
+            return "There is no answer here to carry out."
+        why = self._hand_off(task, where)
+        if why:
+            return why
+        self._handed_from = self._conversation.id
+        self.handOffChanged.emit()
+        return ""
+
+    @Slot()
+    def stopHandOff(self) -> None:
+        if self._handed_from and self._stop_hand_off is not None:
+            self._stop_hand_off()
+
+    def hand_off_finished(self, ok: bool, answer: str, stopped: str) -> None:
+        """For the team's end: what it did goes into the conversation it came from."""
+        source, self._handed_from = self._handed_from, ""
+        if not source:
+            return
+        said = handoff.result_said(ok, answer, stopped)
+        if source == self._conversation.id:
+            self._say(said)
+        else:
+            try:
+                kept = self._store.load(source)
+                kept.add("assistant", said)
+                self._store.save(kept)
+            except (ConversationError, OSError):
+                pass
+            self._refresh_recents()
+        self.handOffChanged.emit()
+
     @Slot()
     def stop(self) -> None:
         """Ask the running turn to unwind.
@@ -756,6 +1024,8 @@ class ChatBridge(QObject):
     def _opening_stage(self) -> str:
         if self._researching():
             return "Researching"
+        if self._cloud():
+            return "Asking Claude Opus 5.5"
         resolved = self._router.resolve(self._route)
         if not self._router.status(resolved).loaded:
             # Several seconds of silence with no explanation reads as a crash.
@@ -859,7 +1129,12 @@ class ChatBridge(QObject):
             opening = (OpeningHeld(shown) if self._researching() and not self._nothing_read
                        else None)
             token = opening.feed if opening is not None else shown
-            result = self._responder.respond(
+            cloud = self._cloud()
+            if not cloud:
+                self._check_card()
+            responder = (Responder(self._claude.router(), self._config) if cloud
+                         else self._responder)
+            result = responder.respond(
                 self._conversation,
                 route=self._route,
                 on_token=token,
@@ -868,7 +1143,8 @@ class ChatBridge(QObject):
             )
             if opening is not None:
                 opening.finish()
-            self._check_speed(result)
+            if not cloud:
+                self._check_speed(result)
             if self._researching() and self._nothing_read:
                 # Told to say so, an answer with nothing read gave a prime
                 # minister two out of date as "as of" today. Said here instead.

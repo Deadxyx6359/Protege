@@ -117,3 +117,41 @@ def test_a_reply_finished_with_akira_in_the_background_says_nothing_of_the_card(
     bridge, told = bridge_with(tmp_path, tokens_a_second=1.0)
     say(bridge, "What should I cook tonight?")
     assert told == []
+
+
+class Card:
+    def __init__(self, used):
+        self.used = used
+
+    def used_bytes(self):
+        return self.used
+
+
+def test_a_card_held_by_another_program_is_said_before_the_model_loads(qt_app, tmp_path,
+                                                                        monkeypatch):
+    from akira.ui.bridge import chat as chat_module
+
+    monkeypatch.setattr(chat_module, "_card", lambda: Card(int(5.4 * 1024**3)))
+    bridge, _ = bridge_with(tmp_path, tokens_a_second=35.0)
+    told = []
+    bridge.cardBusy.connect(told.append)
+    say(bridge, "What should I cook tonight?")
+    say(bridge, "And for pudding?")
+    (message,) = told
+    assert message.startswith("Another program is using 5.4 GB of the graphics card")
+
+
+def test_a_free_card_or_a_model_on_the_processor_says_nothing(qt_app, tmp_path, monkeypatch):
+    from akira.ui.bridge import chat as chat_module
+
+    monkeypatch.setattr(chat_module, "_card", lambda: Card(150 * 1024**2))
+    bridge, _ = bridge_with(tmp_path, tokens_a_second=35.0)
+    told = []
+    bridge.cardBusy.connect(told.append)
+    say(bridge, "What should I cook tonight?")
+    monkeypatch.setattr(chat_module, "_card", lambda: Card(int(5.4 * 1024**3)))
+    (tmp_path / "cpu").mkdir()
+    processor, _ = bridge_with(tmp_path / "cpu", tokens_a_second=35.0, gpu_layers=0)
+    processor.cardBusy.connect(told.append)
+    say(processor, "What should I cook tonight?")
+    assert told == []

@@ -5,7 +5,9 @@ import QtQuick.Layouts
 
 /*!
     Connected accounts: Google (the client file, connecting an address, and what
-    is connected) and Canvas (a site and an access token, read only).
+    is connected), Canvas (a site and an access token, read only), banks through
+    SimpleFIN (read only), and the whole-web search's key. Settings' Accounts and
+    Web search pages.
 
     Connecting reads only, and needs the address allowed first: Gmail
     (\c mail.read) or Google Calendar (\c calendar.read) for that address,
@@ -15,25 +17,30 @@ import QtQuick.Layouts
     nothing secret is typed or shown here, and the client file is sealed on this
     computer the moment it is chosen.
 */
-Sheet {
+ColumnLayout {
     id: root
+    spacing: Theme.space.xl
+    /*! Whether it is on screen: what was typed is cleared when it goes. */
+    property bool active: true
+    /*! For the host: show the pane from its top. */
+    signal scrollRequested()
 
-    title: "Accounts"
-    subtitle: "Connect only what you need"
-    sheetWidth: 700
     property string section: "google"
+    /*! Whether to offer Google, Canvas and Banks as tabs. Settings' Web search page
+        shows the search key alone. */
+    property bool showSections: true
     property string noticeSection: "google"
     property bool setupDetails: false
-    onSectionChanged: { root.armed = ""; root.scrollToTop(); }
-    onOpenedChanged: {
-        if (!opened) { root.canvasToken = ""; root.bankToken = ""; root.searchKey = ""; root.armed = ""; }
+    onSectionChanged: { root.armed = ""; root.scrollRequested(); }
+    onActiveChanged: {
+        if (!active) { root.canvasToken = ""; root.bankToken = ""; root.searchKey = ""; root.armed = ""; }
     }
 
     property string address: ""
     /*! What to connect, by service id. */
     property var chosen: ["mail", "calendar"]
     property string notice: ""
-    onNoticeChanged: { if (opened && notice !== "") root.scrollToTop(); }
+    onNoticeChanged: { if (active && notice !== "") root.scrollRequested(); }
     property bool good: false
     /*! The address a first press of Disconnect armed. */
     property string armed: ""
@@ -248,19 +255,21 @@ Sheet {
     }
 
     ColumnLayout {
-        width: parent.width
+        Layout.fillWidth: true
         spacing: Theme.space.md
         Segmented {
             objectName: "accountSections"
+            visible: root.showSections
             Layout.fillWidth: true
             Layout.preferredHeight: 36
             current: root.section
-            options: [{id: "google", label: "Google"}, {id: "canvas", label: "Canvas"}, {id: "banks", label: "Banks"},
-                      {id: "search", label: "Search"}]
+            options: [{id: "google", label: "Google"}, {id: "canvas", label: "Canvas"}, {id: "banks", label: "Banks"}]
             onSelected: function (id) { root.section = id; }
         }
+        // Settings' Web search page says this itself.
         Text {
             Layout.fillWidth: true
+            visible: root.showSections
             text: root.section === "google" ? "Mail, calendars & Drive" : root.section === "canvas" ? "Your coursework, in reach"
                 : root.section === "search" ? "The whole web, through Tavily" : "Your finances, read only"
             textFormat: Text.PlainText
@@ -270,6 +279,7 @@ Sheet {
         }
         Text {
             Layout.fillWidth: true
+            visible: root.showSections
             text: root.section === "google" ? "Choose individual services. Sending mail and changing events are optional."
                 : root.section === "canvas" ? "Read courses and assignments from the school you connect."
                 : root.section === "search" ? "Search every site, not only Wikipedia. Reading a page found is still asked about, site by site."
@@ -305,7 +315,7 @@ Sheet {
     ColumnLayout {
         objectName: "googleClientSetup"
         visible: root.section === "google"
-        width: parent.width
+        Layout.fillWidth: true
         spacing: Theme.space.md
 
         SectionLabel { text: "1 · App connection" }
@@ -351,7 +361,7 @@ Sheet {
     ColumnLayout {
         objectName: "googleConnection"
         visible: root.section === "google"
-        width: parent.width
+        Layout.fillWidth: true
         spacing: Theme.space.md
 
         SectionLabel { text: "2 · Address & services" }
@@ -475,7 +485,7 @@ Sheet {
 
     ColumnLayout {
         visible: root.section === "google"
-        width: parent.width
+        Layout.fillWidth: true
         spacing: Theme.space.md
 
         SectionLabel { text: "Connected" }
@@ -538,7 +548,7 @@ Sheet {
     ColumnLayout {
         objectName: "canvasConnection"
         visible: root.section === "canvas"
-        width: parent.width
+        Layout.fillWidth: true
         spacing: Theme.space.md
 
         SectionLabel { text: "Canvas" }
@@ -664,7 +674,7 @@ Sheet {
     ColumnLayout {
         objectName: "bankConnection"
         visible: root.section === "banks"
-        width: parent.width
+        Layout.fillWidth: true
         spacing: Theme.space.md
 
         SectionLabel { text: "Banks, through SimpleFIN" }
@@ -793,10 +803,10 @@ Sheet {
     ColumnLayout {
         objectName: "searchSetup"
         visible: root.section === "search"
-        width: parent.width
+        Layout.fillWidth: true
         spacing: Theme.space.md
 
-        SectionLabel { text: "Search the whole web" }
+        SectionLabel { visible: root.showSections; text: "Search the whole web" }
 
         Text {
             Layout.fillWidth: true

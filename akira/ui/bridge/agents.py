@@ -76,9 +76,12 @@ class AgentsBridge(QObject):
                  project: Callable[[], dict] | None = None,
                  model_for: Callable[[str], dict] | None = None,
                  archive: RunArchive | None = None,
+                 cloud: Callable[[], object] | None = None,
                  parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._router = router
+        # Claude, for work handed over from a chat set to it: a router to it.
+        self._cloud = cloud
         self._registry = registry
         self._policy = policy
         self._audit = audit
@@ -265,18 +268,26 @@ class AgentsBridge(QObject):
     @Slot(str, str, str, result=str)
     def runTeam(self, team: str, task: str, folder: str = "") -> str:
         """Start a team. Returns "" once started, or why it was not."""
+        return self.run_team(team, task, folder)
+
+    def run_team(self, team: str, task: str, folder: str = "", *, cloud: bool = False) -> str:
+        """Start a team, on Claude when \a cloud (a chat set to Claude handing its work
+        over). Returns "" once started, or why it was not."""
         build = _TEAMS.get(team)
         if build is None:
             return f"There is no team called {team!r}."
         spec = build()
+        if cloud and self._cloud is None:
+            return "Claude is not available here."
+        router = self._cloud() if cloud else self._router
 
         def work(context, cancelled, trace, registry):
-            return Team(spec, router=self._router, registry=registry,
+            return Team(spec, router=router, registry=registry,
                         context=context, trace=trace,
                         ).run(task.strip(), is_cancelled=cancelled)
 
         return self._start(f"The {spec.name} team", spec.name, work, task, folder,
-                           "team", [m.name for m in spec.members])
+                           "team", [m.name for m in spec.members], cloud=cloud)
 
     @Slot(str, str, str, result=str)
     def runAgent(self, role: str, task: str, folder: str = "") -> str:
@@ -298,7 +309,8 @@ class AgentsBridge(QObject):
         if self._busy:
             self._cancel.set()
 
-    def _start(self, label, actor, work, task, folder, kind, members) -> str:
+    def _start(self, label, actor, work, task, folder, kind, members, *,
+               cloud: bool = False) -> str:
         text = task.strip()
         if not text:
             return "Give it something to do first."
@@ -334,7 +346,8 @@ class AgentsBridge(QObject):
             "projectName": project.get("name", "") or "Personal workspace",
             "started": time.time(), "status": "running", "members": members,
             "states": {m: "Waiting" for m in members},
-            "models": {m: self._model_for(ALL_ROLES[m].route.value) for m in members}})
+            "models": {m: ({"route": "cloud", "label": "Claude Opus 5.5"} if cloud
+                           else self._model_for(ALL_ROLES[m].route.value)) for m in members}})
         self._current_id = record["id"]
         self._records[self._current_id] = deepcopy(record)
         keep = sorted(self._records, key=lambda i: self._records[i]["started"], reverse=True)[:MAX_RUNS]

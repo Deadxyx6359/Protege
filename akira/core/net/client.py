@@ -42,6 +42,7 @@ neither it, nor a form, nor a query string is written to the activity log.
 from __future__ import annotations
 
 import base64
+import re
 import http.client
 import ipaddress
 import json
@@ -483,10 +484,31 @@ def _record_call(audit: AuditLog | None, actor: str, method: str, url: str, star
                     error=error, result=result)
 
 
+#: Headers a request's own may not set: the ones this module writes, and the ones
+#: that would let a caller reach past the checks (a cookie, a proxy's sign-in).
+_RESERVED_HEADERS = frozenset({
+    "host", "authorization", "proxy-authorization", "cookie", "content-type",
+    "content-length", "transfer-encoding", "user-agent", "accept", "accept-encoding",
+    "connection", "upgrade", "te", "trailer", "expect", "forwarded", "via",
+})
+_HEADER_NAME = re.compile(r"\A[A-Za-z][A-Za-z0-9-]{0,63}\Z")
+
+
+def _header(name: str, value: str) -> tuple[str, str]:
+    """\a name and \a value, checked: a plain name not reserved, one line of value."""
+    if not _HEADER_NAME.match(name) or name.lower() in _RESERVED_HEADERS:
+        raise ValueError(f"{name!r} is not a header a request may set")
+    if any(c in value for c in "\r\n\0"):
+        raise ValueError(f"the {name} header's value is more than one line")
+    return name, value
+
+
 def call(method: str, url: str, *, policy, capability: str, scope: str, hosts: tuple[str, ...],
          audit: AuditLog | None = None, actor: str = ACTOR,
          bearer: Callable[[], str] | None = None,
          basic: Callable[[], tuple[str, str]] | None = None,
+         key: tuple[str, Callable[[], str]] | None = None,
+         headers: dict[str, str] | None = None,
          form: dict[str, str] | None = None,
          payload: dict | None = None, accept: str = JSON, max_bytes: int = MAX_BYTES,
          timeout_s: float = TIMEOUT_S, secret_path: bool = False) -> Response:
@@ -507,15 +529,23 @@ def call(method: str, url: str, *, policy, capability: str, scope: str, hosts: t
     without the sign-in, the form, the payload or the query string. When the
     address's path is itself a secret, such as a one-time claim link, \a
     secret_path keeps it out too, and only the site is written.
+
+    A provider that takes its key in a header of its own (Anthropic's x-api-key)
+    gets \a key, the header's name and how to fetch the key, held like a token.
+    \a headers are plain ones the provider asks for, such as the version of its
+    API: never one this module writes, and never more than one line.
     """
     method = str(method).upper()
     if method not in CALL_METHODS:
         raise ValueError(f"a signed-in request is GET, POST, PATCH or DELETE, not {method}")
     if not hosts:
         raise ValueError(f"a request under {capability} must name the hosts it may reach")
-    if bearer is not None and basic is not None:
-        raise ValueError("a signed-in request carries one sign-in, a token or a name and "
-                         "password, not both")
+    if (bearer is not None) + (basic is not None) + (key is not None) > 1:
+        raise ValueError("a signed-in request carries one sign-in, a token, a key or a name "
+                         "and password, not more")
+    plain = [_header(name, str(value)) for name, value in (headers or {}).items()]
+    if key is not None:
+        _header(key[0], "")
     carried = (form is not None) + (payload is not None)
     if carried != (method in CARRIERS):
         raise ValueError("a POST or a PATCH carries a form or a payload, one of them, and "
@@ -531,23 +561,28 @@ def call(method: str, url: str, *, policy, capability: str, scope: str, hosts: t
         if not decision:
             raise NetError(f"Not permitted: {decision.reason}.")
         addresses = _checked(target)
-        headers = {"User-Agent": USER_AGENT, "Accept": accept,
-                   "Accept-Encoding": "identity", "Connection": "close"}
         body = None
         if form is not None:
             body = urlencode(form).encode("ascii")
-            headers["Content-Type"] = "application/x-www-form-urlencoded"
         elif payload is not None:
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-            headers["Content-Type"] = "application/json; charset=utf-8"
+        # A plain header's name was checked: it cannot be one of these.
+        sent = {"User-Agent": USER_AGENT, "Accept": accept,
+                "Accept-Encoding": "identity", "Connection": "close"}
+        sent.update(dict(plain))
+        if body is not None:
+            sent["Content-Type"] = (JSON + "; charset=utf-8" if payload is not None
+                                    else "application/x-www-form-urlencoded")
         if bearer is not None:
-            headers["Authorization"] = f"Bearer {bearer()}"
+            sent["Authorization"] = f"Bearer {bearer()}"
         elif basic is not None:
             name, password = basic()
             pair = base64.b64encode(f"{name}:{password}".encode("utf-8")).decode("ascii")
-            headers["Authorization"] = f"Basic {pair}"
+            sent["Authorization"] = f"Basic {pair}"
+        elif key is not None:
+            sent[key[0]] = _header(key[0], str(key[1]()))[1]
         reply = _exchange(target, addresses, started + timeout_s, max_bytes, timeout_s,
-                          method=method, headers=headers, body=body, once=method != "GET")
+                          method=method, headers=sent, body=body, once=method != "GET")
         if reply.location:
             onward = redact(urljoin(target.url, reply.location))
             raise NetError(f"{target.host} sent the request on to {onward}. A signed-in "

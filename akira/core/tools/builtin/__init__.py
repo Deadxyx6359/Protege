@@ -4,12 +4,12 @@ Each module exposes `ALL`, a tuple of its tools. `default_registry()` in
 `akira.core.tools` registers them explicitly.
 """
 
-from . import (accounts, browsing, coding, coursework, drawing, files, knowledge, maths,
-               money, notes, office, pictures, planner, screen, texts, web)
+from . import (accounts, browsing, coding, coursework, drawing, files, firmware, knowledge,
+               maths, money, notes, office, pictures, planner, screen, texts, web)
 
-MODULES = (files, coding, office, notes, knowledge, web, browsing, screen, accounts,
+MODULES = (files, coding, firmware, office, notes, knowledge, web, browsing, screen, accounts,
            coursework, money, texts, drawing, pictures, maths, planner)
 
-__all__ = ["accounts", "browsing", "coding", "coursework", "drawing", "money", "files",
+__all__ = ["accounts", "browsing", "coding", "coursework", "drawing", "firmware", "money", "files",
            "knowledge", "maths", "notes", "office", "pictures", "planner", "screen", "texts",
            "web", "MODULES"]

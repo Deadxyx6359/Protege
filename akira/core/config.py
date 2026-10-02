@@ -188,6 +188,10 @@ class AppConfig:
     #: Whether the person has been told, once, that closing the window does not quit.
     told_keeps_running: bool = False
 
+    #: Which model the chat answers with: "local", or "claude" once the person has
+    #: chosen Claude in the chat window (`akira.core.cloud`).
+    chat_model: str = "local"
+
     # -- persistence --------------------------------------------------------
 
     @staticmethod
@@ -229,6 +233,7 @@ class AppConfig:
             preload=bool(raw.get("preload", True)),
             keep_running=bool(raw.get("keep_running", True)),
             told_keeps_running=bool(raw.get("told_keeps_running", False)),
+            chat_model="claude" if raw.get("chat_model") == "claude" else "local",
         )
 
     def save(self) -> None:

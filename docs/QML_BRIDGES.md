@@ -75,6 +75,7 @@ before changing it.
 | `Training` | `TrainingBridge` | Teaching a model from chosen conversations, and the adapters trained |
 | `Planner` | `PlannerBridge` | The calendar kept in Akira, on this computer: month, week and day, and changing it |
 | `Background` | `BackgroundBridge` | Whether closing the window leaves Akira running by the clock, and quitting it |
+| `Firmware` | `FirmwareBridge` | Settings' Firmware page: ST's tools found or not, and the boards and serial ports plugged in |
 
 Registered in `akira/ui/shell.py` (`AppContext.as_context`). A test asserts
 these names, so renaming one is a deliberate, coordinated act.
@@ -340,6 +341,28 @@ An agent that could change files but only built or tested and then answered is
 told it changed nothing, so a build of the untouched project is not reported
 as the work done.
 
+**Firmware tools (2026-10-02)** (`akira/core/tools/builtin/firmware.py`,
+`akira/core/firmware/`). Two permissions for boards plugged in by USB:
+`device.read` ("Read connected boards") and `device.write` ("Program connected
+boards", irreversible, asked every time).
+
+| Tool | Needs | What it does |
+|---|---|---|
+| `list_boards` | `device.read` | ST-LINK probes (through ST's STM32_Programmer_CLI) and serial ports |
+| `read_serial` | `device.read` | What a port prints for up to 30 seconds (pyserial) |
+| `read_register` | `device.read` | A register of the running chip by name (`SPI1.CR1`), read in hot-plug mode (no reset, no halt), each field said; addresses and fields from the chip's CMSIS header in a folder Akira may read |
+| `flash_firmware` | `device.write`, `files.read` for the file | An .elf, .hex or .bin (or a project folder's newest build) written, verified and run; asked every time, saying what is replaced |
+| `generate_cubemx_code` | `shell.run` for the project | The project's code generated again from its `.ioc` with STM32CubeMX's own Java, as Generate Code does |
+| `stm32_pins` | `files.read` for the folder | A board's connector map and what each pin can carry, from STM32CubeMX's database in the folder given |
+| `find_vendor_names` | `files.read` for the folder | Names in the vendor's library with all the words given, with each function's declaration |
+
+The architect has the lookups and `list_boards`; the implementer has all of them;
+the reviewer has the lookups. In the chat, a question about the chip, or "is my
+CubeMX setup right?", gets the person's own `.ioc` (from the open project's
+folder or a library folder they allowed) said in a few lines: chip, clock, each
+pin's signal and label, each peripheral's settings, with an instruction to judge
+it against what they want.
+
 ## `Memory` — notes distilled from conversations
 
 | Member | Kind | Notes |
@@ -548,7 +571,7 @@ as the work done.
   reading at once and reads the new one.
 - `candidates` labels come from the lookup service, so show them as plain text
   (rule 5).
-- The view is `PlaceSheet.qml`, opened from Settings. `Main.qml` binds
+- The view is `PlacePane.qml`, Settings' Location page. `Main.qml` binds
   `SceneHost.weather` and `southernHemisphere` to this bridge. A view that
   changes the weather's site grant must read `Permissions.describe("net.http")`
   fresh at that moment: `grant` replaces the whole list of sites, so adding
@@ -576,7 +599,7 @@ as the work done.
   sign-in. There is nothing to type but the address.
 - **The address is allowed first.** `mail.read` and `calendar.read` are scoped
   to the address. Offer them beside it, from `missing`, and read the grant
-  fresh when adding one (`AccountsSheet.qml` does both), since
+  fresh when adding one (`AccountsPane.qml` does both), since
   `Permissions.grant` replaces the whole list of addresses.
 - **Signing in happens in the person's browser**, which Windows opens at
   Google's page; it waits up to five minutes. Google calls the app unverified,
@@ -600,7 +623,7 @@ as the work done.
 
 - **The token is the one secret typed here.** Take it in a password field,
   hand it to `connectCanvas`, and clear the field straight away;
-  `AccountsSheet.qml` does. It is sealed with DPAPI the moment Canvas accepts it.
+  `AccountsPane.qml` does. It is sealed with DPAPI the moment Canvas accepts it.
 - **Reading only.** A Canvas token can do anything the person can, and Canvas
   offers students none that only reads, so Akira holds itself to GETs under
   `lms.read`. Say so; `canvasHelp` does.
@@ -959,6 +982,57 @@ to do; `Main.qml` shows it as a banner. Research answers built on what was read
 have their first sentence held back until whole, so a false "I cannot access
 websites" opening is dropped before it is shown.
 
+`Chat.cardBusy(message)` (2026-10-02) is said before the fact instead: once a
+session, when a model is about to load onto the card and another program
+already holds a gigabyte or more of it. `Main.qml` shows "The graphics card is
+busy". Not while the reply was finished in the background (`akira.core.quiet`).
+
+### Claude Opus 5.5, chosen in the chat window — 2026-10-02
+
+The composer's Model menu offers Local and Claude Opus 5.5 (`akira/core/cloud.py`).
+With Claude chosen, each answer comes from Anthropic's API: the conversation and
+what Akira found for the turn (files, pages, a chip's names) are sent, through
+Akira's one door (`client.call`, under `model.cloud` for "anthropic"). Research
+is still gathered by the local model. "Do it" from a chat set to Claude runs the
+team on Claude too. Not streamed: a reply appears when it is done.
+
+| Member | Kind | Meaning |
+|---|---|---|
+| `models` | list, constant | `id` (`local`, `claude`) and `label` each; Claude only where it is built in |
+| `model` | string, notify `modelChanged` | Which answers the next message; remembered in `config.json` as `chat_model` |
+| `setModel(id)` | slot → string | "" once chosen; `"key"` when Claude needs its key first (open the key sheet); or why not. Choosing Claude when its permission was taken back gives it again: that choice is the person's act |
+| `claudeConnected`, `claudeChecking` | bool, notify `modelChanged` | A key is kept; a key is being checked |
+| `claudeSpend` | string, notify `modelChanged` | This month at list prices ($4 / $20 a million tokens read / written), in words |
+| `connectClaude(key)` | slot → string | Seal the key, allow `model.cloud` for "anthropic", and check the key with Anthropic (reading the model's description, which costs nothing). "" once started; `claudeFinished(ok, message)` follows, and on ok Claude is chosen. A key refused is not kept |
+| `forgetClaude()` | slot → string | Forget the key and go back to Local; returns what to do at Anthropic too |
+
+`routeLabel` reads "Claude Opus 5.5 · sent to Anthropic" while it is chosen, and
+`ready` is true with Claude chosen even when no local model is set up.
+`ClaudeSheet.qml` takes the key (opened by `setModel` returning `"key"`), says what
+is sent, and shows the month's spend and Forget key once connected. `TextBox.qml`
+is the one-line text box it uses, for any page to share.
+
+### "Do it" — 2026-10-02
+
+The chat answers and changes nothing; "Do it" under an answer gives the work to
+the software team, which asks before each change, as from the Agents page. Its
+answer comes back into the conversation the work was handed from, even if
+another one is open by then (`akira/core/handoff.py`).
+
+| Member | Kind | Meaning |
+|---|---|---|
+| `canHandOff` | bool, notify `handOffChanged` | Offered under the last answer: nothing running, and the answer is code, names files, or was a code turn |
+| `handOffFolder` | string, notify `handOffChanged` | Where the team would work: the open project's folder, or "" to ask for one |
+| `handingOff` | bool, notify `handOffChanged` | The team is at work on something from this chat |
+| `handOff(folder)` | slot → string | Hand it over, in `folder` ("" for `handOffFolder`). "" once started, or why not (no folder, or the agents are busy) |
+| `stopHandOff()` | slot | Stop the team at its next step |
+
+The task is what the person asked last, the answer (without Akira's notes under
+it, up to 2,600 characters) and their earlier messages briefly, within the
+Agents page's 4,000. `ChatView` shows the row under the last answer: "Do it"
+(or "Do it in a folder…", which asks for a folder) with where the changes go,
+and while the team works, Watch (the Agents page) and Stop.
+
 ### The calendar in the chat — 2026-09-30
 
 "Add dentist to my calendar on Friday at 3pm" is not sent to a model either.
@@ -1206,8 +1280,8 @@ document types follow the editor path. No shell execution or new native Office
 launcher was added.
 
 UI notes: Code still shares Chat's conversation/composer and prepares an
-editable software-team task in Agents. Settings now groups General, Appearance
-and Models; model assignment uses original paths, with display-only name cleanup
+editable software-team task in Agents. Settings is a list of pages (see
+"Settings" below); model assignment uses original paths, with display-only name cleanup
 and exact paths in File details. Model selectors are disabled during Chat/Agents
 work. These are UI safeguards, not changes to the router or agent engine.
 
@@ -1309,15 +1383,64 @@ brings the running one forward (`akira/ui/instance.py`).
 | `newChat()` | slot | Show the window and start a new chat, through `Main.qml`'s `newChat()` |
 | `quit()` | slot | End Akira |
 
-The page: Settings, General, "Keep running when closed", with the toggle and
-Quit. The schedule's `next(j)` says "Waiting for the graphics card: …" for a
+The page: Settings, General, "Keep running when closed", with its toggle, and
+"Quit Akira". The schedule's `next(j)` says "Waiting for the graphics card: …" for a
 job with `waiting`.
+
+## Settings — a page at a time — 2026-10-02
+
+`SettingsSheet.qml` is a list of pages on the left (`Sheet.sidebar`) and one
+page on the right, at a fixed size so moving between pages does not resize it.
+Every setting is a `FormRow`: its name, one short line on what it does
+(`description`, shown again), and its control.
+
+| Page (`section`) | What is on it |
+|---|---|
+| `general` | Model status, Quick setup, Keep running when closed, Quit |
+| `appearance` | Theme, Reduce motion |
+| `models` | Claude Opus 5.5's key (opens `ClaudeSheet`), and a local model for each kind of work |
+| `voice` | `VoicePane.qml` (also the composer's microphone sheet, `VoiceSheet.qml`) |
+| `firmware` | ST's tools found or not, the two board permissions, and Look for boards (`Firmware`, below) |
+| `permissions` | `PermissionsPane.qml`, one group at a time (`group`), and Activity |
+| `accounts` | `AccountsPane.qml`: Google, Canvas, Banks |
+| `search` | `AccountsPane.qml` with `section: "search"` and `showSections: false` |
+| `location` | `PlacePane.qml` |
+| `chats` | Deleting old or all chats, asked first |
+
+- `show(id)` opens Settings on a page. Every "Permissions" button in the window
+  calls `settingsSheet.show("permissions")`; the Permissions, Place and
+  Accounts sheets are gone, their content now `PermissionsPane`, `PlacePane`
+  and `AccountsPane`.
+- **Only the page shown is made** (a `Loader`), so a half-typed token or key
+  goes with its page, and a pane's `active` follows Settings' `opened`, which
+  clears what was typed when Settings closes, as the sheets did.
+- The list is `settingsSections`, with `selected(id)`; its rows are
+  `settingsTab_<id>`, and Up and Down move along it.
+- Signals out: `setupRequested()`, `claudeRequested()`, `startCallRequested()`,
+  `showCallRequested()`; `Main.qml` closes Settings and opens the other.
+- Every capability's domain must be in one of `PermissionsPane.groups`; one
+  that was not could be allowed nowhere (the boards', Akira's own calendar and
+  cloud drives were not). A test checks it.
+
+## `Firmware` — ST's tools, and the boards plugged in — 2026-10-02
+
+| Name | Kind | What it is |
+|---|---|---|
+| `programmer`, `cubemx` | Property (notifies `toolsChanged`) | STM32_Programmer_CLI's path and STM32CubeMX's folder, or `""` |
+| `serial` | Property (notifies `toolsChanged`) | Whether pyserial is installed |
+| `refresh()` | Slot | Look for the tools again. Settings calls it on opening |
+| `scan()` | Slot → `str` | Look for ST-LINK probes and serial ports, off the UI thread. `""` once started, or why not: it needs `device.read`, and is recorded in the activity log either way |
+| `scanning`, `scanned`, `boards`, `ports`, `error` | Property (notifies `scanChanged`) | `boards`: `{serial, board, firmware}`; `ports`: `{name, description}`; `error` says what failed, keeping whatever was found |
+
+Nothing here writes to a board. Programming one is only `flash_firmware`, which
+asks every time.
 
 ## Not reachable yet
 
 - **Tools in the conversation.** `Chat` does not call tools on the model's
   behalf, and nothing typed into it changes a file. It does read, before each
-  turn, from the sources the person has granted (see `Chat` above).
+  turn, from the sources the person has granted (see `Chat` above), and an
+  answer can be handed to the software team with "Do it" (see `Chat`, "Do it").
 
 ## Changing the seam
 

@@ -116,6 +116,15 @@ CATALOGUE: dict[str, Capability] = {
         _c("shell.run", "Run commands",
            "Run programs and scripts on this computer.",
            Direction.WRITE, Risk.HIGH, ScopeKind.PATH, irreversible=True),
+        # Boards plugged in by USB: a Nucleo's ST-LINK, a serial port. Reading one
+        # changes nothing on it; programming one replaces the program it runs.
+        _c("device.read", "Read connected boards",
+           "See which boards are plugged in, read what they print, and read their "
+           "registers while they run.",
+           Direction.READ, Risk.LOW),
+        _c("device.write", "Program connected boards",
+           "Write a built program to a board, replacing the one on it.",
+           Direction.WRITE, Risk.MEDIUM, irreversible=True),
         # High, though it only reads: a screenshot shows whatever is open, and
         # that can be a password being typed or a bank balance.
         _c("screen.capture", "See your screen",

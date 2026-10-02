@@ -53,6 +53,10 @@ Window {
         id: setupSheet
         z: 11
     }
+    ClaudeSheet {
+        id: claudeSheet
+        z: 11
+    }
     function showCall() {
         if (callWindow.visibility === Window.Minimized) callWindow.showNormal();
         callWindow.visible = Qt.binding(function () { return Voice.inCall; });
@@ -111,7 +115,7 @@ Window {
         id: draftsSheet
         objectName: "draftsSheet"
         z: 12
-        onPermissionsRequested: { draftsSheet.close(); permissionsSheet.open(); }
+        onPermissionsRequested: { draftsSheet.close(); settingsSheet.show("permissions"); }
     }
 
     // -- sample state -------------------------------------------------------
@@ -261,6 +265,7 @@ Window {
     Connections {
         target: Chat
         function onSlowNoticed(message) { banners.show("Akira is writing slowly", message, false); }
+        function onCardBusy(message) { banners.show("The graphics card is busy", message, false); }
     }
     Connections {
         target: Chat
@@ -285,42 +290,19 @@ Window {
         id: settingsSheet
         objectName: "settingsSheet"
         z: 10
-        onPermissionsRequested: {
-            settingsSheet.close();
-            permissionsSheet.open();
-        }
         onSetupRequested: {
             settingsSheet.close();
             setupSheet.open();
         }
-        onPlaceRequested: {
+        onClaudeRequested: {
             settingsSheet.close();
-            placeSheet.open();
+            claudeSheet.open();
         }
-        onAccountsRequested: {
-            settingsSheet.close();
-            accountsSheet.open();
+        onStartCallRequested: {
+            if (Chat.busy || Agents.busy) return;
+            if (Voice.startCall()) { settingsSheet.close(); win.showCall(); }
         }
-        // Straight to the key: the Accounts sheet opens on Google, and Search
-        // was its fourth tab, which was not found.
-        onSearchRequested: {
-            settingsSheet.close();
-            accountsSheet.section = "search";
-            accountsSheet.open();
-        }
-        onVoiceRequested: { settingsSheet.close(); voiceSheet.open(); }
-    }
-
-    PermissionsSheet {
-        id: permissionsSheet
-        objectName: "permissionsSheet"
-        z: 11
-    }
-
-    PlaceSheet {
-        id: placeSheet
-        objectName: "placeSheet"
-        z: 11
+        onShowCallRequested: { settingsSheet.close(); win.showCall(); }
     }
 
     ProjectSheet {
@@ -330,24 +312,18 @@ Window {
         canSwitch: !Chat.busy && !Agents.busy && !Voice.inCall
     }
 
-    AccountsSheet {
-        id: accountsSheet
-        objectName: "accountsSheet"
-        z: 11
-    }
-
     ResearchSourceSheet { id: researchSource; objectName: "researchSourceSheet"; z: 50 }
     RunHistorySheet { id: runHistory; objectName: "runHistorySheet"; z: 12; onArtifactRequested: function (artifact) { artifactSheet.present(artifact); } }
     ArtifactSheet {
         id: artifactSheet; objectName: "artifactSheet"; z: 13
-        onPermissionsRequested: { artifactSheet.close(); runHistory.close(); permissionsSheet.open(); }
+        onPermissionsRequested: { artifactSheet.close(); runHistory.close(); settingsSheet.show("permissions"); }
     }
 
     CodeReviewSheet {
         id: codeReview
         objectName: "codeReviewSheet"
         z: 10
-        onPermissionsRequested: { codeReview.close(); permissionsSheet.open(); }
+        onPermissionsRequested: { codeReview.close(); settingsSheet.show("permissions"); }
     }
 
     // Above everything, sheets included: an irreversible action waits on it.
@@ -503,7 +479,7 @@ Window {
                 onNewProjectRequested: projectSheet.openNew()
                 onManageProjectRequested: projectSheet.manage(Projects.currentId)
                 onSidebarRequested: win.sidebarOpen = true
-                onPermissionsRequested: permissionsSheet.open()
+                onPermissionsRequested: settingsSheet.show("permissions")
                 onAppearanceRequested: ThemeBridge.toggle()
                 onSettingsRequested: settingsSheet.open()
             }
@@ -585,7 +561,7 @@ Window {
                     anchors.fill: parent
                     anchors.topMargin: 56
                     visible: win.currentNav === "schedule"
-                    onPermissionsRequested: permissionsSheet.open()
+                    onPermissionsRequested: settingsSheet.show("permissions")
                 }
 
                 MemoryView {
@@ -601,7 +577,7 @@ Window {
                     anchors.fill: parent
                     anchors.topMargin: 56
                     visible: win.currentNav === "documents"
-                    onPermissionsRequested: permissionsSheet.open()
+                    onPermissionsRequested: settingsSheet.show("permissions")
                 }
 
                 CalendarView {
@@ -609,7 +585,7 @@ Window {
                     anchors.fill: parent
                     anchors.topMargin: 56
                     visible: win.currentNav === "calendar"
-                    onPermissionsRequested: permissionsSheet.open()
+                    onPermissionsRequested: settingsSheet.show("permissions")
                     onSetupRequested: win.openSetup()
                 }
 
@@ -629,6 +605,15 @@ Window {
                     busyStage: Chat.stage
                     sources: Chat.lastSources
                     contextNote: Chat.lastContextNote
+                    canHandOff: Chat.canHandOff
+                    handOffFolder: Chat.handOffFolder
+                    handingOff: Chat.handingOff
+                    onHandOffRequested: function (folder) {
+                        const why = Chat.handOff(folder);
+                        if (why) banners.show("Not handed over", why, false);
+                    }
+                    onWatchRequested: win.selectWorkspace("agents")
+                    onStopHandOffRequested: Chat.stopHandOff()
                 }
 
                 CodeView {
@@ -654,7 +639,7 @@ Window {
                     visible: win.currentNav === "research"
                     onSourceRequested: function (error) { researchSource.present(error); }
                     onArtifactRequested: function (artifact) { artifactSheet.present(artifact); }
-                    onPermissionsRequested: permissionsSheet.open()
+                    onPermissionsRequested: settingsSheet.show("permissions")
                 }
 
                 Rectangle {
@@ -683,6 +668,13 @@ Window {
                     modes: Chat.modes
                     mode: Chat.mode
                     onModeSelected: function (id) { Chat.setMode(id); }
+                    models: Chat.models
+                    model: Chat.model
+                    onModelSelected: function (id) {
+                        const why = Chat.setModel(id);
+                        if (why === "key") claudeSheet.open();
+                        else if (why) banners.show("Model not changed", why, false);
+                    }
                     voiceAvailable: true
                     callActive: Voice.inCall
                     onVoiceRequested: {

@@ -32,6 +32,12 @@ Item {
     property string mode: "auto"
     signal modeSelected(string id)
 
+    /*! Which model answers: `id` and `label` each, and the one chosen. Shown
+        when there is more than one. */
+    property var models: []
+    property string model: "local"
+    signal modelSelected(string id)
+
     signal submitted(string text)
     signal stopped()
     signal attachRequested()
@@ -184,6 +190,15 @@ Item {
                 options: root.modes.map(function (m) { return { value: m.id, label: m.label }; })
                 current: root.mode
                 onPicked: function (value) { root.modeSelected(value); }
+            }
+            Select {
+                objectName: "chatModel"
+                visible: root.models.length > 1
+                Layout.preferredWidth: 160
+                label: "Model"
+                options: root.models.map(function (m) { return { value: m.id, label: m.label }; })
+                current: root.model
+                onPicked: function (value) { root.modelSelected(value); }
             }
             Text {
                 objectName: "chatIntentModel"

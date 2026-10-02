@@ -1,4 +1,4 @@
-"""Provider navigation and secret-field lifecycle in the real Accounts sheet."""
+"""Provider navigation and secret-field lifecycle in Settings' real Accounts page."""
 import os
 from pathlib import Path
 import subprocess
@@ -13,7 +13,7 @@ PROBE = r'''
 import sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from PySide6.QtCore import QObject, QMetaObject, Qt, QPoint, QPointF
+from PySide6.QtCore import QObject, QMetaObject, Qt, QPoint, QPointF, Q_ARG
 from PySide6.QtGui import QGuiApplication, QFontDatabase
 from PySide6.QtQml import QQmlEngine, QQmlExpression
 from PySide6.QtTest import QTest
@@ -28,9 +28,10 @@ warnings = []
 engine.warnings.connect(lambda items: warnings.extend(str(i) for i in items))
 win = load(engine, Path(sys.argv[1]) / 'akira/ui/qml/Main.qml')
 win.setWidth(900); win.setHeight(600); win.requestActivate(); QTest.qWait(70)
-sheet = win.findChild(QObject, 'accountsSheet')
-def invoke(name):
-    QMetaObject.invokeMethod(sheet, name, Qt.DirectConnection); QTest.qWait(60)
+settings = win.findChild(QObject, 'settingsSheet')
+def show():
+    QMetaObject.invokeMethod(settings, 'show', Q_ARG('QVariant', 'accounts')); QTest.qWait(80)
+    return win.findChild(QObject, 'accountsPane')
 def run(js):
     expression = QQmlExpression(QQmlEngine.contextForObject(sheet), sheet, js)
     result = expression.evaluate()
@@ -46,15 +47,15 @@ def enum_value(item, name):
     value, _ = expression.evaluate()
     assert not expression.hasError(), expression.error().toString()
     return value
-invoke('open')
+sheet = show()
 tabs = win.findChild(QObject, 'accountSections')
-click(tabs, .375)  # the middle of the second of four tabs: Canvas
-assert sheet.property('section') == 'canvas' and sheet.property('opened')
+click(tabs, .5)  # the middle of the second of three tabs: Canvas
+assert sheet.property('section') == 'canvas' and settings.property('opened')
 assert win.findChild(QObject, 'canvasConnection').property('visible')
 assert not win.findChild(QObject, 'googleConnection').property('visible')
 # Arrow keys use the actual segmented-control focus, and do not dismiss the sheet.
 QTest.keyClick(win, Qt.Key_Right); QTest.qWait(50)
-assert sheet.property('section') == 'banks' and sheet.property('opened')
+assert sheet.property('section') == 'banks' and settings.property('opened')
 assert win.findChild(QObject, 'bankConnection').property('visible')
 # Callback from another provider stays labelled and visible in the active tab.
 ctx.accounts.canvasFinished.emit(False, '<b>Canvas refused the token</b>')
@@ -70,10 +71,10 @@ for name in ['canvasToken', 'bankToken']:
     field = win.findChild(QObject, name)
     inputs = [child for child in field.findChildren(QObject) if child.metaObject().indexOfProperty('echoMode') >= 0]
     assert len(inputs) == 1 and enum_value(inputs[0], 'echoMode') == 2
-invoke('close')
+QMetaObject.invokeMethod(settings, 'close', Qt.DirectConnection); QTest.qWait(60)
 assert sheet.property('canvasToken') == '' and sheet.property('bankToken') == ''
 assert not ctx.accounts.busy and not ctx.accounts.bankConnecting and not ctx.accounts.canvasConnecting
-invoke('open')
+sheet = show()
 sheet.setProperty('notice', '')
 # Inspect theme/size variants, saved locally only when requested by the harness.
 out = Path(sys.argv[2]); out.mkdir(parents=True, exist_ok=True)
@@ -83,7 +84,7 @@ for mode in ['dark', 'light']:
         win.setWidth(width); win.setHeight(height)
         for section in ['google', 'canvas', 'banks']:
             sheet.setProperty('section', section); QTest.qWait(80)
-            assert sheet.property('opened')
+            assert settings.property('opened')
             assert tabs.mapToScene(QPointF(0, 0)).y() >= 0
             assert win.grabWindow().save(str(out / f'{mode}-{width}-{section}.png'))
 assert not warnings, '\n'.join(warnings)

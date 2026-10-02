@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls as C
+import QtQuick.Dialogs
 import QtQuick.Layouts
 
 /*!
@@ -39,6 +40,32 @@ Item {
     signal primaryActionRequested()
     property var sources: []
     property string contextNote: ""
+
+    /*! "Do it": the last answer can be handed to the software team, to carry
+        out in \c handOffFolder (or a folder chosen when that is ""), and
+        whether the team is at it now. */
+    property bool canHandOff: false
+    property string handOffFolder: ""
+    property bool handingOff: false
+    readonly property bool showHandOff: !root.busy && (root.canHandOff || root.handingOff)
+    signal handOffRequested(string folder)
+    signal watchRequested()
+    signal stopHandOffRequested()
+
+    function folderName(path) {
+        const parts = path.split(/[\\/]/).filter(function (p) { return p.length > 0; });
+        return parts.length ? parts[parts.length - 1] : path;
+    }
+
+    FolderDialog {
+        id: handOffFolderPicker
+        title: "The folder the work is for"
+        onAccepted: {
+            const text = selectedFolder.toString();
+            root.handOffRequested(decodeURIComponent(text.indexOf("file:///") === 0
+                                                     ? text.substring(8) : text));
+        }
+    }
 
     readonly property int columnWidth: 720
     readonly property int count: model ? model.count : 0
@@ -222,10 +249,66 @@ Item {
 
         footer: Item {
             width: list.width
-            height: root.busy ? 34 : 0
-            visible: root.busy
+            height: root.busy ? 34 : root.showHandOff ? handOff.implicitHeight + Theme.space.sm : 0
+            visible: root.busy || root.showHandOff
+
+            // -- "Do it", under the last answer ---------------------------------
+            RowLayout {
+                id: handOff
+                objectName: "handOffRow"
+                visible: root.showHandOff
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                width: Math.min(root.columnWidth, list.width - Theme.space.xxl * 2)
+                spacing: Theme.space.sm
+
+                // In line with the answer's text, past the mark beside it.
+                Item { Layout.preferredWidth: 32 + Theme.space.md - Theme.space.sm }
+
+                ActionButton {
+                    objectName: "handOffButton"
+                    visible: root.canHandOff
+                    text: root.handOffFolder ? "Do it" : "Do it in a folder…"
+                    icon: "team"
+                    kind: "primary"
+                    onClicked: {
+                        if (root.handOffFolder) root.handOffRequested("");
+                        else handOffFolderPicker.open();
+                    }
+                }
+                Icon {
+                    visible: root.handingOff
+                    name: "sparkle"
+                    size: 16
+                    color: Theme.accent
+                }
+                Text {
+                    objectName: "handOffNote"
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                    textFormat: Text.PlainText
+                    font: Theme.type.caption
+                    color: Theme.textSecondary
+                    text: root.handingOff ? "The software team is working on it."
+                          : root.handOffFolder
+                            ? "The software team makes these changes in " + root.folderName(root.handOffFolder) + ", asking before each one."
+                            : "Choose the folder this is for. The software team asks before each change."
+                }
+                ActionButton {
+                    visible: root.handingOff
+                    text: "Watch"
+                    onClicked: root.watchRequested()
+                }
+                ActionButton {
+                    objectName: "handOffStop"
+                    visible: root.handingOff
+                    text: "Stop"
+                    onClicked: root.stopHandOffRequested()
+                }
+            }
 
             RowLayout {
+                visible: root.busy
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.top: parent.top
                 anchors.topMargin: Theme.space.sm

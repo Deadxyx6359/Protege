@@ -115,7 +115,7 @@ ARCHITECT = AgentSpec(
     # A page the person names, such as a part's driver or datasheet, read as the
     # plan is made: asked for site by site, like any page.
     tools=("read_file", "list_directory", "search_files", "git_status", "git_log",
-           "fetch_page"),
+           "fetch_page", "stm32_pins", "find_vendor_names", "list_boards"),
     grounded=True,
     max_steps=6,
     temperature=0.3,
@@ -136,8 +136,12 @@ IMPLEMENTER = AgentSpec(
     route=SOFTWARE_ROUTE,
     # It may propose a commit and a push, as a person working in the repository
     # would; whether either happens is still the person's call, asked each time.
+    # For firmware, too: the chip's own names and pins, building, programming the
+    # board (asked every time), and reading it back, by its serial port or a register.
     tools=("read_file", "list_directory", "search_files", "write_file", "edit_file",
-           "check_syntax", "run_tests", "build_project", "git_commit", "git_push"),
+           "check_syntax", "run_tests", "build_project", "git_commit", "git_push",
+           "stm32_pins", "find_vendor_names", "generate_cubemx_code", "flash_firmware",
+           "read_serial", "read_register", "list_boards"),
     # Reading what is there, writing a file or two, editing main.c and the build,
     # building, and fixing what the build found: ten steps ran out halfway.
     max_steps=16,
@@ -157,7 +161,7 @@ REVIEWER = AgentSpec(
     route=SOFTWARE_ROUTE,
     # Read-only on purpose. See the module docstring.
     tools=("read_file", "list_directory", "search_files", "check_syntax",
-           "git_status", "git_diff"),
+           "git_status", "git_diff", "stm32_pins", "find_vendor_names"),
     grounded=True,
     max_steps=6,
     temperature=0.3,

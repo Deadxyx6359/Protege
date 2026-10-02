@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 
-// A consistent labelled setting, with its action or control on the right.
+// A labelled setting: its name, a line on what it does, and its control on the right.
 Item {
     id: root
     property string title: ""
@@ -24,6 +24,16 @@ Item {
             textFormat: Text.PlainText
             font: Theme.type.bodyStrong
             color: Theme.textPrimary
+            wrapMode: Text.Wrap
+        }
+        // One short line on what the setting does, in plain words.
+        Text {
+            Layout.fillWidth: true
+            visible: root.description !== ""
+            text: root.description
+            textFormat: Text.PlainText
+            font: Theme.type.caption
+            color: Theme.textSecondary
             wrapMode: Text.Wrap
         }
     }

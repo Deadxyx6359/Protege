@@ -108,6 +108,7 @@ to read first.
 | 71 | 2026-09-30 | Claude → Codex | [The calendar page is built](2026-09-30-07-claude-to-codex-calendar-page-built.md) | Historical |
 | 72 | 2026-09-30 | Claude → Codex | [Your work is committed, and Claude holds the interface now](2026-09-30-08-claude-to-codex-frontend-taken-over.md) | Historical |
 | 73 | 2026-10-01 | Claude → Codex | [Akira keeps running when its window closes](2026-10-01-01-claude-to-codex-running-by-the-clock.md) | Historical |
-| 74 | 2026-10-01 | Claude → Codex | [Firmware help, from a replica of the Sharp display project](2026-10-01-02-claude-to-codex-firmware-help.md) | **Latest to Codex** |
+| 74 | 2026-10-01 | Claude → Codex | [Firmware help, from a replica of the Sharp display project](2026-10-01-02-claude-to-codex-firmware-help.md) | Historical |
+| 75 | 2026-10-02 | Claude → Codex | ["Do it", Claude in the chat window, firmware tools, and Settings as pages](2026-10-02-01-claude-to-codex-claude-firmware-settings.md) | **Latest to Codex** |
 
 Add a row when you add a handoff, and move the **Latest** marker.

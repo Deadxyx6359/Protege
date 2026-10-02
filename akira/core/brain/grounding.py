@@ -369,15 +369,35 @@ class Grounder:
 
     def __init__(self, folders: Callable[[], list[Path]],
                  may_read: Callable[[Path], bool],
-                 index: HeaderIndex | None = None) -> None:
+                 index: HeaderIndex | None = None,
+                 projects: Callable[[], list[Path]] | None = None) -> None:
         self._folders = folders
         self._may_read = may_read
         self._index = index if index is not None else HeaderIndex()
+        # The open project's folder: its STM32CubeMX setup is the person's own.
+        self._projects = projects or (lambda: [])
+
+    def _setup(self) -> Path | None:
+        """The person's STM32CubeMX project file, at the top of the open project's
+        folder or of a library folder, where they allowed reading it."""
+        from akira.core.firmware import cubemx
+
+        for folder in [*self._projects(), *self._folders()]:
+            ioc = cubemx.project_file(folder)
+            if ioc is not None and self._may_read(ioc):
+                return ioc
+        return None
 
     def __call__(self, message: str, found: str = "") -> Grounding:
         """What is known for \a message; \a found is what the chat's search turned up."""
+        from akira.core.firmware import cubemx
+
         grounding = Grounding(teaching=teaching(message))
         subject = subject_of(message)
+        setup = self._setup() if subject is not None or _ABOUT_SETUP.search(message) else None
+        if subject is None and setup is not None:
+            # "Is my CubeMX setup right?" names no chip: the setup does.
+            subject = subject_of(cubemx.settings(setup).get("Mcu.UserName", ""))
         if subject is None:
             return grounding
         grounding.subject = subject
@@ -399,7 +419,13 @@ class Grounder:
         pins = pin_facts.facts(grounding.board, grounding.chip,
                                pin_facts.pins_named(message, grounding.board), topics)
         wired = pin_facts.wiring(message, grounding.board, grounding.chip)
-        for part in (pins, wired):
+        described = cubemx.summary(setup) if setup is not None else ""
+        if described:
+            grounding.documented = True
+            described += ("\nWhen asked about this setup, judge it against what the "
+                          "person wants to do, and say plainly which settings are right and "
+                          "which are not.")
+        for part in (described, pins, wired):
             if part:
                 grounding.reference += "\n\n" + part
         return grounding
@@ -531,6 +557,11 @@ def _closest(name: str, known: set[str]) -> list[str]:
     pool = [k for k in known if k.lstrip("_").startswith(stem)] or \
            [k for k in known if _first(k) == _first(name)]
     return difflib.get_close_matches(name, pool, n=2, cutoff=0.55)
+
+
+#: A message about the person's STM32CubeMX setup, which names no chip.
+_ABOUT_SETUP = re.compile(r"\bcube\s?mx\b|\.ioc\b|\bmy (?:pin ?out|pins|project'?s? (?:setup|"
+                          r"config|pins|clock))\b", re.IGNORECASE)
 
 
 # -- teaching -----------------------------------------------------------------------------------

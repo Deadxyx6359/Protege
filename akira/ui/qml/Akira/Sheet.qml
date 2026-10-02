@@ -26,6 +26,9 @@ Item {
 
     property int sheetWidth: 640
     property int sheetMaxHeight: Math.round(parent ? parent.height * 0.82 : 600)
+    /*! A height to keep whatever is shown, up to `sheetMaxHeight`; -1 to fit the
+        content. Settings keeps one, so moving between its pages does not resize it. */
+    property int sheetHeight: -1
 
     readonly property bool opened: _open
 
@@ -33,6 +36,11 @@ Item {
     /*! What stays below the content, however far it scrolls: a sheet's own buttons.
         In a window 700 high, Quick setup's "Allow these" was below the fold. */
     property alias footer: footerRow.data
+    /*! A column on the left that does not scroll with the content: Settings' list of
+        pages. Empty, the content takes the whole width. */
+    property alias sidebar: sidebarSlot.data
+    property int sidebarWidth: 200
+    readonly property bool _hasSidebar: sidebarSlot.children.length > 0
 
     property bool _open: false
     property var returnFocus: null
@@ -143,9 +151,10 @@ Item {
         width: Math.min(root.sheetWidth, root.width - Theme.space.xxl * 2)
         // Both of the content's margins, top and bottom: counting one left
         // every sheet short by the other and cut off its last row.
-        height: Math.min(root.sheetMaxHeight,
-                         header.height + Theme.space.lg + body.implicitHeight + Theme.space.xl
-                         + footerArea.height)
+        height: root.sheetHeight >= 0 ? Math.min(root.sheetMaxHeight, root.sheetHeight)
+                : Math.min(root.sheetMaxHeight,
+                           header.height + Theme.space.lg + body.implicitHeight + Theme.space.xl
+                           + footerArea.height)
 
         scale: root._open ? 1.0 : 0.96
         y: root._open ? 0 : Theme.space.lg
@@ -222,12 +231,35 @@ Item {
             }
         }
 
+        // -- the side column: Settings' pages -------------------------------------
+
+        Item {
+            id: sidebarArea
+            anchors.top: header.bottom
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            width: root._hasSidebar ? root.sidebarWidth : 0
+            visible: root._hasSidebar
+            Item {
+                id: sidebarSlot
+                anchors.fill: parent
+            }
+            Rectangle {
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.right: parent.right
+                width: 1
+                color: Theme.separator
+                z: 1
+            }
+        }
+
         // -- content ----------------------------------------------------------
 
         C.ScrollView {
             id: contentScroll
             anchors.top: header.bottom
-            anchors.left: parent.left
+            anchors.left: sidebarArea.right
             anchors.right: parent.right
             anchors.bottom: footerArea.top
             anchors.margins: Theme.space.xl
@@ -248,7 +280,7 @@ Item {
 
         Item {
             id: footerArea
-            anchors.left: parent.left
+            anchors.left: sidebarArea.right
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             anchors.leftMargin: Theme.space.xl
